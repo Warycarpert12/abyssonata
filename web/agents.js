@@ -894,7 +894,7 @@ export class Ecosystem {
   update(dt, s) {
     let events = this._out; this._out = [];
     this.tEval -= dt;
-    if (this.tEval <= 0) { this.tEval = 3.0; this._manage(s); events = events.concat(this._out); this._out = []; }
+    if (this.tEval <= 0) { this.tEval += 3.0; this._manage(s); events = events.concat(this._out); this._out = []; }
     for (const p of this.pods) p.step(dt, s);
     for (const p of this.orcaPods) p.step(dt);
     for (const a of this.agents) events = events.concat(a.step(dt, s));

@@ -9,17 +9,25 @@
 """
 import json
 import os
+import re
 import shutil
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 WAV, MP3, SITE = (os.path.join(BASE, d) for d in ("samples", "samples_mp3", "_site"))
 
 
+def categories():
+    """Категории записей, которые знает страница, — из CATEGORIES в web/audio.js (v20: раньше импорт web_bridge,
+    которого нет в репозитории — сборка падала у любого, кто положит свои WAV)."""
+    src = open(os.path.join(BASE, "web", "audio.js"), encoding="utf-8").read()
+    m = re.search(r"const CATEGORIES = \[(.*?)\];", src, re.S)
+    return re.findall(r"'([a-z_]+)'", m.group(1))
+
+
 def compress():
     import soundfile as sf
-    from web_bridge import SAMPLE_CATEGORIES      # категории, которые знает страница
     n = 0
-    for cat in SAMPLE_CATEGORIES:
+    for cat in categories():
         src, dst = os.path.join(WAV, cat), os.path.join(MP3, cat)
         if not os.path.isdir(src):
             continue

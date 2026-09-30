@@ -533,7 +533,7 @@ class Critter extends Agent {
     if (this.species === 'crab') {
       // в дневную жару краб сидит в норке («Ghost crab»)
       if (s.daylight > 0.7 && _warm(s) > 0.6 && Math.random() < 0.004 * dt) {
-        this.hide = rnd(30, 60); this.state = 'hide';
+        this.hide = rnd(30, 60); this.state = 'hide'; this.relate(null);
         out.push(this.ev(this.species, `${this.label} спрятался от жары в норку`, 0.2, 2.0, 'hide')); return out;
       }
       // медуза на песке того же берега — подбирается к ней
@@ -584,11 +584,11 @@ class Critter extends Agent {
       return out;
     }
     if (s.daylight < 0.15 && Math.random() < 0.02 * dt) {
-      this.mode = 'sleep'; this.state = 'sleep';
+      this.mode = 'sleep'; this.state = 'sleep'; this.relate(null);
       out.push(this.ev(this.species, `${this.label} уснула, забившись под уступ рифа`, 0.2, 2.0, 'sleep')); return out;
     }
     if (s.daylight > 0.6 && _warm(s) > 0.4 && _calm(s) > 0.6 && Math.random() < 0.0015 * dt) {
-      this.mode = 'bask'; this.state = 'bask'; this.modeT = rnd(60, 120);
+      this.mode = 'bask'; this.state = 'bask'; this.modeT = rnd(60, 120); this.relate(null);
       out.push(this.ev(this.species, `${this.label} выползла на пляж погреться на солнце`, 0.2, 2.0, 'bask')); return out;
     }
     this.tBreath -= dt;
@@ -621,6 +621,8 @@ class Shark extends Agent {
     const big = this.eco.agents.find(a => !a.done && a.state !== 'leave' && ((a.species === 'whale' && a.state === 'surface') || a.species === 'orca') && Math.abs(a.x - this.x) < 0.6);
     if (big) return out.concat(this.leave(true));
     if (this.life <= 0) return out.concat(this.leave());
+    const prey = this.rel && this.eco.agents.find(a => a.uid === this.rel);
+    if (prey?.species === 'sea_lion' && prey.away <= 0) this.relate(null);   // v20: лев выбрался на берег
     // v19 («Great white shark»): караулит у берега, где морской лев ушёл купаться, — лев замечает и выскакивает на берег
     this.tStalk -= dt;
     const lion = this.tStalk <= 0 && this.eco.agents.find(a => a.species === 'sea_lion' && a.away > 0 && !a.done && Math.abs(a.x - this.x) < 0.7);
@@ -755,7 +757,7 @@ export class Ecosystem {
   startleShore(x) {
     for (const a of this.agents)
       if (a.species === 'crab' && a.state === 'stay' && a.hide <= 0 && Math.abs(a.x - x) < 0.2 && Math.random() < 0.3) {
-        a.hide = rnd(12, 30); a.state = 'hide';
+        a.hide = rnd(12, 30); a.state = 'hide'; a.relate(null);
         this._out.push(a.ev('crab', `${a.label} юркнул в норку от птицы`, 0.2, 2.0, 'hide'));
       }
   }

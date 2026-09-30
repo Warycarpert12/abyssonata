@@ -359,7 +359,8 @@ export class OceanAudio {
         const env = ctx.createGain(), a = rrand(.02, .05) * (1 - i / n * .5);
         env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(a, t + len * .3); env.gain.linearRampToValueAtTime(0, t + len);
         src.connect(env); out(env, t, t + len, rrand(-.9, .9), rrand(-.9, .9));
-        src.start(t, Math.min(buf.duration - .2, at + rrand(-.2, .2) + (Math.random() < .5 ? 0 : i * .03))); src.stop(t + len + .05);
+        // v20: позиция не меньше 0 — отрицательная роняла start() (RangeError) и с ним весь update() кадра: мир терял события
+        src.start(t, Math.max(0, Math.min(buf.duration - .2, at + rrand(-.2, .2) + (Math.random() < .5 ? 0 : i * .03)))); src.stop(t + len + .05);
       }
       return;
     }

@@ -897,7 +897,7 @@ export class Ecosystem {
     if (this._out.length) { events = events.concat(this._out); this._out = []; }
     this.agents = this.agents.filter(a => !a.done);
     // связи (v19): истекают по времени или когда партнёр ушёл
-    const ids = new Set(this.agents.filter(a => a.state !== 'leave').map(a => a.uid));
+    const ids = new Set(this.agents.map(a => a.uid));   // v20: и уходящие — «схватил краба» иначе не доходило до картинки
     for (const a of this.agents) if (a.rel && ((a.relT -= dt) <= 0 || !ids.has(a.rel))) a.relate(null);
     if (this.feed && ((this.feed.t -= dt) <= 0 || this.feed.a.done || this.feed.a.state === 'leave')) this.feed = null;
     this.pods = this.pods.filter(p => !p.done); this.orcaPods = this.orcaPods.filter(p => !p.done);

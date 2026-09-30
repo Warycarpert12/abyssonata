@@ -1769,13 +1769,17 @@ export class Visual {
     let pitch = 0, roll = 0;
     if (o.sp === 'cormorant' && o.st === 'dry' && !o.gone) {
       // v14: сушит крылья — стоит на камне у кромки, крылья раскинуты и чуть подрагивают, смотрит в сторону моря
-      if (!o.perch) { const e = shoreAt(0, o.ang0, .5); o.perch = new V3(e.x - e.dx * 2, 0, e.z - e.dz * 2); o.perch.y = groundAt(o.perch.x, o.perch.z, .4) + (this.assets?.gull_dark?.h ?? 1) * .5; o.perchH = Math.atan2(e.dx, e.dz); }
+      // v20: стоит вертикально, крылья раскрыты в стороны почти горизонтально (раньше — тело лёжа, крылья вверх «V»:
+      // выглядел как птица, застывшая в полёте над песком)
+      if (!o.perch) { const e = shoreAt(0, o.ang0, .5); o.perch = new V3(e.x - e.dx * 2, 0, e.z - e.dz * 2); o.perch.y = groundAt(o.perch.x, o.perch.z, .4) + (this.assets?.gull_dark?.span ?? 1.4) * .42; o.perchH = Math.atan2(e.dx, e.dz); }
       ob.position.lerp(o.perch, 1 - Math.exp(-dt * 1.5));
       if (ob.position.distanceTo(o.perch) < 2) {
-        if (o.flap) o.flap.value = .42 + Math.sin(o.t * 3) * .04;
+        if (o.flap) o.flap.value = .06 + Math.sin(o.t * 3) * .025;
         o.heading += Math.atan2(Math.sin(o.perchH - o.heading), Math.cos(o.perchH - o.heading)) * (1 - Math.exp(-dt * 2));
-        ob.rotation.set(0, 0, 0); ob.rotateY(o.heading); ob.rotateX(-.35); return;
+        o.upK = Math.min(1, (o.upK ?? 0) + dt);   // выпрямляется за секунду
+        ob.rotation.set(0, 0, 0); ob.rotateY(o.heading); ob.rotateX(-.35 - .85 * o.upK); return;
       }
+      o.upK = 0;
     } else if (BIRDS.has(o.sp) && o.sp !== 'pelican') {
       o.perch = null;
       // v12 «резвее»: не ровный круг, а петли и восьмёрки с меняющимся радиусом и скоростью, набор высоты взмахами,

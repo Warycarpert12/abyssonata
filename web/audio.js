@@ -79,6 +79,7 @@ export class OceanAudio {
     this.prox = 0;              // 0..1 — насколько камера близко к острову (ставит main.js из visual.proximity())
     this.nature = 1;            // полоска «Природа» (0..1): общая громкость всех звуков мира (v11)
     this.music = .49;           // полоска «Музыка» (v14): абстрактный слой (_abstract), квадрат положения полоски
+    this.eager = false;         // v20: true — загрузить все записи при старте (qa/_qa_replay, _qa_audio)
     this.info = new WeakMap();  // буфер -> { rms, on: [секунды «вступлений»] } (см. analyse); список буферов -> медиана rms
   }
 
@@ -144,8 +145,16 @@ export class OceanAudio {
     this._buildRain();
     this._buildInsects();
     this.ready = true;
-    // остальное (плеск, птицы, киты...) подгружаем лениво по первому событию — не тормозим старт
-    for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) this._loadCategory(c);
+    // остальное (плеск, птицы, киты...) — лениво, по первому звуку этой категории (_bufs). v20: раньше всё качалось
+    // сразу после входа (~25 МБ), хотя комментарий обещал «лениво». eager — для проверочных страниц сверки с эталоном
+    if (this.eager) await Promise.all(CATEGORIES.map(c => this._loadCategory(c)));
+  }
+
+  // записи категории для звука «сейчас»: если категория ещё грузится (первый раз) — ждём не дольше 1.5 с, иначе этот
+  // звук пропускаем (опоздавший звук не совпал бы с картинкой); следующие звучат как обычно
+  async _bufs(cat) {
+    if (this.buffers[cat]) return this.buffers[cat];
+    return Promise.race([this._loadCategory(cat), new Promise(r => setTimeout(() => r(null), 1500))]);
   }
 
   async _loadCategory(cat) {
@@ -307,8 +316,8 @@ export class OceanAudio {
     const sp = SPEC[e.type]; if (!sp) return;
     if (e.delay) await new Promise(r => setTimeout(r, e.delay * 1000));
     const [cat, r0, r1, a0, a1, l0, l1, atk, rel] = sp;
-    const bufs = this.buffers[cat] || await this._loadCategory(cat);
-    if (!bufs.length) return;
+    const bufs = await this._bufs(cat);
+    if (!bufs?.length) return;
     const dist = e.distance ?? .5, voice = e.agent ? (e.voice || e.agent) : 0;
     const n = (cat === 'splash' && e.intensity > .6 && Math.random() < .4) ? 2 : 1;
     for (let i = 0; i < n; i++) {
@@ -379,8 +388,8 @@ export class OceanAudio {
   // разовый «местный» звук от картинки (кузнечик прыгнул рядом с камерой): cat — папка, pan01/dist — от камеры
   async playLocal(cat, pan01 = .5, dist = 0, amp = .06, rate = 1) {
     if (!this.ready) return;
-    const bufs = this.buffers[cat] || await this._loadCategory(cat);
-    if (!bufs.length) return;
+    const bufs = await this._bufs(cat);
+    if (!bufs?.length) return;
     const rec = this.recent[cat] || [], pool = bufs.filter(b => !rec.includes(b)), buf = choice(pool.length ? pool : bufs);
     this.recent[cat] = [...rec, buf].slice(-Math.max(1, bufs.length - 1));   // v12: не одна и та же запись подряд
     const [off, len] = this._window(buf, cat);

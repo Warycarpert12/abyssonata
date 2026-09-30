@@ -82,8 +82,19 @@ export class OceanAudio {
     this.info = new WeakMap();  // буфер -> { rms, on: [секунды «вступлений»] } (см. analyse); список буферов -> медиана rms
   }
 
-  async start() {
-    if (this.ready) return;
+  // v20: повторное нажатие «Войти» после ошибки создавало второй AudioContext (первый так и висел), двойное — два
+  // сразу. Теперь один запуск за раз; при ошибке контекст закрывается и следующая попытка начинает с чистого листа
+  start() {
+    if (this.ready) return Promise.resolve();
+    this._starting ??= this._start().catch(async e => {
+      try { await this.ctx?.close(); } catch { /* уже закрыт */ }
+      this.ctx = null; this.buffers = {}; this._loading = {};
+      throw e;
+    }).finally(() => { this._starting = null; });
+    return this._starting;
+  }
+
+  async _start() {
     // latencyHint 'playback' (v12): звуковой буфер побольше — меньше риск «заиканий» звука, когда видеокарта/процессор
     // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна
     const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });

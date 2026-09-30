@@ -35,11 +35,13 @@ def compress():
         names = {f[:-4] for f in os.listdir(src) if f.lower().endswith(".wav")}
         for b in names:
             w, m = os.path.join(src, b + ".wav"), os.path.join(dst, b + ".mp3")
-            if os.path.exists(m) and os.path.getmtime(m) >= os.path.getmtime(w):
+            mt = os.path.getmtime(w)
+            if os.path.exists(m) and os.path.getmtime(m) == mt:   # v20: MP3 помечен датой своего WAV
                 continue
             data, sr = sf.read(w)
             # ponytail: VBR ~64 кбит/с моно — на слух как WAV для природных звуков; поднять compression_level, если мало
             sf.write(m, data, sr, format="MP3", bitrate_mode="VARIABLE", compression_level=0.3)
+            os.utime(m, (mt, mt))
             n += 1
         for f in os.listdir(dst):   # копии удалённых записей
             if f.endswith(".mp3") and f[:-4] not in names:

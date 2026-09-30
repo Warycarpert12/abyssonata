@@ -70,7 +70,8 @@ const gate = document.querySelector('#gate');
 // v18: телефон — на весь экран. Браузер разрешает это только по нажатию: при входе в океан и кнопкой #fs, которая
 // появляется, когда телефон повёрнут горизонтально, а полноэкранного режима нет (сам поворот нажатием не считается).
 // На iPhone Safari полноэкранного режима для страниц нет — там кнопки не будет (выход — «На экран Домой»)
-const phone = matchMedia('(pointer: coarse)').matches, fsBtn = document.getElementById('fs');
+const app = !!window.Capacitor;   // v20: внутри APK — уже на весь экран (apk.yml), полноэкранный API там не работает
+const phone = matchMedia('(pointer: coarse)').matches && !app, fsBtn = document.getElementById('fs');
 const fsOn = () => document.fullscreenElement || document.webkitFullscreenElement;
 const goFull = () => {
   const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;

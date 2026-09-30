@@ -7,5 +7,8 @@
 
 **Открыть:** https://warycarpert12.github.io/ocean-murmur/ → «Войти в океан» (лучше в наушниках).
 
+**Android:** [OceanMurmur.apk](https://github.com/Warycarpert12/ocean-murmur/releases/latest/download/OceanMurmur.apk) — всё внутри, интернет не нужен
+(при установке телефон попросит разрешить установку из этого источника).
+
 - Звуки — CC0 / public domain (авторы — `samples_mp3/*/CREDITS.txt`), 3D-модели — CC0 и CC-BY (`web/models/CREDITS.txt`).
 - Сборка: `python build_site.py` → `_site/` (на GitHub собирается и публикуется сам, `.github/workflows/pages.yml`).

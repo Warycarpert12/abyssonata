@@ -102,7 +102,7 @@ class Bird extends Agent {
   _gap(rng) { return rng ? rnd(rng[0], rng[1]) * this.talk : 1e9; }
   leave(text = null) {
     if (this.state === 'leave') return [];
-    this.state = 'leave'; this.side = this.x >= 0 ? 1 : -1;
+    this.pending = []; this.state = 'leave'; this.side = this.x >= 0 ? 1 : -1;
     // v20: ведомые пеликаны улетают вместе с ведущим
     for (const f of this.eco.agents) if (f !== this && f.rel === this.uid && f.rk === 'flock') this.eco._out = this.eco._out.concat(f.leave());
     return [this.ev(`${this.species}_leave`, text || `${this.label} ${this.w('улетел')}`, 0.2, 3.0, 'leave')];
@@ -274,7 +274,7 @@ class Whale extends Agent {
   }
   leave() {
     if (this.state === 'leave') return [];
-    this.state = 'leave';
+    this.pending = []; this.state = 'leave';
     return [this.ev('whale_leave', `${this.label} ушёл в открытое море`, 0.2, 3.0, 'leave')];
   }
   step(dt, s) {
@@ -349,7 +349,7 @@ class SeaLion extends Agent {
   }
   leave() {
     if (this.state === 'leave') return [];
-    this.state = 'leave'; this.tGone = 20.0;
+    this.pending = []; this.state = 'leave'; this.tGone = 20.0;
     return [this.ev('sea_lion_leave', `${this.label} соскользнул в воду и уплыл`, 0.2, 3.0, 'leave')];
   }
   step(dt, s) {
@@ -487,7 +487,7 @@ class Critter extends Agent {
   }
   leave(text = null) {
     if (this.state === 'leave') return [];
-    this.state = 'leave'; this.tGone = 8.0;   // пара секунд — картинке уплыть/спрятаться
+    this.pending = []; this.state = 'leave'; this.tGone = 8.0;   // пара секунд — картинке уплыть/спрятаться
     return [this.ev(`${this.species}_leave`, `${this.label} ${text || (this.stranded ? 'смыло волной обратно в море' : this.c.gone)}`, 0.2, 2.0, 'leave')];
   }
   // крупный хищник рядом (акула, косатка; с pods — и охотящиеся дельфины)
@@ -609,7 +609,7 @@ class Shark extends Agent {
   }
   leave(flee = false) {
     if (this.state === 'leave') return [];
-    this.state = 'leave';
+    this.pending = []; this.state = 'leave';
     return [flee ? this.ev('shark_flee', `${this.label} испугалась и ушла на глубину`, 0.3, 3.0, 'flee')
                  : this.ev('shark_leave', `${this.label} ушла в открытое море`, 0.2, 3.0, 'leave')];
   }
@@ -707,7 +707,7 @@ class Ship extends Agent {
   }
   leave() {
     if (this.state === 'leave') return [];
-    this.state = 'leave'; this.tGone = 30.0;
+    this.pending = []; this.state = 'leave'; this.tGone = 30.0;
     return [this.ev('ship_leave', `${this.label} скрылся за горизонтом`, 0.1, 3.0, 'leave')];
   }
   step(dt) {

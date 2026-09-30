@@ -1,0 +1,36 @@
+# APK для Android (Capacitor): весь сайт и звуки — внутри приложения, интернет не нужен.
+# Запуск: вручную (Actions → apk → Run workflow) или тегом v* — тогда APK ещё и выкладывается в Releases
+name: apk
+on:
+  workflow_dispatch:
+  push: { tags: ['v*'] }
+permissions: { contents: write }
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: python3 build_site.py
+      - name: Capacitor → проект Android
+        run: |
+          npm init -y > /dev/null
+          npm i @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "Ocean Murmur" io.github.warycarpert12.oceanmurmur --web-dir _site
+          npx cap add android
+          # океан задуман горизонтальным и на весь экран
+          sed -i 's/<activity/<activity android:screenOrientation="sensorLandscape"/' android/app/src/main/AndroidManifest.xml
+          sed -i 's|\(<style name="AppTheme.NoActionBar"[^>]*>\)|\1<item name="android:windowFullscreen">true</item>|' android/app/src/main/res/values/styles.xml
+          npx cap sync android
+      - run: cd android && ./gradlew assembleDebug --no-daemon -q
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk OceanMurmur.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: OceanMurmur-apk, path: OceanMurmur.apk }
+      - if: startsWith(github.ref, 'refs/tags/')
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: >
+          gh release create "${{ github.ref_name }}" OceanMurmur.apk --title "Ocean Murmur ${{ github.ref_name }}"
+          --notes "APK для Android (интернет не нужен). Установка: скачать OceanMurmur.apk на телефон, открыть, разрешить установку из этого источника."

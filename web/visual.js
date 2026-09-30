@@ -198,8 +198,10 @@ vec3 stipple(vec3 c, vec3 p, vec3 n, float land, float k) {
 const VOICES = new Set(['seagull', 'tern', 'cormorant', 'albatross', 'dolphin', 'whale', 'sea_lion', 'jump_splash', 'dive_splash', 'flying_fish', 'whale_lunge']);
 // v19: связь из симуляции (agents.js relate): на каком расстоянии от партнёра держится зверь ('to') и не ближе какого
 // уходит ('from'), м
-const REL_R = { seagull: 4, tern: 4, cormorant: 4, albatross: 7, pelican: 3, sea_lion: 5, shark: 9, whale: 16, orca: 14, crab: .9, octopus: 1.2, sea_turtle: 3 };
+const REL_R = { seagull: 4, tern: 4, cormorant: 4, albatross: 7, pelican: 3, sea_lion: 5, shark: 9, whale: 16, orca: 14, crab: 1.4, octopus: 1.2, sea_turtle: 3 };
 const FLEE_R = 32;
+// v20: «личное пространство» на суше и у кромки (м): крабы сидели друг в друге, две выброшенные медузы — одна в другой
+const LAND_R = { crab: .55, starfish: .45, jellyfish: .8 };
 const CLEAR = { whale: 3, orca: 1.1, dolphin: .5, shark: .6, sea_turtle: .4, jellyfish: .4, stingray: .15 };   // полвысоты тела над дном
 // «личное пространство» в воде (м, по горизонтали) и какая глубина нужна под брюхом — см. Visual._separate
 const SWIM_R = { dolphin: 1.2, orca: 2.2, whale: 10, shark: 3.5, sea_lion: 1.8, pelican: 1.6, jellyfish: 1.6, sea_turtle: 2.2, stingray: 2.5 };
@@ -1916,7 +1918,8 @@ export class Visual {
       if (o.wig) { o.wig.t.value += dt * (going && o.st !== 'hide' ? 16 : 1.5); o.wig.a.value = going ? 1 : .3;
         o.wig.b.value = claws ? Math.PI / 2 : o.wig.b.value + dt * (act('snap', 3) || act('drum', 3) ? 14 : 2.3); }
       const p = base.clone().addScaledVector(side, run);
-      if (islandH(p.x, p.z) < .1) p.copy(base);   // v19: пробежка вдоль кромки не заходит в воду
+      if (o.landOff) p.add(o.landOff);   // v20: отодвинут соседями
+      if (islandH(p.x, p.z) < .1) { p.copy(base); o.landOff?.multiplyScalar(.9); }   // v19: пробежка вдоль кромки не заходит в воду
       ob.position.x += (p.x - ob.position.x) * (1 - Math.exp(-dt * 4)); ob.position.z += (p.z - ob.position.z) * (1 - Math.exp(-dt * 4));
       ob.position.y += ((o.st === 'hide' || o.gone ? base.y : groundAt(ob.position.x, ob.position.z, .3)) - ob.position.y) * (1 - Math.exp(-dt * 5));
       ob.rotation.set(0, Math.atan2(out.x, out.z), 0); return;
@@ -1928,6 +1931,7 @@ export class Visual {
       if (!act('crawl', 12)) o.crawlTo = null;
       o.off ??= new V3(); if (o.crawlTo) o.off.lerp(o.crawlTo, 1 - Math.exp(-dt * .25));
       const p = (o.sp === 'octopus' ? base.clone().add(new V3(Math.cos(o.t * .08 + o.seed) * .8, 0, Math.sin(o.t * .08 + o.seed) * .8)) : base.clone()).add(o.off);
+      if (o.sp === 'starfish' && o.landOff) p.add(o.landOff);   // v20: отодвинута соседками
       if (o.sp === 'octopus' && islandH(p.x, p.z) > -.6) p.set(base.x, 0, base.z);   // v19: на крутом склоне островка вылезал из воды
       p.y = islandH(p.x, p.z) + (base.y - islandH(base.x, base.z));
       ob.position.lerp(p, 1 - Math.exp(-dt * 2));
@@ -2092,6 +2096,18 @@ export class Visual {
     for (const o of this.agents.values()) {
       const c = CLEAR[o.sp]; if (c === undefined || landed(o)) continue;
       const p = o.obj.position, g = islandH(p.x, p.z) + c; if (p.y < g) p.y = g;
+    }
+    // v20: на суше — крабы, морские звёзды, медузы на песке. Толчок копится в o.landOff (не больше 2.5 м), к нему
+    // прибавляется точка зверя в _stepAgent: иначе каждый кадр зверь снова тянулся в свою точку и «влезал» в соседа
+    const ld = [...this.agents.values()].filter(o => !o.gone && LAND_R[o.sp] && (o.sp !== 'jellyfish' || o.st === 'stranded') && o.st !== 'hide');
+    for (let i = 0; i < ld.length; i++) for (let j = i + 1; j < ld.length; j++) {
+      const A = ld[i], B = ld[j], a = A.obj.position, b = B.obj.position, dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz) || 1e-3;
+      const over = LAND_R[A.sp] + LAND_R[B.sp] - d; if (over <= 0) continue;
+      const k = over * .5 / d * (1 - Math.exp(-dt * 6)), ux = dx * k, uz = dz * k;
+      for (const [o, p, s] of [[A, a, -1], [B, b, 1]]) {
+        p.x += s * ux; p.z += s * uz;
+        const L = (o.landOff ||= new V3()); L.x += s * ux; L.z += s * uz; if (L.length() > 2.5) L.setLength(2.5);
+      }
     }
     // лев на суше — не пловец: его не расталкиваем
     const sw = [...this.agents.values()].filter(o => SWIM_R[o.sp] && !(o.sp === 'sea_lion' && !o.wet) && !landed(o));

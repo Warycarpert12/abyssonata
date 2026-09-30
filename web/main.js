@@ -38,7 +38,7 @@ world.onState(m => visual.onState(m));
 world.onEvent(m => visual.onEvent(m));
 world.onState(m => { if (audio.ready) audio.update(m); });
 // звук события — из той же точки, где его видно на экране (сторона/дальность относительно камеры)
-world.onEvent(m => { if (audio.ready) audio.onEvent({ ...m, ...visual.spatial(m) }); });
+world.onEvent(m => { if (audio.ready) audio.onEvent({ ...m, ...visual.spatial(m) }).catch(e => console.warn('звук события:', e)); });
 
 // местные звуки от картинки: плеск (рифовая рыбка, прыжки из воды), стрекот кузнечика, звуки при приближении
 // (бульки, треск креветок, щёлканье краба) — из той точки, где это видно; k — насколько близко (1 — вплотную)
@@ -47,7 +47,7 @@ const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shri
 visual.onLocalSound = (cat, pos, k = 1) => {
   if (!audio.ready) return;
   const sp = visual.spatialAt(pos), [amp, rate] = LOCAL[cat] || [.05, 1];
-  audio.playLocal(cat, sp.panorama, sp.distance, amp * k, rate);
+  audio.playLocal(cat, sp.panorama, sp.distance, amp * k, rate).catch(e => console.warn('местный звук:', e));
 };
 
 const qs = new URLSearchParams(location.search);

@@ -11,8 +11,13 @@ import json
 import os
 import re
 import shutil
+import sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+try:
+    sys.stdout.reconfigure(encoding="utf-8")   # v20: русский вывод в любой консоли
+except AttributeError:
+    pass
 WAV, MP3, SITE = (os.path.join(BASE, d) for d in ("samples", "samples_mp3", "_site"))
 
 
@@ -32,9 +37,10 @@ def compress():
         if not os.path.isdir(src):
             continue
         os.makedirs(dst, exist_ok=True)
-        names = {f[:-4] for f in os.listdir(src) if f.lower().endswith(".wav")}
+        wavs = {f[:-4]: f for f in os.listdir(src) if f.lower().endswith(".wav")}   # имя без расширения -> настоящее имя файла
+        names = set(wavs)
         for b in names:
-            w, m = os.path.join(src, b + ".wav"), os.path.join(dst, b + ".mp3")
+            w, m = os.path.join(src, wavs[b]), os.path.join(dst, b + ".mp3")
             mt = os.path.getmtime(w)
             if os.path.exists(m) and os.path.getmtime(m) == mt:   # v20: MP3 помечен датой своего WAV
                 continue
@@ -52,6 +58,8 @@ def compress():
 
 
 def build():
+    if not os.path.isdir(MP3):
+        sys.exit("нет samples_mp3/ — сначала положите WAV в samples/ (или скачайте проект целиком)")
     shutil.rmtree(SITE, ignore_errors=True)
     shutil.copytree(os.path.join(BASE, "web"), SITE, ignore=shutil.ignore_patterns("_qa*", "test_*.mjs"))
     shutil.copytree(MP3, os.path.join(SITE, "samples"))

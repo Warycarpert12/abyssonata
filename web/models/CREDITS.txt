@@ -1,0 +1,32 @@
+3D-модели (web/models/). Все скачаны с poly.pizza, лицензия указана на странице каждой модели.
+В сцене материалы моделей перекрашиваются в единый стиль (MeshLambert, плоское затенение) — visual.js: _restyle().
+
+CC0 1.0 (Public Domain), автор Quaternius:
+  dolphin.glb  — "Dolphin"    https://poly.pizza/m/3LzFgI3GLO  (анимация Swim)
+  whale.glb    — "Whale"      https://poly.pizza/m/JGFwp6xWgk  (анимация Swim)
+  fish.glb     — "Fish"       https://poly.pizza/m/XWl86YFtpF  (анимация Swim)
+  palm_1.glb   — "Palm Tree"  https://poly.pizza/m/A6cKJYFsIb
+  palm_2.glb   — "Palm Tree"  https://poly.pizza/m/DsrrAYmucG
+  palm_3.glb   — "Palm Tree"  https://poly.pizza/m/P0tgwyXBgr
+  shark.glb    — "Shark"      https://poly.pizza/m/YYsK3gRCBZ  (анимации Swim / Swim_Fast / Swim_Bite)
+  stingray.glb — "Manta ray"  https://poly.pizza/m/yzD8b7ZHZm  (скат, v11)
+  rock_1/2/4.glb — "Rock"     https://poly.pizza/m/OQvi8PIZ40, /m/RtLRqYjfMs, /m/4MUaQTcDdc
+                  (с v6 не используются — остров теперь процедурный рельеф; оставлены на диске)
+
+CC-BY 3.0, автор Poly by Google — ТРЕБУЕТСЯ указание автора (сделано: #credits внизу страницы).
+Разрешено пользователем 22.09.2026 (CC0-вариантов этих животных не нашлось).
+  gull.glb      — "Flying seagull"  https://poly.pizza/m/6Tpj_vcWP3f  (чайка, крачка, альбатрос)
+  gull_dark.glb — "Flying gull"     https://poly.pizza/m/eMNhHDZakYp  (баклан)
+  pelican.glb   — "Brown pelican"   https://poly.pizza/m/2oAiRa4fave
+  sea_lion.glb  — "Sea lion"        https://poly.pizza/m/45HRvXYpvUG
+  orca.glb      — "Killer Whale"    https://poly.pizza/m/7pqZEQ9b_E-
+  jellyfish.glb — "Jellyfish"       https://poly.pizza/m/dA5osnS0Rzj   (v11)
+  octopus.glb   — "Octopus"         https://poly.pizza/m/9-b6-yqrwEe   (v11)
+  starfish.glb  — "Starfish"        https://poly.pizza/m/6H-0K9IEr56   (v11)
+  crab.glb      — "Crab"            https://poly.pizza/m/2DgM36qZW2u   (v11)
+  turtle.glb    — "Turtle"          https://poly.pizza/m/fklSEvGm1Q8   (морская черепаха, v11)
+CC-BY 3.0, автор angelo raffaele Catalano — ТРЕБУЕТСЯ указание автора (#credits):
+  shrimp.glb    — "shrimp"          https://poly.pizza/m/fZwM-PXohV6   (рой креветок, v11)
+  Лицензия: https://creativecommons.org/licenses/by/3.0/
+
+Не использованы (не CC0 и не нужны): 4TpBWdzKDf2 "Rock" (Danni Bittman, CC-BY 3.0), 3a0ubCurnwU "basic stone 3" (felix stief, CC-BY 3.0).

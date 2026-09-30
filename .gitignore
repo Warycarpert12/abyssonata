@@ -1,0 +1,11 @@
+# v19: в открытый репозиторий — только сайт. Заметки (CLAUDE.md, AGENTS.md, CHANGELOG.md — там домашняя сеть),
+# WAV-записи, рендеры и скрипты колонки остаются на ПК
+/*
+!/.gitignore
+!/.github/
+!/web/
+!/samples_mp3/
+!/build_site.py
+!/README.md
+!/BEHAVIOR.md
+/web/_qa*

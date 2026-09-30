@@ -1,0 +1,12 @@
+684188.ogg | whale song | muri_kuri | CC0 | https://freesound.org/people/muri_kuri/sounds/684188/
+171945.ogg | LowWhalesong.wav | RebekahDay | CC0 | https://freesound.org/people/RebekahDay/sounds/171945/
+88449.ogg | Baleines.wav | davidou | CC0 | https://freesound.org/people/davidou/sounds/88449/
+458626.ogg | Whale.wav | claretcanelon | CC0 | https://freesound.org/people/claretcanelon/sounds/458626/
+653612.ogg | [ MPooman ] Whale Sounds (High Quality) | MPooman | CC0 | https://freesound.org/people/MPooman/sounds/653612/
+533985.ogg | Thar'she blows | kaekhor | CC0 | https://freesound.org/people/kaekhor/sounds/533985/
+Humpback_whale_moo.ogg | Humpback whale moo.ogg | Wikimedia Commons | Public domain | https://commons.wikimedia.org/wiki/File:Humpback_whale_moo.ogg
+Humpback_whale_wheezeblow.ogg | Humpback whale wheezeblow.ogg | Wikimedia Commons | Public domain | https://commons.wikimedia.org/wiki/File:Humpback_whale_wheezeblow.ogg
+Humpbackwhale2.ogg | Humpbackwhale2.ogg | Wikimedia Commons | CC0 | https://commons.wikimedia.org/wiki/File:Humpbackwhale2.ogg
+cw_1.ogg → cw_akhumphi1x_00.wav, cw_akhumphi1x_01.wav, cw_akhumphi1x_02.wav, cw_akhumphi1x_03.wav | Akhumphi1x.ogg (humpback whale, Alaska, NOAA) | Wikimedia Commons | Public domain | https://commons.wikimedia.org/wiki/File:Akhumphi1x.ogg
+cw_3.ogg → cw_minke.wav | Atlantic minke whale call.ogg (NOAA) | Wikimedia Commons | Public domain | https://commons.wikimedia.org/wiki/File:Atlantic_minke_whale_call.ogg
+504772.ogg (превью HQ ogg через API) → fs504772_00.wav, fs504772_01.wav, fs504772_02.wav, fs504772_03.wav | only whales wav | memnosis | CC0 | https://freesound.org/people/memnosis/sounds/504772/

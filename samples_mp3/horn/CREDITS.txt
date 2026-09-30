@@ -1,0 +1,6 @@
+bsb_0261.wav | Ocean Liner Horn #1 (Horn of a ship 1) | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/horn-of-a-ship-1-s0261.html
+bsb_0262.wav | Ocean Liner Horn #2 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/search?q=boat+horn
+bsb_3507.wav | Ocean Liner Horn #3 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ocean-liner-horn-3-s3507.html
+bsb_3508.wav | Ocean liner horn #4 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/search?q=boat+horn
+48 кГц моно, выровнены по громкости (−20 дБ RMS, пик −2 дБ). Перекодированы на ПК (soundfile), колонка была недоступна.
+Гудок далёкого парохода на горизонте (v13).

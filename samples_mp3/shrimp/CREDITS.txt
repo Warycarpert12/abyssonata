@@ -1,0 +1,5 @@
+bsb_0230.wav | Sparkling water | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/sparkling-water-s0230.html
+bsb_0117.wav | Glass of soda | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/glass-of-soda-s0117.html
+Шипение-треск пузырьков похоже на хор щёлкающих креветок; в audio.js играется выше и через фильтр. v11.
+v14: bsb_0230/bsb_0117 (газировка как заменитель креветок) перенесены в samples/unused — теперь есть настоящая гидрофонная запись щелкунов (fs630436)
+630436.ogg (превью HQ ogg через API) → fs630436_00.wav, fs630436_01.wav, fs630436_02.wav, fs630436_03.wav, fs630436_04.wav, fs630436_05.wav | Underwater crackling sounds_Hydrophone.wav | KaleidacousticsAudio | CC0 | https://freesound.org/people/KaleidacousticsAudio/sounds/630436/

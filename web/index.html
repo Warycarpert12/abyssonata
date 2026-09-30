@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1715">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>Ocean Murmur</title>
+<style>
+/* палитра интерфейса (пользователь, 22.09.2026, «In color balance»): глубокий сине-зелёный, шалфей, светлая бирюза,
+   туманно-серый, серо-голубой. Хроматическая аберрация по краям текста/рамок + крошечная линза под курсором (ui в main.js) */
+:root {
+  --p1: #3f5e57; --p2: #6a8a80; --p3: #92bfbd; --p4: #d3dcd3; --p5: #718a8e;
+  --bg: #0e1715; --ink: var(--p4); --dim: var(--p5); --line: rgba(146,191,189,.28); --cyan: var(--p3); --amber: #d8c79a; --red: #c49385;
+  --panel: rgba(146,191,189,.10);           /* стекло: почти прозрачное, цвет даёт сцена под ним */
+  --panel-edge: rgba(211,220,211,.32);
+  --ca: -.5px 0 rgba(255,120,120,.30), .5px 0 rgba(120,225,255,.30);
+  --ca-box: -1px 0 0 rgba(255,120,120,.16), 1px 0 0 rgba(120,225,255,.16);
+  --glass: blur(16px) saturate(150%) brightness(1.06);
+  --glass-in: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(255,255,255,.10), 0 6px 22px rgba(0,0,0,.25);
+  --font: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+  font-family: var(--font); text-transform: uppercase; letter-spacing: .06em; overflow: hidden; }
+main { position: relative; height: 100%; display: grid; place-items: center; }
+
+/* сцена на весь экран */
+#stage { position: absolute; inset: 0; background: #000; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#gl:active { cursor: grabbing; }
+#flash { position: absolute; inset: 0; background: #eaf3ff; opacity: 0; pointer-events: none; }
+
+/* время суток: 4 кнопки */
+#tod { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 8px; z-index: 5; }
+#tod button { font: inherit; text-transform: uppercase; letter-spacing: .1em; font-size: 11px; color: var(--p4);
+  background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 14px; padding: 9px 18px; cursor: pointer;
+  transition: border-color .2s, background .2s, transform .2s; text-shadow: var(--ca);
+  box-shadow: var(--ca-box), var(--glass-in); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+#tod button:hover { border-color: rgba(211,220,211,.6); color: #fff; transform: translateY(-1px); }
+#tod button.active { background: rgba(146,191,189,.45); color: #17251f; border-color: rgba(211,220,211,.75); text-shadow: none; }
+
+/* панели */
+.panel { position: absolute; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 16px; padding: 13px 17px; font-size: 13px;
+  text-shadow: var(--ca); box-shadow: var(--ca-box), var(--glass-in); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
+  transition: background .25s; }
+.panel:hover { background: rgba(146,191,189,.16); }
+.panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--p3); letter-spacing: .14em;
+  border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+#hud { left: 18px; top: 18px; width: 300px; }
+#hud .row { display: grid; grid-template-columns: 96px 1fr 64px; gap: 10px; align-items: center; margin: 7px 0; }
+#hud .row.txt { grid-template-columns: 96px 1fr; }
+#hud .k { color: var(--p5); }
+#hud .v { text-align: right; color: var(--p4); }
+.bar { height: 3px; background: rgba(211,220,211,.12); position: relative; }
+.bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--p3); width: 0%; transition: width .5s linear; }
+.bar.warm > i { background: var(--p2); } .bar.act > i { background: var(--p4); } .bar.ten > i { background: var(--red); }
+#log { right: 18px; bottom: 18px; width: 380px; }
+#log ul { list-style: none; margin: 0; padding: 0; }
+#log li { display: grid; grid-template-columns: 50px 1fr; gap: 8px; padding: 3px 0; color: #b8c7c2; font-size: 12px; line-height: 1.25; }
+#log li time { color: var(--p5); }
+#log li.new { color: #fff; }
+#census { left: 18px; bottom: 18px; width: 300px; font-size: 12px; line-height: 1.7; color: #b8c7c2; }
+#census b { color: var(--p4); font-weight: 600; margin-right: 12px; }
+/* v13: строка обитателя нажимается — камера подлетает к зверю и следует за ним (повторно — следующая особь) */
+#census .cs { cursor: pointer; border-radius: 7px; padding: 0 7px; margin: 0 -7px; transition: background .2s; }
+#census .cs:hover { background: rgba(211,220,211,.12); }
+#census .cs.on { background: rgba(146,191,189,.24); }
+/* громкость (v11): «Природа» — все звуки мира, «Музыка» — на будущее (пока не играет) */
+#vol { right: 18px; top: 18px; width: 250px; }
+#vol .row { display: grid; grid-template-columns: 74px 1fr 34px; gap: 10px; align-items: center; margin: 7px 0; }
+#vol .k { color: var(--p5); } #vol .v { text-align: right; color: var(--p4); }
+#vol input[type=range] { width: 100%; accent-color: var(--p3); height: 14px; background: transparent; cursor: pointer; }
+#vol .row.off { opacity: .45; } #vol .row.off input { cursor: default; }
+
+#credits { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); font-size: 9px; color: rgba(211,220,211,.5); z-index: 5; pointer-events: none; white-space: nowrap; }
+/* подсказка при наведении на существо */
+#tip { position: fixed; z-index: 40; padding: 4px 10px; border-radius: 10px; background: rgba(146,191,189,.16); backdrop-filter: var(--glass); color: #eef4ee; font-size: 12px; text-shadow: var(--ca);
+  border: 1px solid var(--panel-edge); box-shadow: var(--glass-in); pointer-events: none; opacity: 0; transition: opacity .12s; transform: translate(-50%, -130%); white-space: nowrap; }
+#tip.show { opacity: 1; }
+
+/* гейт входа: звук в браузере требует жеста пользователя (клика) */
+#gate { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 42%, #2a3f3a 0%, #0e1715 78%); transition: opacity .8s ease; }
+#gate.hidden { opacity: 0; pointer-events: none; }
+#gate-card { text-align: center; }
+#gate-card h1 { margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: .18em; color: var(--p4); text-shadow: var(--ca); }
+#gate-card p { margin: 0 0 26px; font-size: 12px; color: var(--p5); letter-spacing: .1em; }
+#gate-btn { font: inherit; text-transform: uppercase; letter-spacing: .14em; font-size: 13px; color: #eef4ee;
+  background: rgba(146,191,189,.22); border: 1px solid var(--panel-edge); border-radius: 18px; padding: 15px 36px; cursor: pointer;
+  backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
+  box-shadow: 0 0 40px 4px rgba(146,191,189,.18), var(--ca-box), var(--glass-in); transition: transform .2s, background .2s; }
+#gate-btn:hover { background: rgba(146,191,189,.34); transform: translateY(-1px); }
+#gate-btn:active { transform: translateY(1px); }
+#gate-err { margin: 16px 0 0; font-size: 11px; color: var(--red); max-width: 320px; letter-spacing: .04em; text-transform: none; }
+
+/* v14: телефоны и любые экраны (16:9, 21:9, 4:3). Сцена всегда на весь экран (раньше на узком экране панели уезжали
+   под сцену в прокрутку). Панель сворачивается нажатием на заголовок; на низком экране (телефон горизонтально) панели
+   компактные, «Состояние» и «Журнал» сразу свёрнуты (main.js). Отступы учитывают вырез экрана (safe-area) */
+html, body { height: 100dvh; overscroll-behavior: none; }
+.panel h2 { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.panel h2::after { content: '–'; float: right; color: var(--p5); margin-left: 10px; }
+.panel.min h2::after { content: '+'; }
+.panel.min > :not(h2) { display: none !important; }   /* !important: у строк «Состояния» свой display: grid по id */
+.panel.min h2 { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }
+#hud, #census { margin-left: env(safe-area-inset-left); } #vol, #log { margin-right: env(safe-area-inset-right); }
+@media (max-height: 560px), (max-width: 760px) {
+  .panel { padding: 8px 11px; font-size: 10.5px; border-radius: 12px; }
+  .panel h2 { font-size: 10px; margin-bottom: 5px; padding-bottom: 4px; }
+  #hud { left: 10px; top: 10px; width: 212px; } #hud .row { grid-template-columns: 70px 1fr 46px; gap: 6px; margin: 3px 0; }
+  #hud .row.txt { grid-template-columns: 70px 1fr; }
+  #vol { right: 10px; top: 10px; width: 184px; } #vol .row { grid-template-columns: 56px 1fr 26px; gap: 6px; margin: 3px 0; }
+  #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: 48dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
+  #log { right: 10px; bottom: 10px; width: 250px; } #log li { font-size: 10px; grid-template-columns: 38px 1fr; }
+  #log ul { max-height: 30dvh; overflow: hidden; }
+  #tod { bottom: 10px; gap: 5px; } #tod button { padding: 6px 10px; font-size: 9.5px; border-radius: 11px; }
+  #credits { display: none; }
+}
+@media (max-aspect-ratio: 4/3) and (min-height: 561px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 230px; } }
+/* телефон вертикально — просим повернуть (океан задуман широким) */
+#rotate { display: none; }
+@media (orientation: portrait) and (max-width: 900px) {
+  #rotate { display: grid; position: fixed; inset: 0; z-index: 60; place-items: center; text-align: center; padding: 24px;
+    background: radial-gradient(circle at 50% 42%, #2a3f3a 0%, #0e1715 78%); color: var(--p4); }
+  #rotate p { margin: 22px auto 6px; max-width: 86vw; font-size: 12px; letter-spacing: .08em; line-height: 1.5; text-shadow: var(--ca); }
+  #rotate small { font-size: 10px; color: var(--p5); letter-spacing: .1em; }
+  #rotate .phone { width: 44px; height: 76px; margin: 0 auto; border: 2px solid var(--p3); border-radius: 9px; box-shadow: 0 0 22px rgba(146,191,189,.35);
+    animation: turn 2.4s ease-in-out infinite; }
+}
+/* v18: телефон (сенсорный экран) — «жидкое стекло» едва заметное: слабое размытие, без цветной каймы у текста, линзы
+   под пальцем нет (main.js) — иначе текст и панели «плыли» */
+@media (pointer: coarse) {
+  :root { --glass: blur(4px) saturate(115%); --ca: none; --ca-box: 0 0 0 transparent; --panel: rgba(14,23,21,.42); }
+  .panel:hover { background: var(--panel); }
+}
+/* v18: кнопка «На весь экран» — телефон горизонтально, а полноэкранного режима нет (браузер включает его только по нажатию) */
+#fs { display: none; position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 55; font: inherit; text-transform: uppercase;
+  letter-spacing: .12em; font-size: 11px; color: #eef4ee; background: rgba(146,191,189,.3); border: 1px solid var(--panel-edge); border-radius: 14px;
+  padding: 9px 18px; margin-top: env(safe-area-inset-top); cursor: pointer; backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
+  box-shadow: 0 0 24px rgba(146,191,189,.3); }
+#fs.show { display: block; }
+@keyframes turn { 0%, 25% { transform: rotate(0); } 55%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+</style>
+</head>
+<body>
+<main>
+  <div id="stage">
+    <canvas id="gl"></canvas>
+    <div id="flash"></div>
+    <div id="tod">
+      <button data-tod=".02">Ночь</button>
+      <button data-tod=".28">Утро</button>
+      <button data-tod=".5">День</button>
+      <button data-tod=".72">Вечер</button>
+    </div>
+  </div>
+
+  <section id="hud" class="panel">
+    <h2>ОКЕАН · СОСТОЯНИЕ</h2>
+    <div class="row txt"><span class="k">Погода</span><span id="v-weather" class="v" style="text-align:left">—</span></div>
+    <div class="row txt"><span class="k">Время</span><span id="v-time" class="v" style="text-align:left">--:--</span></div>
+    <div class="row"><span class="k">Ветер</span><div class="bar"><i id="b-wind"></i></div><span id="v-wind" class="v">—</span></div>
+    <div class="row"><span class="k">Волна</span><div class="bar"><i id="b-wave"></i></div><span id="v-wave" class="v">—</span></div>
+    <div class="row"><span class="k">Темп.</span><div class="bar warm"><i id="b-temp"></i></div><span id="v-temp" class="v">—</span></div>
+    <div class="row"><span class="k">Активность</span><div class="bar act"><i id="b-act"></i></div><span id="v-act" class="v">—</span></div>
+    <div class="row"><span class="k">Напряжение</span><div class="bar ten"><i id="b-ten"></i></div><span id="v-ten" class="v">—</span></div>
+  </section>
+
+  <section id="census" class="panel"><h2>ОБИТАТЕЛИ</h2><div id="census-body">—</div></section>
+  <section id="vol" class="panel">
+    <h2>ГРОМКОСТЬ</h2>
+    <div class="row"><label class="k" for="vol-nature">Природа</label><input id="vol-nature" type="range" min="0" max="100" value="100"><span id="v-nature" class="v">100</span></div>
+    <div class="row" title="Абстрактный слой: искажённое «эхо» звуков мира, как в мурмур"><label class="k" for="vol-music">Музыка</label><input id="vol-music" type="range" min="0" max="100" value="70"><span id="v-music" class="v">70</span></div>
+  </section>
+  <section id="log" class="panel"><h2>ЖУРНАЛ СОБЫТИЙ</h2><ul id="log-list"></ul></section>
+  <div id="tip"></div>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <!-- жидкое стекло: карта линзы (feImage) едет за курсором, лёгкая «рябь» (feTurbulence) делает край текучим -->
+    <filter id="lens" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB" primitiveUnits="userSpaceOnUse">
+      <feFlood flood-color="rgb(128,128,128)" result="neutral"/>
+      <feImage id="lens-map" x="0" y="0" width="150" height="150" preserveAspectRatio="none" result="bump"/>
+      <feComposite in="bump" in2="neutral" operator="over" result="map"/>
+      <feTurbulence id="lens-noise" type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="3" result="turb"/>
+      <feDisplacementMap in="map" in2="turb" scale="10" xChannelSelector="R" yChannelSelector="G" result="wobbly"/>
+      <feGaussianBlur in="wobbly" stdDeviation="3" result="soft"/>
+      <feDisplacementMap in="SourceGraphic" in2="soft" scale="26" xChannelSelector="R" yChannelSelector="G" result="lensed"/>
+      <feSpecularLighting in="soft" surfaceScale="2.5" specularConstant="0.7" specularExponent="22" lighting-color="#ffffff" result="spec">
+        <fePointLight x="0" y="0" z="90" id="lens-light"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="lensed" operator="in" result="specIn"/>
+      <feComposite in="specIn" in2="lensed" operator="over"/>
+    </filter>
+  </svg>
+</main>
+
+<button id="fs">⛶ На весь экран</button>
+<div id="rotate"><div><div class="phone"></div><p>Поверните телефон горизонтально</p><small>океан задуман для широкого экрана</small></div></div>
+
+<div id="gate">
+  <div id="gate-card">
+    <h1>Ocean Murmur</h1>
+    <p>Звук играет прямо здесь, в браузере</p>
+    <button id="gate-btn">Войти в океан</button>
+  </div>
+</div>
+
+<script type="importmap">{ "imports": { "three": "./three.module.min.js", "three/addons/": "./three-addons/" } }</script>
+<script type="module" src="main.js"></script>
+<div id="credits">3D: Quaternius (CC0) · чайки, пеликан, морской лев, косатка, медуза, осьминог, звёзды, краб, черепаха — Poly by Google; креветка — angelo raffaele Catalano (CC-BY 3.0)</div>
+</body>
+</html>

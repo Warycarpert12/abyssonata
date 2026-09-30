@@ -1,0 +1,14 @@
+bsb_0150.wav | Water bubbles | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/water-bubbles-s0150.html
+bsb_0183.wav | Water bubble 2 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/water-bubble-2-s0183.html
+bsb_3560.wav | Fermentation airlock 1 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/fermentation-airlock-1-s3560.html
+bsb_3561.wav | Fermentation airlock 2 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/fermentation-airlock-2-s3561.html
+Первые 7 с каждой записи, 48 кГц моно, loudnorm. Бульки у медузы и осьминога при приближении камеры (v11).
+3562.mp3 → bsb_3562_00.wav, bsb_3562_01.wav, bsb_3562_02.wav | Fermentation airlock #3 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/UPLOAD/mp3/3562.mp3
+539823.ogg (превью HQ ogg через API) → fs539823.wav | Bubbles 001.wav | ristooooo1 | CC0 | https://freesound.org/people/ristooooo1/sounds/539823/
+529383.ogg (превью HQ ogg через API) → fs529383_00.wav, fs529383_01.wav, fs529383_02.wav | Bubbles In Water | calebrankin | CC0 | https://freesound.org/people/calebrankin/sounds/529383/
+119937.ogg (превью HQ ogg через API) → fs119937.wav | Water Bubbling.aif | ftpalad | CC0 | https://freesound.org/people/ftpalad/sounds/119937/
+464187.ogg (превью HQ ogg через API) → fs464187_00.wav, fs464187_01.wav | burbujas_bubbles.wav | JavierSerrat | CC0 | https://freesound.org/people/JavierSerrat/sounds/464187/
+460100.ogg (превью HQ ogg через API) → fs460100.wav | bubbles | jeremy123 | CC0 | https://freesound.org/people/jeremy123/sounds/460100/
+533147.ogg (превью HQ ogg через API) → fs533147.wav | Bubbling | mattfinarelli | CC0 | https://freesound.org/people/mattfinarelli/sounds/533147/
+585259.ogg (превью HQ ogg через API) → fs585259_00.wav, fs585259_01.wav, fs585259_02.wav | Air bubbles underwater, recorded from surface, gurgle, released from a hollow pot.wav | breiti | CC0 | https://freesound.org/people/breiti/sounds/585259/
+384218.ogg (превью HQ ogg через API) → fs384218_00.wav, fs384218_01.wav, fs384218_02.wav | Underwater recording of aquatic movement, bubbles and drops. | felix.blume | CC0 | https://freesound.org/people/felix.blume/sounds/384218/

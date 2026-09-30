@@ -1888,6 +1888,7 @@ export class Visual {
       // телепортировался в воду), высота сглажена — в воду соскальзывает плавно, у кромки всплеск; в воде ложится
       // на живот (наклон вперёд) и гребёт (волна по телу и ласты, _wiggle) — над водой голова и спина
       const onLand = (o.st === 'stay' || o.st === 'arrive') && !o.gone;
+      if (onLand && o.landOff) base.add(o.landOff);   // v20: отодвинут соседом по берегу
       const dv2 = new V3(base.x - ob.position.x, 0, base.z - ob.position.z), dist = dv2.length();
       const step = (groundAt(ob.position.x, ob.position.z, 1.2) > -.3 ? 1.4 : 3) * dt;
       if (dist > step) ob.position.addScaledVector(dv2, step / dist); else { ob.position.x = base.x; ob.position.z = base.z; }
@@ -1986,7 +1987,7 @@ export class Visual {
       // «всплыла подышать» — поднимается к поверхности, «опустилась на дно» — ложится и почти не гребёт
       const still = (o.st === 'bask' || o.st === 'sleep') && !o.gone;   // v19: греется на пляже / спит под уступом рифа
       o.ta = (o.ta ?? o.seed) + dt * (act('rest', 30) || still ? 0 : .12);
-      const a = o.ta, p = still ? base.clone() : base.clone().add(new V3(Math.cos(a) * 6, 0, Math.sin(a) * 6));
+      const a = o.ta, p = still ? base.clone().add(o.st === 'bask' && o.landOff ? o.landOff : new V3()) : base.clone().add(new V3(Math.cos(a) * 6, 0, Math.sin(a) * 6));
       if (!still) p.y = base.y + Math.pow(Math.max(0, Math.sin(o.t * .09 + o.seed)), 6) * 1.15;
       if (act('breathe', 9) && !still) p.y = -.25;
       if (act('rest', 30) && !still) p.y = islandH(ob.position.x, ob.position.z) + .5;

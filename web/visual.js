@@ -1468,7 +1468,7 @@ export class Visual {
     else if (o.sp === 'whale') o.model = add('whale');
     else if (o.sp === 'shark') {
       o.model = add('shark');
-      const mx = o.mixers.at(-1), cl = this.assets.shark.clips, pick = re => cl.find(c => re.test(c.name));
+      const mx = o.mixers.at(-1), cl = this.assets.shark?.clips || [], pick = re => cl.find(c => re.test(c.name));   // v20: модель могла не загрузиться
       if (mx) o.acts = { swim: mx.existingAction(pick(/(^|\|)swim$/i)), bite: pick(/bite/i) && mx.clipAction(pick(/bite/i)), fast: pick(/fast/i) && mx.clipAction(pick(/fast/i)) };
     }
     else if (o.sp === 'orca') o.model = add('orca');

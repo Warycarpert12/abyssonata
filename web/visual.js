@@ -1958,10 +1958,10 @@ export class Visual {
         // сильнее; появляется на месте, проявляясь за ~2 с, и расталкивается с соседями (landOff)
         o.flat = true; o.flatK = Math.min(1, (o.flatK ?? 0) + dt * .5);
         const q = base.clone(); if (o.landOff) q.add(o.landOff);
-        const sy = .14 * o.flatK, bx = this.assets?.jellyfish?.box;
+        const sy = .07 * o.flatK, bx = this.assets?.jellyfish?.box;
         q.y = groundAt(q.x, q.z, .4) + .02 - (bx ? bx.min.y * sy : 0);
         ob.position.lerp(q, 1 - Math.exp(-dt * 4));
-        if (o.model) o.model.scale.set(o.flatK, sy, o.flatK);
+        if (o.model) o.model.scale.set(.9 * o.flatK, sy, .9 * o.flatK);
         if (o.wig) o.wig.a.value = 0;
         for (const m of o.mats || []) m.emissiveIntensity = .5 + (1 - (this._day ?? 1)) * .5;
         if (o.halo) o.halo.material.opacity = .08 + (1 - (this._day ?? 1)) * .2;

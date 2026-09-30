@@ -103,6 +103,8 @@ class Bird extends Agent {
   leave(text = null) {
     if (this.state === 'leave') return [];
     this.state = 'leave'; this.side = this.x >= 0 ? 1 : -1;
+    // v20: ведомые пеликаны улетают вместе с ведущим
+    for (const f of this.eco.agents) if (f !== this && f.rel === this.uid && f.rk === 'flock') this.eco._out = this.eco._out.concat(f.leave());
     return [this.ev(`${this.species}_leave`, text || `${this.label} ${this.w('улетел')}`, 0.2, 3.0, 'leave')];
   }
   _call(act = 'call') { return this.c.call ? this.callEvent(`${this.label} ${choice(this.c.says)}`, act) : []; }
@@ -797,10 +799,10 @@ export class Ecosystem {
     };
     for (const sp of Object.keys(targets)) {
       const tgt = targets[sp];
-      let n = this.count(sp);
+      let n = sp === 'pelican' ? this.agents.filter(a => a.species === sp && a.state !== 'leave' && !a.done && a.rk !== 'flock').length : this.count(sp);   // v20: пеликаны — по группам
       while (n < tgt && (instant || Math.random() < 0.5)) { this._spawnBird(sp, instant); n += 1; if (!instant) break; }
       if (n > tgt && Math.random() < 0.5) {
-        const cand = this.agents.filter(a => a.species === sp && a.state !== 'leave' && !a.done);
+        const cand = this.agents.filter(a => a.species === sp && a.state !== 'leave' && !a.done && a.rk !== 'flock');
         if (cand.length) this._out = this._out.concat(choice(cand).leave());
       }
     }

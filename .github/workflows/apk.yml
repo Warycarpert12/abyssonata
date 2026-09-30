@@ -24,6 +24,7 @@ jobs:
           # океан задуман горизонтальным и на весь экран
           sed -i 's/<activity/<activity android:screenOrientation="sensorLandscape"/' android/app/src/main/AndroidManifest.xml
           sed -i 's|\(<style name="AppTheme.NoActionBar"[^>]*>\)|\1<item name="android:windowFullscreen">true</item>|' android/app/src/main/res/values/styles.xml
+          grep -q sensorLandscape android/app/src/main/AndroidManifest.xml && grep -q windowFullscreen android/app/src/main/res/values/styles.xml || { echo 'правка шаблона Android не применилась'; exit 1; }
           npx cap sync android
       - run: cd android && ./gradlew assembleDebug --no-daemon -q
       - run: cp android/app/build/outputs/apk/debug/app-debug.apk OceanMurmur.apk

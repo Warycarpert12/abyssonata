@@ -18,7 +18,7 @@ jobs:
       - name: Capacitor → проект Android
         run: |
           npm init -y > /dev/null
-          npm i @capacitor/core @capacitor/cli @capacitor/android
+          npm i @capacitor/core@8.5.2 @capacitor/cli@8.5.2 @capacitor/android@8.5.2   # проверенная версия
           npx cap init "Ocean Murmur" io.github.warycarpert12.oceanmurmur --web-dir _site
           npx cap add android
           # океан задуман горизонтальным и на весь экран

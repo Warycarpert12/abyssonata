@@ -223,6 +223,8 @@ class Pod {
     } else {
       this.x += this.vx * dt * (this.mode === 'play' ? 0.3 : this.mode === 'rest' ? 0.15 : this.mode === 'guard' ? 1.6 : 1.0);
     }
+    if (this.leaving) this.mode = 'travel';   // v20: уходящая стая плывёт, а не отдыхает/играет
+    else if (Math.abs(this.x) > 0.9 && Math.sign(this.vx) === Math.sign(this.x)) this.vx = -this.vx;   // v20: у края — разворот
     this.dist = Math.max(0.2, Math.min(0.8, this.dist + gauss(0, 0.01) * Math.sqrt(dt)));
     if (this.leaving && Math.abs(this.x) > 1.35) this.done = true;
   }

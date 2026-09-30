@@ -2118,8 +2118,14 @@ export class Visual {
       const over = LAND_R[A.sp] + LAND_R[B.sp] - d; if (over <= 0) continue;
       const k = over * .5 / d * (1 - Math.exp(-dt * 6)), ux = dx * k, uz = dz * k;
       for (const [o, p, s] of [[A, a, -1], [B, b, 1]]) {
-        p.x += s * ux; p.z += s * uz;
-        const L = (o.landOff ||= new V3()); L.x += s * ux; L.z += s * uz; if (L.length() > 2.5) L.setLength(2.5);
+        let mx = s * ux, mz = s * uz;
+        // живущие на суше: толчок, ведущий в воду, — вглубь суши (у кромки их иначе сбрасывало обратно друг в друга)
+        if (o.sp !== 'starfish' && o.sp !== 'jellyfish' && islandH(p.x + mx, p.z + mz) < .15) {
+          const c = siteOf(o.site > 0 ? o.site : 0), ix = c.cx - p.x, iz = c.cz - p.z, il = Math.hypot(ix, iz) || 1, st = Math.hypot(mx, mz);
+          mx = ix / il * st; mz = iz / il * st;
+        }
+        p.x += mx; p.z += mz;
+        const L = (o.landOff ||= new V3()); L.x += mx; L.z += mz; if (L.length() > 2.5) L.setLength(2.5);
       }
     }
     // лев на суше — не пловец: его не расталкиваем

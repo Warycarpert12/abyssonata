@@ -53,8 +53,9 @@ visual.onLocalSound = (cat, pos, k = 1) => {
 const qs = new URLSearchParams(location.search);
 // старт всегда днём (раньше был случайный час — можно было попасть на тёмный/тусклый первый
 // экран, отсюда была часть жалоб «серый камень»); из URL можно переопределить для QA
-const startTod = qs.has('tod') ? parseFloat(qs.get('tod')) : .5;
-const seed = qs.has('seed') ? parseInt(qs.get('seed'), 10) : null;
+const num = (k, f) => { const v = f(qs.get(k)); return Number.isFinite(v) ? v : null; };   // v20: мусор в адресе не даёт NaN
+const startTod = num('tod', parseFloat) ?? .5;
+const seed = num('seed', v => parseInt(v, 10));
 world.start({ startTod, seed });
 
 // ?spawn=shark,orca,jellyfish,... — вызвать гостя сразу (программный рендер в QA успевает лишь пару первых кадров);

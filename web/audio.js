@@ -115,9 +115,14 @@ export class OceanAudio {
     // локальный serve.py параметр не читает и отдаёт WAV
     const opus = !!document.createElement('audio').canPlayType('audio/ogg; codecs="opus"');
     // v19: статический сайт (GitHub Pages, APK — build_site.py) — список записей (MP3) в samples.json рядом со страницей
-    let man = null;
-    try { const r = await fetch(this.base + '/samples.json'); if (r.ok) man = await r.json(); } catch {}
-    this.manifest = man || await (await fetch(this.base + '/manifest.json?fmt=' + (opus ? 'opus' : 'mp3'))).json();
+    // v20: список проверяем — на статическом хостинге без samples.json под адресом manifest.json лежит PWA-манифест
+    // (web/manifest.json): раньше он молча принимался за список, и звука не было без всякой ошибки
+    const isList = m => m && Array.isArray(m.surf);
+    const get = async u => { try { const r = await fetch(u); return r.ok ? await r.json() : null; } catch { return null; } };
+    let man = await get(this.base + '/samples.json');
+    if (!isList(man)) man = await get(this.base + '/manifest.json?fmt=' + (opus ? 'opus' : 'mp3'));
+    if (!isList(man)) throw new Error('не найден список звуков (samples.json)');
+    this.manifest = man;
     await this._loadCategory('surf');
     await this._loadCategory('rain_light'); await this._loadCategory('rain_heavy'); await this._loadCategory('rain_water');
     await this._loadCategory('insects_day'); await this._loadCategory('insects_night');

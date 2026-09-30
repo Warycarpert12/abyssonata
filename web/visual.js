@@ -1441,7 +1441,7 @@ export class Visual {
       if (!far) o.fade = 1;   // уже был при загрузке страницы (и в QA ?spawn=ship) — сразу виден
     }
     o.anchor = this._goal(o);
-    if (far && !STATIC.has(a.sp) && a.sp !== 'ship') {   // новые приходят из дымки: морские — из открытого моря (снаружи от своей цели), птицы — с любой стороны
+    if (far && !STATIC.has(a.sp) && a.sp !== 'ship' && a.st !== 'stranded') {   // v20: медузу на берег выносит волной — появляется на месте   // новые приходят из дымки: морские — из открытого моря (снаружи от своей цели), птицы — с любой стороны
       const y = o.anchor.y, out = o.anchor.clone().setY(0).normalize();
       const dir = BIRDS.has(a.sp) && a.sp !== 'pelican' ? new V3(rnd(-1, 1), 0, rnd(-1, 1)).normalize()
         : out.applyAxisAngle(new V3(0, 1, 0), POD[a.sp] ? this.podPh[a.sp] % 1.4 - .7 : rnd(-.7, .7));   // v18: стая — вся с одной стороны
@@ -1949,8 +1949,14 @@ export class Visual {
       // v12 «динамичнее»: купол резко сжимается — медуза рывком всплывает, потом медленно раскрывается и опускается,
       // щупальца волнами тянутся следом (_wiggle 'jelly'); ночью неон сильнее, вспыхивает на каждом сжатии, есть ореол
       if (o.st === 'stranded' || (o.gone && o.flat)) {   // v19: выброшена штормом — плоская лужица на песке, чуть светится
-        o.flat = true; ob.position.lerp(base, 1 - Math.exp(-dt * 2));
-        if (o.model) o.model.scale.set(1.35, .3, 1.35);
+        // v20: лежит НА песке — низ модели на уровне земли (раньше висела над пляжем диском со щупальцами), сплющена
+        // сильнее; появляется на месте, проявляясь за ~2 с, и расталкивается с соседями (landOff)
+        o.flat = true; o.flatK = Math.min(1, (o.flatK ?? 0) + dt * .5);
+        const q = base.clone(); if (o.landOff) q.add(o.landOff);
+        const sy = .14 * o.flatK, bx = this.assets?.jellyfish?.box;
+        q.y = groundAt(q.x, q.z, .4) + .02 - (bx ? bx.min.y * sy : 0);
+        ob.position.lerp(q, 1 - Math.exp(-dt * 4));
+        if (o.model) o.model.scale.set(1.3 * o.flatK, sy, 1.3 * o.flatK);
         if (o.wig) o.wig.a.value = 0;
         for (const m of o.mats || []) m.emissiveIntensity = .5 + (1 - (this._day ?? 1)) * .5;
         if (o.halo) o.halo.material.opacity = .08 + (1 - (this._day ?? 1)) * .2;

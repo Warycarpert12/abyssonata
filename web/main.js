@@ -60,6 +60,9 @@ world.start({ startTod, seed });
 // ?spawn=shark,orca,jellyfish,... — вызвать гостя сразу (программный рендер в QA успевает лишь пару первых кадров);
 // два нулевых шага: на первом симуляция только снимает начальное состояние, экосистема появляется на втором
 if (qs.has('spawn')) { world.step(0); world.step(0); qs.get('spawn').split(',').forEach(k => world.debugSpawn(k.trim())); visual.synced = false; }   // гости — сразу на месте, не из дымки
+// v20 QA: &pre=N — прожить N секунд мира и движения зверей до первого кадра (в безголовом снимке мир живёт ~1 с:
+// баклан не успевал сесть сушиться, медузу не выносило на песок)
+for (let i = 0, n = Math.min(600, +qs.get('pre') * 10 || 0); i < n; i++) { world.step(.1); for (const o of visual.agents.values()) visual._stepAgent(o, .1); visual._separate(.1); }
 
 // --- гейт входа: запускает AudioContext по клику (обязателен жест пользователя) ---
 const gate = document.querySelector('#gate');

@@ -2083,8 +2083,10 @@ export class Visual {
     // ?look=cloud — ближайшее видимое облако, камера выше него (проверка «облака режутся/пропадают сверху»)
     const cl = sp === 'cloud' && this.clouds.filter(c => c.visible).sort((a, b) => a.position.length() - b.position.length())[0];
     const cr = sp === 'crawl' && this.crawlers.find(c => c.kind === (q.get('kind') || 'ants'));   // ?crawl=1&look=crawl — букашки крупно
-    const o = cl ? { obj: cl } : cr ? { obj: { position: new V3(cr.x, islandH(cr.x, cr.z), cr.z) } } : [...this.agents.values()].find(q => q.sp === sp && !q.gone && q.t > .3); if (!o) return;
-    const p = o.obj.position, d = cr ? 2.2 : cl ? 70 : sp === 'ship' ? 220 : sp === 'whale' ? 30 : sp === 'crab' || sp === 'starfish' || sp === 'shrimp_swarm' ? 6 : 12;
+    // v20: look=stranded — медуза на песке, look=cormorant — баклан (с spawn=cormorant_dry — сушит крылья)
+    const pick = q => sp === 'stranded' ? q.sp === 'jellyfish' && q.st === 'stranded' : q.sp === sp;
+    const o = cl ? { obj: cl } : cr ? { obj: { position: new V3(cr.x, islandH(cr.x, cr.z), cr.z) } } : [...this.agents.values()].find(q => pick(q) && !q.gone && q.t > .3); if (!o) return;
+    const p = o.obj.position, d = cr ? 2.2 : cl ? 70 : sp === 'ship' ? 220 : sp === 'whale' ? 30 : sp === 'stranded' ? 3.5 : sp === 'crab' || sp === 'starfish' || sp === 'shrimp_swarm' || sp === 'cormorant' ? 6 : 12;
     this.controls.target.copy(p); this.camera.position.copy(p).add(new V3(d * .7, d * .55, d * .7)); this.controls.update();
     this._looked = true; this._freeCam = true; console.log('QALOOK', sp, p.toArray().map(v => v.toFixed(1)).join(','), 'ground', islandH(p.x, p.z).toFixed(1));
   }

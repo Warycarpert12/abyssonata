@@ -861,6 +861,7 @@ export class Ecosystem {
     else if (kind === 'sea_lion') this._lionGroup();
     else if (kind === 'ship') this.agents.push(new Ship(this));
     else if (kind === 'stranded') this.agents.push(new Critter(this, 'jellyfish', false, true));
+    else if (kind === 'cormorant_dry') { const b = new Bird(this, 'cormorant', true); b.state = 'dry'; b.dryLeft = 120; this.agents.push(b); }
     else if (BIRDS[kind]) this._spawnBird(kind, false);
     else if (kind === 'whale') this.agents.push(new Whale(this));
     else if (kind === 'fish_school') { if (!this.school) { this.school = new FishSchool(this); this.agents.push(this.school); } }

@@ -132,15 +132,15 @@ todButtons.forEach(btn => btn.addEventListener('click', () => {
 
 let last = performance.now(), hudT = 0;
 function frame(now) {
+  requestAnimationFrame(frame);   // v20: первым делом — ошибка ниже не должна остановить цикл
   // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходил
   // отрицательным (в безголовом браузере −0.74 с), и мир с панелью «отматывались назад»
   const dt = Math.max(0, Math.min((now - last) / 1000, .1)); last = now;
   // одна ошибка (в мире или в отрисовке) не должна насовсем остановить requestAnimationFrame-цикл
   try { world.step(dt); } catch (e) { console.error('world step failed', e?.stack || e); }
-  audio.prox = visual.proximity();   // насекомые слышны, только когда камера у острова
+  try { audio.prox = visual.proximity(); } catch { /* до загрузки сцены */ }   // насекомые слышны, только когда камера у острова
   try { visual.frame(dt, now / 1000); hudT += dt; if (hudT > .25) { hudT = 0; visual.hud(); } }
   catch (e) { console.error('render frame failed', e?.stack || e); }
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 

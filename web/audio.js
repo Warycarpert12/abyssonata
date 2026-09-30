@@ -119,7 +119,7 @@ export class OceanAudio {
     const absOut = this.absOut = ctx.createGain(); absOut.gain.value = this.music;
     const absWet = ctx.createGain(); absWet.gain.value = .9;
     absOut.connect(dry); absOut.connect(absWet); absWet.connect(conv);
-    this.nextAbs = ctx.currentTime + rrand(15, 35); this.revBufs = new WeakMap();
+    this.nextAbs = ctx.currentTime + rrand(15, 35); this.revBufs = new Map();
     this.musicGen = new Music(ctx, absOut);   // v15: фоновая музыка по погоде (web/music.js), та же полоска «Музыка»
     limiter.connect(ctx.destination);
 
@@ -376,12 +376,15 @@ export class OceanAudio {
     src.connect(bp); bp.connect(env); out(env, now, now + dur, rrand(-.8, .8), rrand(-.8, .8));
     src.start(now, off, len); src.stop(now + dur + .1);
   }
+  // v20: «задом наперёд» — полная копия записи; кэш держит только последние 6 (раньше рос без предела: за долгий
+  // сеанс — сотни МБ)
   _reversed(buf) {
     let r = this.revBufs.get(buf);
     if (!r) {
       r = this.ctx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
       for (let c = 0; c < buf.numberOfChannels; c++) r.getChannelData(c).set(Float32Array.from(buf.getChannelData(c)).reverse());
       this.revBufs.set(buf, r);
+      if (this.revBufs.size > 6) this.revBufs.delete(this.revBufs.keys().next().value);
     }
     return r;
   }

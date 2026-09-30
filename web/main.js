@@ -99,6 +99,7 @@ const enter = async () => {
 };
 gate.querySelector('#gate-btn').addEventListener('click', enter);
 document.addEventListener('visibilitychange', () => audio.setHidden(document.hidden));   // v20: скрыта вкладка — тишина
+addEventListener('pointerdown', () => audio.wake());
 // &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)
 if (qs.get('noaudio') === '1') { gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800); }
 

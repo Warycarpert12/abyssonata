@@ -185,6 +185,8 @@ export class OceanAudio {
     if (!this.ready || !this.ctx) return;
     (hidden ? this.ctx.suspend() : this.ctx.resume()).catch(() => {});
   }
+  // v20: после звонка/Siri/блокировки контекст бывает interrupted/suspended — будим по касанию страницы
+  wake() { if (this.ready && this.ctx && this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {}); }
 
   // полоска «Природа»: громкость всего мира (волны, ветер, животные, дождь, насекомые) — это общий вход bus.
   // Квадрат — слух воспринимает громкость примерно логарифмически, так середина полоски звучит «вдвое тише»

@@ -2144,6 +2144,9 @@ export class Visual {
   }
 
   _removeAgent(o) {
+    // v20: свои (не общие с моделями) геометрии и материалы — парохода и крыльев пеликана — освобождаем
+    const own = o.sp === 'ship' ? [o.obj] : (o.wings || []);
+    for (const r of own) r.traverse(n => { n.geometry?.dispose(); [n.material].flat().forEach(m => m?.dispose?.()); });
     this.scene.remove(o.obj); for (const f of o.fish || []) this.scene.remove(f.obj);   // рыбки косяка — отдельные объекты сцены
     this.agents.delete(o.id);
   }
@@ -2197,7 +2200,8 @@ export class Visual {
   _flyingFish(from) {
     const m = this._clone('fish'); if (!m) return;
     // «крылья»: у модели рыбы их нет, добавляем пару полупрозрачных плавников — узнаётся как летучая рыба
-    const wing = new THREE.PlaneGeometry(1.5, .5), wm = new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true, opacity: .75, side: THREE.DoubleSide });
+    // v20: плавники одни на всех (раньше — новая геометрия и материал на каждую рыбу, без освобождения)
+    const wing = this._ffWing ??= new THREE.PlaneGeometry(1.5, .5), wm = this._ffMat ??= new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true, opacity: .75, side: THREE.DoubleSide });
     for (const sgn of [-1, 1]) {
       const w = new THREE.Mesh(wing, wm); w.position.set(sgn * .5, .12, 0); w.rotation.set(-Math.PI / 2, 0, sgn * .35); m.obj.add(w);
     }

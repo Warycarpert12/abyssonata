@@ -162,6 +162,7 @@ requestAnimationFrame(frame);
   // лёгкое «течение» — только пока линза на экране (v20: раньше таймер крутился всегда, и на телефоне, где линзы нет)
   const flowOn = on => { if (on && !flow) flow = setInterval(() => { t += .05; noise.setAttribute('baseFrequency', (0.012 + 0.004 * Math.sin(t)).toFixed(4)); }, 60);
     else if (!on && flow) { clearInterval(flow); flow = 0; } };
+  document.addEventListener('mouseleave', () => { if (cur) cur.style.filter = ''; cur = null; flowOn(false); });   // v20: курсор ушёл из окна
   addEventListener('pointermove', ev => {
     if (ev.pointerType !== 'mouse') return;   // v18: на телефоне линзы нет — под пальцем она оставалась и всё «плыло»
     const el = ev.target.closest?.('.panel, #tod button, #gate-btn');

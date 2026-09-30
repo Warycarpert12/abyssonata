@@ -155,12 +155,14 @@ requestAnimationFrame(frame);
   x.putImageData(img, 0, 0);
   const map = document.getElementById('lens-map'), light = document.getElementById('lens-light'), noise = document.getElementById('lens-noise');
   map.setAttribute('href', c.toDataURL()); map.setAttribute('width', 2 * R); map.setAttribute('height', 2 * R);
-  let cur = null, t = 0;
-  setInterval(() => { t += .05; noise.setAttribute('baseFrequency', (0.012 + 0.004 * Math.sin(t)).toFixed(4)); }, 60);   // лёгкое «течение»
+  let cur = null, t = 0, flow = 0;
+  // лёгкое «течение» — только пока линза на экране (v20: раньше таймер крутился всегда, и на телефоне, где линзы нет)
+  const flowOn = on => { if (on && !flow) flow = setInterval(() => { t += .05; noise.setAttribute('baseFrequency', (0.012 + 0.004 * Math.sin(t)).toFixed(4)); }, 60);
+    else if (!on && flow) { clearInterval(flow); flow = 0; } };
   addEventListener('pointermove', ev => {
     if (ev.pointerType !== 'mouse') return;   // v18: на телефоне линзы нет — под пальцем она оставалась и всё «плыло»
     const el = ev.target.closest?.('.panel, #tod button, #gate-btn');
-    if (el !== cur) { if (cur) cur.style.filter = ''; cur = el; if (el) el.style.filter = 'url(#lens)'; }
+    if (el !== cur) { if (cur) cur.style.filter = ''; cur = el; if (el) el.style.filter = 'url(#lens)'; flowOn(!!el); }
     if (el) {
       const b = el.getBoundingClientRect(), mx = ev.clientX - b.left, my = ev.clientY - b.top;
       map.setAttribute('x', mx - R); map.setAttribute('y', my - R);

@@ -162,7 +162,7 @@ function navPath(p, t, need, rad) {
 const TURNS = [0, .35, .7, 1.05, 1.4, 1.75, 2.1, 2.45, 2.8];
 // v19: пловец, который сейчас не плавает: черепаха греется на пляже или спит на рифе, медуза выброшена на песок —
 // их не уводит на глубину (deepSpot/swimStep) и не толкает с мели (_separate)
-const landed = o => !o.gone && ((o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && o.st === 'stranded')) && (o.landT = o.t, true);   // landT — для qa/move_check
+const landed = o => !o.gone && ((o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && (o.st === 'stranded' || o.flat))) && (o.landT = o.t, true);   // landT — для qa/move_check
 function swimStep(o, tgt, max) {
   const p = o.anchor, dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
   p.y += clamp(tgt.y - p.y, -max, max); if (d < 1e-4) return;
@@ -198,10 +198,10 @@ vec3 stipple(vec3 c, vec3 p, vec3 n, float land, float k) {
 const VOICES = new Set(['seagull', 'tern', 'cormorant', 'albatross', 'dolphin', 'whale', 'sea_lion', 'jump_splash', 'dive_splash', 'flying_fish', 'whale_lunge']);
 // v19: связь из симуляции (agents.js relate): на каком расстоянии от партнёра держится зверь ('to') и не ближе какого
 // уходит ('from'), м
-const REL_R = { seagull: 4, tern: 4, cormorant: 4, albatross: 7, pelican: 3, sea_lion: 5, shark: 9, whale: 16, orca: 14, crab: 1.4, octopus: 1.2, sea_turtle: 3 };
+const REL_R = { seagull: 4, tern: 4, cormorant: 4, albatross: 7, pelican: 3, sea_lion: 5, shark: 9, whale: 16, orca: 14, crab: 2, octopus: 1.2, sea_turtle: 3 };
 const FLEE_R = 32;
 // v20: «личное пространство» на суше и у кромки (м): крабы сидели друг в друге, две выброшенные медузы — одна в другой
-const LAND_R = { crab: .55, starfish: .45, jellyfish: .8 };
+const LAND_R = { crab: .55, starfish: .45, jellyfish: 1.3, sea_lion: 1.9, sea_turtle: 1.2 };
 const CLEAR = { whale: 3, orca: 1.1, dolphin: .5, shark: .6, sea_turtle: .4, jellyfish: .4, stingray: .15 };   // полвысоты тела над дном
 // «личное пространство» в воде (м, по горизонтали) и какая глубина нужна под брюхом — см. Visual._separate
 const SWIM_R = { dolphin: 1.2, orca: 2.2, whale: 10, shark: 3.5, sea_lion: 1.8, pelican: 1.6, jellyfish: 1.6, sea_turtle: 2.2, stingray: 2.5 };
@@ -1952,7 +1952,7 @@ export class Visual {
     } else if (o.sp === 'jellyfish') {
       // v12 «динамичнее»: купол резко сжимается — медуза рывком всплывает, потом медленно раскрывается и опускается,
       // щупальца волнами тянутся следом (_wiggle 'jelly'); ночью неон сильнее, вспыхивает на каждом сжатии, есть ореол
-      if (o.st === 'stranded' || (o.gone && o.flat)) {   // v19: выброшена штормом — плоская лужица на песке, чуть светится
+      if (o.st === 'stranded' || o.flat) {   // v19: выброшена штормом — плоская лужица на песке, чуть светится
         // v20: лежит НА песке — низ модели на уровне земли (раньше висела над пляжем диском со щупальцами), сплющена
         // сильнее; появляется на месте, проявляясь за ~2 с, и расталкивается с соседями (landOff)
         o.flat = true; o.flatK = Math.min(1, (o.flatK ?? 0) + dt * .5);
@@ -1960,7 +1960,7 @@ export class Visual {
         const sy = .14 * o.flatK, bx = this.assets?.jellyfish?.box;
         q.y = groundAt(q.x, q.z, .4) + .02 - (bx ? bx.min.y * sy : 0);
         ob.position.lerp(q, 1 - Math.exp(-dt * 4));
-        if (o.model) o.model.scale.set(1.3 * o.flatK, sy, 1.3 * o.flatK);
+        if (o.model) o.model.scale.set(o.flatK, sy, o.flatK);
         if (o.wig) o.wig.a.value = 0;
         for (const m of o.mats || []) m.emissiveIntensity = .5 + (1 - (this._day ?? 1)) * .5;
         if (o.halo) o.halo.material.opacity = .08 + (1 - (this._day ?? 1)) * .2;
@@ -2111,7 +2111,7 @@ export class Visual {
     }
     // v20: на суше — крабы, морские звёзды, медузы на песке. Толчок копится в o.landOff (не больше 2.5 м), к нему
     // прибавляется точка зверя в _stepAgent: иначе каждый кадр зверь снова тянулся в свою точку и «влезал» в соседа
-    const ld = [...this.agents.values()].filter(o => !o.gone && LAND_R[o.sp] && (o.sp !== 'jellyfish' || o.st === 'stranded') && o.st !== 'hide');
+    const ld = [...this.agents.values()].filter(o => !o.gone && LAND_R[o.sp] && (o.sp !== 'jellyfish' || o.flat) && (o.sp !== 'sea_lion' || (o.st === 'stay' && !o.wet)) && (o.sp !== 'sea_turtle' || o.st === 'bask') && o.st !== 'hide');
     for (let i = 0; i < ld.length; i++) for (let j = i + 1; j < ld.length; j++) {
       const A = ld[i], B = ld[j], a = A.obj.position, b = B.obj.position, dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz) || 1e-3;
       const over = LAND_R[A.sp] + LAND_R[B.sp] - d; if (over <= 0) continue;

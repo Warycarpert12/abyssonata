@@ -1900,7 +1900,9 @@ export class Visual {
         o.plop = false;
       }
       o.pose = lerp(o.pose ?? wet, wet, 1 - Math.exp(-dt * 2));
-      pitch = o.pose * .55 + (1 - wet) * moving * Math.sin(o.t * 5) * .06;
+      // v21: в воде голова над водой, тело наискось, задние ласты тянутся следом (было 0.55 рад носом вниз — голова
+      // уходила под воду, а зад с ластами торчал вверх; сверено видом сбоку: 0.25 — естественнее всего)
+      pitch = o.pose * .25 + (1 - wet) * moving * Math.sin(o.t * 5) * .06;
       o.raftK = lerp(o.raftK ?? 0, o.st === 'raft' && !o.gone ? 1 : 0, 1 - Math.exp(-dt * 1.5));   // v19: «плотик» — на боку, ласт над водой
       roll = o.raftK * 1.25; pitch *= 1 - o.raftK;
       if (o.wig) { o.wig.t.value += dt * lerp(.8, 3.2, o.pose); o.wig.a.value = o.pose; o.wig.b.value = o.t * .3; }
@@ -2089,7 +2091,8 @@ export class Visual {
     const pick = q => sp === 'stranded' ? q.sp === 'jellyfish' && q.st === 'stranded' : q.sp === sp;
     const o = cl ? { obj: cl } : cr ? { obj: { position: new V3(cr.x, islandH(cr.x, cr.z), cr.z) } } : [...this.agents.values()].find(q => pick(q) && !q.gone && q.t > .3); if (!o) return;
     const p = o.obj.position, d = cr ? 2.2 : cl ? 70 : sp === 'ship' ? 220 : sp === 'whale' ? 30 : sp === 'stranded' ? 4.5 : sp === 'crab' || sp === 'starfish' || sp === 'shrimp_swarm' || sp === 'cormorant' ? 6 : 12;
-    this.controls.target.copy(p); this.camera.position.copy(p).add(new V3(d * .7, d * .55, d * .7)); this.controls.update();
+    const side = q.get('lookside') === '1';   // v21 QA: вид сбоку, почти с уровня воды
+    this.controls.target.copy(p); this.camera.position.copy(p).add(side ? new V3(d * .95, Math.max(.4, -p.y + .6), d * .3) : new V3(d * .7, d * .55, d * .7)); this.controls.update();
     this._looked = true; this._freeCam = true; console.log('QALOOK', sp, p.toArray().map(v => v.toFixed(1)).join(','), 'ground', islandH(p.x, p.z).toFixed(1));
   }
 

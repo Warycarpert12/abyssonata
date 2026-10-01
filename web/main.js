@@ -15,13 +15,17 @@ import { OceanAudio } from './audio.js';
 {
   const gateP = document.querySelector('#gate-card p'), btn = document.querySelector('#gate-btn');
   const join = async () => {
-    try { const r = await fetch('/api/join', { method: 'POST' }); return r.ok ? await r.json() : { ok: true, local: true }; }
+    try {   // v21: не дольше 5 с (AbortController — есть и в старом Safari)
+      const ac = new AbortController(), to = setTimeout(() => ac.abort(), 5000);
+      const r = await fetch('/api/join', { method: 'POST', signal: ac.signal }); clearTimeout(to);
+      return r.ok ? await r.json() : { ok: true, local: true };
+    }
     catch { return { ok: true, local: true }; }
   };
   let j = await join();
-  if (!j.ok) {
+  if (j.ok === false) {
     const txt = gateP.textContent; btn.style.display = 'none';
-    while (!j.ok) {
+    while (j.ok === false) {
       gateP.textContent = `Сейчас в океане слишком много людей (${j.count} из ${j.limit}). Подождите — страница зайдёт сама, как только освободится место.`;
       await new Promise(r => setTimeout(r, 15000)); j = await join();
     }

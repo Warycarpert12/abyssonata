@@ -204,9 +204,16 @@ html, body { height: 100dvh; overscroll-behavior: none; }
   box-shadow: 0 0 24px rgba(146,191,189,.3); }
 #fs.show { display: block; }
 @keyframes turn { 0%, 25% { transform: rotate(0); } 55%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+/* v22: пока открыт экран входа, интерфейс мира скрыт и не ловит ни нажатий, ни наведения (visibility: hidden — и Tab на него
+   не попадает): за карточкой виден только размытый живой мир. После входа, когда карточка рассыпалась, main.js снимает
+   body.gate-open — интерфейс проявляется за 0.9 с */
+.panel { transition: background .25s, opacity .9s ease, visibility 0s; }
+#tod, #credits, #follow, #fs { transition: opacity .9s ease, visibility 0s; }
+body.gate-open .panel, body.gate-open #tod, body.gate-open #credits, body.gate-open #follow, body.gate-open #tip, body.gate-open #hint,
+body.gate-open #fs { opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
 </style>
 </head>
-<body>
+<body class="gate-open">
 <main>
   <div id="stage">
     <canvas id="gl"></canvas>

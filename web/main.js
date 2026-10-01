@@ -110,12 +110,15 @@ fsUpd();
 // --- уход экрана входа (v22): вуаль тает, размытие снимается — мир становится чётким; карточка «рассыпается»: её стирает
 // слева направо, край дробится шумом (SVG-фильтр #dust), из стирающегося края разлетаются частицы. На телефоне, при
 // «Низком» качестве и при «меньше движения» в системе — просто плавно растворяется (simple — сразу так)
+// v22: интерфейс мира (панели, кнопки внизу, подпись) скрыт, пока открыт вход (body.gate-open, index.html), и проявляется,
+// когда карточка уже рассыпалась/растворилась
+const showUI = () => document.body.classList.remove('gate-open');
 const leaveGate = simple => {
   if (!gate.isConnected || gate.classList.contains('clear')) return;
   const card = gate.querySelector('#gate-card');
   gate.classList.add('clear');
   if (simple || phone || matchMedia('(prefers-reduced-motion: reduce)').matches || qMode === 'low') {
-    card.classList.add('fade'); setTimeout(() => gate.remove(), 1200); return;
+    card.classList.add('fade'); setTimeout(showUI, 800); setTimeout(() => gate.remove(), 1200); return;
   }
   const r = card.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), cv = Object.assign(document.createElement('canvas'), { id: 'gate-dust' });
   cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; document.body.appendChild(cv);
@@ -124,6 +127,7 @@ const leaveGate = simple => {
   card.style.filter = 'url(#dust)';
   const tick = now => {
     const u = Math.min(1, (now - t0) / 1000 / DUR), dt = Math.min(.05, (now - last) / 1000); last = now;
+    if (u >= 1) showUI();   // карточка стёрта целиком — интерфейс проявляется (частицы ещё догорают)
     const m = -.2 + u * 1.45, mask = `linear-gradient(100deg, transparent ${(m * 100).toFixed(1)}%, #000 ${(m * 100 + 24).toFixed(1)}%)`;
     card.style.webkitMaskImage = card.style.maskImage = mask;
     disp.setAttribute('scale', (50 * u * u * u).toFixed(1));   // дробление нарастает к концу — пока карточка видна, текст читается

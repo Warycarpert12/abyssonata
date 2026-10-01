@@ -455,15 +455,36 @@ export class Visual {
 
     // карта высот для воды (глубина → цвет мелководья и пена у берега), в метрах, half-float.
     // Было 8 бит (шаг 8 см): у пологого берега кромка пены выходила лесенкой из квадратов и мерцала при повороте камеры
-    const TS = 512, data = new Uint16Array(TS * TS);
+    const TS = 512, data = new Uint16Array(TS * TS), hm = this.hmap = new Float32Array(TS * TS);
     for (let j = 0; j < TS; j++) for (let i = 0; i < TS; i++) {
       const x = (i + .5) / TS * 2 * S - S, z = (j + .5) / TS * 2 * S - S;
-      data[j * TS + i] = THREE.DataUtils.toHalfFloat(islandH(x, z));
+      data[j * TS + i] = THREE.DataUtils.toHalfFloat(hm[j * TS + i] = islandH(x, z));
     }
     this.heightTex = new THREE.DataTexture(data, TS, TS, THREE.RedFormat, THREE.HalfFloatType);
     this.heightTex.magFilter = this.heightTex.minFilter = THREE.LinearFilter; this.heightTex.needsUpdate = true;
 
     this._dressIsland();
+  }
+
+  // v22: высота рельефа из готовой карты (512×512 на ±S, билинейно) — в разы дешевле islandH; для сотен рыбок каждый кадр
+  _h(x, z) {
+    const TS = 512, fx = (x + S) / (2 * S) * TS - .5, fz = (z + S) / (2 * S) * TS - .5;
+    if (!(fx >= 0 && fz >= 0 && fx < TS - 1 && fz < TS - 1)) return -10;   // за краем карты — дно (см. bed)
+    const i = fx | 0, j = fz | 0, u = fx - i, v = fz - j, m = this.hmap, k = j * TS + i;
+    return (m[k] * (1 - u) + m[k + 1] * u) * (1 - v) + (m[k + TS] * (1 - u) + m[k + TS + 1] * u) * v;
+  }
+  // v22: рыбка не в рельефе: под ней должно быть не меньше ~0.8 м воды. Мелко — точка подтягивается к центру её круга
+  // (cx, cz), потом к точке стайки (c); не нашлось глубины — рыбка на этот кадр скрыта. Высота — между дном+0.35 и −0.3.
+  // Возвращает false, если рыбку надо скрыть. P меняется на месте
+  _fishInWater(P, cx, cz, c) {
+    let g = this._h(P.x, P.z);
+    for (let k = 0; k < 6 && g > -.8; k++) {
+      const tx = k < 3 ? cx : c.x, tz = k < 3 ? cz : c.z;
+      P.x += (tx - P.x) * .5; P.z += (tz - P.z) * .5; g = this._h(P.x, P.z);
+    }
+    if (g > -.8) return false;
+    P.y = Math.min(-.3, Math.max(P.y, g + .35));
+    return true;
   }
 
   // точечная фактура «как у мурмур» поверх обычного освещения: сетка мелких точек в мировых координатах
@@ -721,7 +742,9 @@ export class Visual {
     this.shoals = [];
     for (let i = 0; i < 5; i++) {
       const n = 26, m = new THREE.InstancedMesh(fishGeo, fishMat, n); m.frustumCulled = false; this.scene.add(m);
-      const c = this.shallowPts[(Math.random() * this.shallowPts.length) | 0] || new V3(R, -2, 0);
+      // v22: точка стайки — где не мельче 2.5 м (у самого берега стайка почти целиком упиралась в склон)
+      let c = null; for (let k = 0; k < 20 && !(c && c.y < -2.5); k++) c = this.shallowPts[(Math.random() * this.shallowPts.length) | 0];
+      c ||= new V3(R, -2, 0);
       this.shoals.push({ m, c: c.clone().setY(Math.min(-.6, c.y + 1.2)), a: Math.random() * 6.28, sp: rnd(.25, .45) * (Math.random() < .5 ? -1 : 1),
         f: Array.from({ length: n }, () => [rnd(-1.5, 1.5), rnd(-.4, .4), rnd(-1.5, 1.5), Math.random() * 6.28]) });
     }
@@ -730,7 +753,12 @@ export class Visual {
       const mat = this._tailWag(new THREE.MeshLambertMaterial({ color: 0x2b3a44, emissive: 0x18242c, flatShading: true }));
       for (let i = 0; i < 7; i++) {
         const n = 18, m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; this.scene.add(m);
-        const a = Math.random() * 6.2832, r = rnd(95, 165);
+        // v22: круг стаи (12 м + разброс 4 м) — весь над глубиной: у островков на 85–100 м спины рыб выходили на пляж
+        let a = 0, r = 0;
+        for (let k = 0; k < 30; k++) { a = Math.random() * 6.2832; r = rnd(95, 165);
+          const cx = Math.cos(a) * r, cz = Math.sin(a) * r; let deep = true;
+          for (let q = 0; q < 16 && deep; q++) deep = islandH(cx + Math.cos(q * .3927) * 17, cz + Math.sin(q * .3927) * 17) < -1.5;
+          if (deep && islandH(cx, cz) < -1.5) break; }
         this.farShoals.push({ m, c: new V3(Math.cos(a) * r, .06, Math.sin(a) * r), a: Math.random() * 6.28, sp: rnd(.15, .3) * (Math.random() < .5 ? -1 : 1),
           f: Array.from({ length: n }, () => [rnd(-4, 4), 0, rnd(-4, 4), Math.random() * 6.28]) });
       }
@@ -806,14 +834,15 @@ export class Visual {
       const col = new THREE.Color();
       for (let k = 0; k < n; k++) { const c = pick(NEON); col.setRGB(c[0], c[1], c[2]).offsetHSL(rnd(-.04, .04), 0, rnd(-.08, .08)); m.setColorAt(k, col); }
       m.instanceColor.needsUpdate = true;
-      const [x, z] = reefPoint(.5);
+      let [x, z] = reefPoint(.5);
+      for (let k = 0; k < 20 && islandH(x, z) > -2.5; k++) [x, z] = reefPoint(.5);   // v22: не над самым гребнем рифа
       this.reefShoals.push({ m, c: new V3(x, rnd(-3.2, -1.2), z), a: Math.random() * 6.28,
         sp: rnd(.3, .6) * (Math.random() < .5 ? -1 : 1), f: Array.from({ length: n }, () => [rnd(-2.5, 2.5), rnd(-.8, .8), rnd(-2.5, 2.5), Math.random() * 6.28]) });
     }
     this.nextReefJump = 4;
   }
   _stepAmbient(dt, t) {
-    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new V3(), Sc = new V3(1, 1, 1), Y = new V3(0, 1, 0);
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new V3(), Sc = new V3(1, 1, 1), Z0 = new V3(), Y = new V3(0, 1, 0);
     this.panicT = Math.max(0, (this.panicT || 0) - dt);
     // рифовые рыбки: круги над грядой; при охоте акулы рядом — врассыпную
     for (const s of this.reefShoals) {
@@ -822,9 +851,10 @@ export class Visual {
       const spread = 1 + scare * 2.2, cx = s.c.x + Math.cos(s.a) * 6, cz = s.c.z + Math.sin(s.a) * 4;
       s.f.forEach(([x, y, z, ph], i) => {
         P.set(cx + x * spread + Math.sin(t * 1.6 + ph) * .4, s.c.y + y + Math.sin(t * 2.2 + ph) * .15, cz + z * spread + Math.cos(t * 1.4 + ph) * .4);
-        P.y = Math.min(-.3, Math.max(P.y, islandH(P.x, P.z) + .3));   // v21: над камнем рифа, но под водой (~12% рыбок были внутри гряды)
+        // v21: над камнем рифа, но под водой; v22: и не в камне там, где гряда у самой поверхности (_fishInWater)
+        const wet = this._fishInWater(P, cx, cz, s.c);
         Q.setFromAxisAngle(Y, Math.atan2(-Math.sin(s.a) * s.sp, Math.cos(s.a) * s.sp) + Math.sin(t * 7 + ph) * .2);
-        M.compose(P, Q, Sc); s.m.setMatrixAt(i, M);
+        M.compose(P, Q, wet ? Sc : Z0); s.m.setMatrixAt(i, M);
       });
       s.m.instanceMatrix.needsUpdate = true;
     }
@@ -845,7 +875,7 @@ export class Visual {
       const cx = s.c.x + Math.cos(s.a) * 12, cz = s.c.z + Math.sin(s.a) * 12, head = Math.atan2(-Math.sin(s.a) * s.sp, Math.cos(s.a) * s.sp);
       s.f.forEach(([x, y, z, ph], i) => {
         P.set(cx + x + Math.sin(t * .9 + ph) * .5, .06 + Math.sin(t * 1.7 + ph) * .12, cz + z + Math.cos(t * .8 + ph) * .5);
-        Q.setFromAxisAngle(Y, head + Math.sin(t * 3 + ph) * .2); M.compose(P, Q, Sc); s.m.setMatrixAt(i, M);
+        Q.setFromAxisAngle(Y, head + Math.sin(t * 3 + ph) * .2); M.compose(P, Q, this._h(P.x, P.z) < -.6 ? Sc : Z0); s.m.setMatrixAt(i, M);   // v22: над мелью — не видно
       });
       s.m.instanceMatrix.needsUpdate = true;
     }
@@ -855,7 +885,8 @@ export class Visual {
       const cx = s.c.x + Math.cos(s.a) * 5, cz = s.c.z + Math.sin(s.a) * 5, head = Math.atan2(-Math.sin(s.a) * s.sp, Math.cos(s.a) * s.sp);   // v12: без +π/2 — плыли боком
       s.f.forEach(([x, y, z, ph], i) => {
         P.set(cx + x * panic + Math.sin(t * 1.3 + ph) * .3, s.c.y + y + Math.sin(t * 2 + ph) * .1, cz + z * panic + Math.cos(t * 1.1 + ph) * .3);
-        Q.setFromAxisAngle(Y, head + Math.sin(t * 6 + ph) * .15); M.compose(P, Q, Sc); s.m.setMatrixAt(i, M);
+        const wet = this._fishInWater(P, cx, cz, s.c);   // v22: стайки у берега заходили в склон острова (~30% рыбок)
+        Q.setFromAxisAngle(Y, head + Math.sin(t * 6 + ph) * .15); M.compose(P, Q, wet ? Sc : Z0); s.m.setMatrixAt(i, M);
       });
       s.m.instanceMatrix.needsUpdate = true;
     }
@@ -2089,6 +2120,7 @@ export class Visual {
       for (const f of o.fish || []) {
         const r = lerp(5 * f.k * scatter, 1.1 + f.k * .6, o.ballK), a = o.t * (o.st === 'shoal' ? .3 : .6) / f.k * (1 + o.ballK * 1.5) + f.ph, fp = f.obj.position.clone();
         f.obj.position.set(base.x + Math.cos(a) * r, lerp(f.h, -.5 + Math.sin(f.ph * 3) * .5, o.ballK) + Math.sin(o.t * 1.3 + f.ph) * .2, base.z + Math.sin(a) * r * lerp(.7, 1, o.ballK));
+        f.obj.visible = this._fishInWater(f.obj.position, base.x, base.z, base);   // v22: и рыбы косяка — не в склоне
         const v = f.obj.position.clone().sub(fp); if (v.lengthSq() > 1e-8) f.obj.rotation.y = Math.atan2(v.x, v.z);
       }
       return;

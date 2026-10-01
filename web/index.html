@@ -221,6 +221,11 @@ html, body { height: 100dvh; overscroll-behavior: none; }
     var m = document.getElementById('gate-err') || document.createElement('p');
     m.id = 'gate-err'; m.textContent = msg; if (!m.parentNode) card.appendChild(m);
   }
+  // v22: старый браузер (iOS 14 и раньше) — сразу понятное сообщение, а не белый экран или ожидание 40 с: проверяем
+  // модули и самый новый синтаксис, который есть в коде океана (?., ??=, ||=)
+  var modern = 'noModule' in document.createElement('script') && typeof Promise !== 'undefined' && !!Promise.allSettled;
+  try { new Function('var a = {}; a.b ??= 1; a.c ||= 2; return a?.b'); } catch (e) { modern = false; }
+  if (!modern) { show('Этот браузер слишком старый для океана. Обновите систему (на iPhone — iOS 15 или новее) или браузер, либо откройте сайт на другом устройстве.'); return; }
   var gl = null; try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
   if (!gl) { show('На этом устройстве океан не запустится: браузер не поддерживает 3D-графику WebGL 2. Обновите систему или браузер (на iPhone — iOS 15 и новее) или откройте сайт на другом устройстве.'); return; }
   window.addEventListener('error', function (e) { show('Океан не смог запуститься на этом устройстве: ' + (e.message || 'ошибка') + '. Попробуйте обновить браузер или открыть сайт на другом устройстве.'); });

@@ -83,7 +83,7 @@ export class OceanAudio {
     // v21: облегчённый звук для iPhone/iPad и устройств с малой памятью (распакованные записи — до ~560 МБ, iOS закрывал
     // вкладку): записи в 32 кГц, звуки зверей — по первому звуку, петли насекомых — только играющие. На обычных
     // устройствах — всё как было. ?lite=1 — включить для проверки
-    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const ios = this.ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     this.lite = ios || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || new URLSearchParams(location.search).get('lite') === '1';
     // v21: слабое устройство (main.js включает, если картинка долго ниже ~24 кадров/с): не больше 10 разовых звуков
     // одновременно, слой обновляется 12 раз в секунду, без «эха» абстрактного слоя — меньше работы звуковому потоку
@@ -102,13 +102,39 @@ export class OceanAudio {
     return this._starting;
   }
 
-  async _start() {
+  // v22: iPhone — звук включается только тем, что сделано прямо в обработчике нажатия, до первого await: создать
+  // AudioContext и вызвать resume(). Беззвучный переключатель iPhone глушит Web Audio — отключаем это: тип звуковой
+  // сессии «playback» (Safari 17+) и тихий зацикленный <audio> (старые iOS: играющий медиа-элемент переводит сессию
+  // в «воспроизведение»). Вызывать из обработчика нажатия; повторный вызов — снова будит звук (после блокировки экрана,
+  // звонка — iOS ставит контекст в «interrupted»)
+  unlock() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* нет — не страшно */ }
     // latencyHint 'playback' (v12): звуковой буфер побольше — меньше риск «заиканий» звука, когда видеокарта/процессор
-    // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна
+    // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна.
+    // v22: на iPhone — родная частота устройства (с заказанной 32 кГц Safari пересчитывает весь звук — лишний риск
+    // тишины и треска); облегчённая загрузка записей на iPhone остаётся
+    if (!this.ctx) { try { this.ctx = new AC(this.lite && !this.ios ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' }); } catch { this.ctx = new AC(); } }
+    if (this.ctx.state !== 'running' && !this.paused) this.ctx.resume().catch(() => {});
+    if (this.ios) {
+      if (!this.keep) {   // 0.5 с тишины (WAV 8 кГц, 8 бит)
+        const n = 4000, b = new Uint8Array(44 + n).fill(128), v = new DataView(b.buffer), w = (o, s) => [...s].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
+        w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+        this.keep = Object.assign(document.createElement('audio'), { src: URL.createObjectURL(new Blob([b], { type: 'audio/wav' })), loop: true });
+        this.keep.setAttribute('playsinline', ''); this.keep.setAttribute('x-webkit-airplay', 'deny');
+      }
+      if (this.keep.paused && !this.paused) this.keep.play().catch(() => {});
+    }
+  }
+
+  async _start() {
     // v21: браузер без Web Audio — вход без звука, а не «Не вышло — нажми ещё раз» по кругу
     if (!(window.AudioContext || window.webkitAudioContext)) throw Object.assign(new Error('этот браузер не поддерживает Web Audio'), { noAudio: true });
-    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)(this.lite ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' });
-    await ctx.resume();
+    this.unlock();   // обычно уже вызван из нажатия (main.js) — тогда контекст тот же
+    const ctx = this.ctx;
+    // v22: resume() в iOS иногда не отвечает (контекст «interrupted») — не ждём дольше 3 с, звук догонит при следующем нажатии
+    await Promise.race([ctx.resume(), new Promise(r => setTimeout(r, 3000))]);
     this.t0 = ctx.currentTime;
 
     // master: bus -> лимитер (как SC Limiter) -> выход; + посыл в ревербератор (как FreeVerb2)
@@ -352,6 +378,7 @@ export class OceanAudio {
     if (!cats.length) return;
     const buf0 = choice(this.buffers[choice(cats)]), rev = Math.random() < .35, buf = rev ? this._reversed(buf0) : buf0;
     const out = (node, t0, t1, p0, p1) => {   // панорама плывёт от p0 к p1
+      if (!ctx.createStereoPanner) { node.connect(this.absOut); return; }   // v22: Safari до 14.1 — без панорамы
       const pan = ctx.createStereoPanner(); pan.pan.setValueAtTime(p0, t0); pan.pan.linearRampToValueAtTime(p1, t1);
       node.connect(pan); pan.connect(this.absOut);
     };

@@ -63,6 +63,7 @@ const qs = new URLSearchParams(location.search);
 // старт всегда днём (раньше был случайный час — можно было попасть на тёмный/тусклый первый
 // экран, отсюда была часть жалоб «серый камень»); из URL можно переопределить для QA
 const startTod = qs.has('tod') ? parseFloat(qs.get('tod')) : .5;
+if (qs.has('qa')) window.__om = { world, visual, audio };   // v22 QA: доступ для автопроверок (только с ?qa в адресе)
 const seed = qs.has('seed') ? parseInt(qs.get('seed'), 10) : null;
 world.start({ startTod, seed });
 
@@ -105,6 +106,7 @@ for (const ev of ['resize', 'orientationchange', 'fullscreenchange', 'webkitfull
 fsUpd();
 
 const enter = async () => {
+  audio.unlock();   // v22: звук — первым делом и до любого await (iPhone включает звук только так)
   if (phone) goFull();   // до первого await — пока браузер считает это нажатием
   const btn = gate.querySelector('#gate-btn');
   btn.textContent = 'Открываю иллюминатор…';
@@ -121,6 +123,9 @@ const enter = async () => {
   }
 };
 gate.querySelector('#gate-btn').addEventListener('click', enter);
+// v22: iPhone останавливает звук при блокировке экрана, звонке, уходе в другое приложение («interrupted») и снова
+// включить его разрешает только по нажатию — будим звук на любое касание/клавишу после входа
+for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => { if (audio.ready) audio.unlock(); }, { capture: true, passive: true });
 // v21: код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
 window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
 // &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)

@@ -25,6 +25,8 @@ const MOODS = {
 };
 const PROG = [0, 3, 4, 5, 1, 2];                         // куда охотнее идти от тоники (ступени), по убыванию
 
+// v22: Safari до 14.1 не знает StereoPanner (каждая нота роняла шаг мира) — там звучит без панорамы
+const stereo = ctx => ctx.createStereoPanner ? ctx.createStereoPanner() : Object.assign(ctx.createGain(), { pan: { value: 0 } });
 export class Music {
   constructor(ctx, out) {
     this.ctx = ctx;
@@ -85,7 +87,7 @@ export class Music {
   }
 
   _pad(m, t, dur, atk, rel, cutoff, pan, amp, type = 'triangle') {
-    const ctx = this.ctx, f = mtof(m), g = ctx.createGain(), lp = ctx.createBiquadFilter(), pn = ctx.createStereoPanner();
+    const ctx = this.ctx, f = mtof(m), g = ctx.createGain(), lp = ctx.createBiquadFilter(), pn = stereo(ctx);
     lp.type = 'lowpass'; lp.Q.value = .7;
     lp.frequency.setValueAtTime(cutoff * .6, t); lp.frequency.linearRampToValueAtTime(cutoff, t + dur * .5); lp.frequency.linearRampToValueAtTime(cutoff * .7, t + dur);
     const A = .018 * amp;
@@ -110,7 +112,7 @@ export class Music {
   // колокольчик: FM (модулятор на частоте × ratio, индекс быстро гаснет) — [ratio, индекс, длина, громкость]
   _bell(m, t, kind) {
     const K = { pluck: [2, 1.2, .9, .022], glass: [3.5, 2.2, 2.6, .016], low: [1.5, 3, 1.8, .026], drip: [4, .8, .25, .01] }[kind];
-    const ctx = this.ctx, f = mtof(m), car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain(), pn = ctx.createStereoPanner();
+    const ctx = this.ctx, f = mtof(m), car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain(), pn = stereo(ctx);
     car.frequency.value = f; mod.frequency.value = f * K[0];
     mg.gain.setValueAtTime(f * K[1], t); mg.gain.exponentialRampToValueAtTime(f * .01, t + K[2]);
     mod.connect(mg); mg.connect(car.frequency);

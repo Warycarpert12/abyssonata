@@ -807,7 +807,7 @@ export class Ecosystem {
       let n = sp === 'pelican' ? this.agents.filter(a => a.species === sp && a.state !== 'leave' && !a.done && a.rk !== 'flock').length : this.count(sp);   // v20: пеликаны — по группам
       while (n < tgt && (instant || Math.random() < 0.5)) { this._spawnBird(sp, instant); n += 1; if (!instant) break; }
       if (n > tgt && Math.random() < 0.5) {
-        const cand = this.agents.filter(a => a.species === sp && a.state !== 'leave' && !a.done && a.rk !== 'flock');
+        const cand = this.agents.filter(a => a.species === sp && a.state !== 'leave' && !a.done && a.rk !== 'flock' && !a.pinned);
         if (cand.length) this._out = this._out.concat(choice(cand).leave());
       }
     }
@@ -868,7 +868,7 @@ export class Ecosystem {
     else if (kind === 'sea_lion') this._lionGroup();
     else if (kind === 'ship') this.agents.push(new Ship(this));
     else if (kind === 'stranded') this.agents.push(new Critter(this, 'jellyfish', false, true));
-    else if (kind === 'cormorant_dry') { const b = new Bird(this, 'cormorant', true); b.state = 'dry'; b.dryLeft = 120; this.agents.push(b); }
+    else if (kind === 'cormorant_dry') { const b = new Bird(this, 'cormorant', true); b.state = 'dry'; b.dryLeft = 120; b.pinned = true; this.agents.push(b); }
     else if (BIRDS[kind]) this._spawnBird(kind, false);
     else if (kind === 'whale') this.agents.push(new Whale(this));
     else if (kind === 'fish_school') { if (!this.school) { this.school = new FishSchool(this); this.agents.push(this.school); } }

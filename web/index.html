@@ -63,6 +63,12 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 #hud .row { display: grid; grid-template-columns: 96px 1fr 64px; gap: 10px; align-items: center; margin: 7px 0; }
 #hud .row.txt { grid-template-columns: 96px 1fr; }
 #hud .k { color: var(--p5); }
+/* v22: подсказки к параметрам «Состояния» — наведение (ПК) или нажатие (телефон) на название; пунктир — «есть пояснение» */
+#hud .k[data-tip] { cursor: help; text-decoration: underline dotted rgba(146,191,189,.45); text-underline-offset: 3px; }
+#hint { position: fixed; z-index: 45; max-width: 270px; padding: 9px 12px; border-radius: 12px; font-size: 11.5px; line-height: 1.45; letter-spacing: .02em;
+  text-transform: none; color: #eef4ee; background: rgba(20,34,31,.78); border: 1px solid var(--panel-edge); box-shadow: var(--glass-in);
+  backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); pointer-events: none; opacity: 0; transition: opacity .15s; }
+#hint.show { opacity: 1; }
 #hud .v { text-align: right; color: var(--p4); }
 .bar { height: 3px; background: rgba(211,220,211,.12); position: relative; }
 .bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--p3); width: 0%; transition: width .5s linear; }
@@ -152,6 +158,7 @@ html, body { height: 100dvh; overscroll-behavior: none; }
   #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: 48dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
   #log { right: 10px; bottom: 10px; width: 250px; } #log li { font-size: 10px; grid-template-columns: 38px 1fr; }
   #log ul { max-height: 30dvh; overflow-y: auto; }
+  #hint { max-width: 230px; font-size: 10px; padding: 7px 10px; }
   #follow { bottom: 46px; font-size: 9.5px; } #follow button { width: 22px; height: 22px; }
   #tod { bottom: 10px; gap: 5px; } #tod button { padding: 6px 10px; font-size: 9.5px; border-radius: 11px; }
   #credits { display: none; }
@@ -200,13 +207,13 @@ html, body { height: 100dvh; overscroll-behavior: none; }
 
   <section id="hud" class="panel">
     <h2>ОКЕАН · СОСТОЯНИЕ</h2>
-    <div class="row txt"><span class="k">Погода</span><span id="v-weather" class="v" style="text-align:left">—</span></div>
-    <div class="row txt"><span class="k">Время</span><span id="v-time" class="v" style="text-align:left">--:--</span></div>
-    <div class="row"><span class="k">Ветер</span><div class="bar"><i id="b-wind"></i></div><span id="v-wind" class="v">—</span></div>
-    <div class="row"><span class="k">Волна</span><div class="bar"><i id="b-wave"></i></div><span id="v-wave" class="v">—</span></div>
-    <div class="row"><span class="k">Темп.</span><div class="bar warm"><i id="b-temp"></i></div><span id="v-temp" class="v">—</span></div>
-    <div class="row"><span class="k">Активность</span><div class="bar act"><i id="b-act"></i></div><span id="v-act" class="v">—</span></div>
-    <div class="row"><span class="k">Напряжение</span><div class="bar ten"><i id="b-ten"></i></div><span id="v-ten" class="v">—</span></div>
+    <div class="row txt"><span class="k" data-tip="Что сейчас над океаном: штиль, бриз, ветрено или шторм. Когда идёт дождь или стоит туман — это дописано рядом.">Погода</span><span id="v-weather" class="v" style="text-align:left">—</span></div>
+    <div class="row txt"><span class="k" data-tip="Часы в мире океана. Сутки здесь длятся 32 минуты; кнопки внизу переводят время на ночь, утро, день или вечер.">Время</span><span id="v-time" class="v" style="text-align:left">--:--</span></div>
+    <div class="row"><span class="k" data-tip="Скорость ветра. Сильнее ветер — выше волны, больше белых барашков и громче шум ветра.">Ветер</span><div class="bar"><i id="b-wind"></i></div><span id="v-wind" class="v">—</span></div>
+    <div class="row"><span class="k" data-tip="Высота волн. Растёт с ветром и в шторм; от неё зависит, как громко шумит прибой.">Волна</span><div class="bar"><i id="b-wave"></i></div><span id="v-wave" class="v">—</span></div>
+    <div class="row"><span class="k" data-tip="Температура воздуха над океаном — меняется с погодой и временем суток.">Темп.</span><div class="bar warm"><i id="b-temp"></i></div><span id="v-temp" class="v">—</span></div>
+    <div class="row"><span class="k" data-tip="Насколько оживлён океан: сколько голосов зверей и птиц (крики, всплески, прыжки) прозвучало за последние 30 секунд. 100% — около тридцати.">Активность</span><div class="bar act"><i id="b-act"></i></div><span id="v-act" class="v">—</span></div>
+    <div class="row"><span class="k" data-tip="Насколько тревожно в океане (от 0 до 1). Растёт в шторм и ночью, и скачком — когда приходит акула, косатка или кит. Чем выше, тем громче гул глубины, а выше 0.5 в музыке слышны глухие удары. Само спадает за десятки секунд.">Напряжение</span><div class="bar ten"><i id="b-ten"></i></div><span id="v-ten" class="v">—</span></div>
   </section>
 
   <section id="census" class="panel"><h2>ОБИТАТЕЛИ</h2><div id="census-body">—</div></section>
@@ -218,6 +225,7 @@ html, body { height: 100dvh; overscroll-behavior: none; }
   </section>
   <section id="log" class="panel"><h2>ЖУРНАЛ СОБЫТИЙ</h2><ul id="log-list"></ul></section>
   <div id="tip"></div>
+  <div id="hint" role="tooltip"></div>
   <div id="follow"><span></span><button title="Отпустить камеру (Esc)" aria-label="Отпустить камеру">✕</button></div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <!-- жидкое стекло: карта линзы (feImage) едет за курсором, лёгкая «рябь» (feTurbulence) делает край текучим -->

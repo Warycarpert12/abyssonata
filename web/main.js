@@ -152,6 +152,26 @@ if (qs.get('noaudio') === '1') { gate.classList.add('hidden'); setTimeout(() => 
 for (const p of document.querySelectorAll('.panel')) p.querySelector('h2')?.addEventListener('click', () => p.classList.toggle('min'));
 if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 760px)').matches) for (const id of ['hud', 'log']) document.getElementById(id).classList.add('min');   // только телефон
 
+// --- подсказки «Состояния» (v22): что значит параметр — при наведении мышью на название, на телефоне — по нажатию
+// (повторное нажатие или касание в другом месте — убрать; сама уходит через 7 с)
+{
+  const hint = document.getElementById('hint'); let at = null, tmo = 0;
+  const show = el => {
+    at = el; hint.textContent = el.dataset.tip; hint.classList.add('show');
+    const r = el.getBoundingClientRect(), p = document.getElementById('hud').getBoundingClientRect();
+    hint.style.left = Math.min(p.right + 10, innerWidth - hint.offsetWidth - 8) + 'px';
+    hint.style.top = Math.max(8, Math.min(r.top - 6, innerHeight - hint.offsetHeight - 8)) + 'px';
+    clearTimeout(tmo); tmo = setTimeout(hide, 7000);
+  };
+  const hide = () => { at = null; hint.classList.remove('show'); };
+  for (const el of document.querySelectorAll('#hud [data-tip]')) {
+    el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(el); });
+    el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hide(); });
+    el.addEventListener('click', e => { if (e.pointerType === 'mouse') return; e.stopPropagation(); at === el ? hide() : show(el); });
+  }
+  addEventListener('pointerdown', e => { if (at && !e.target.closest?.('#hud [data-tip]')) hide(); });
+}
+
 // --- время суток: 4 кнопки (утро/день/вечер/ночь) — по-настоящему двигают часы живого мира
 // (не предпросмотр): погода/волны/существа продолжают жить с нового момента. Раньше здесь было
 // кольцо-перемотка с драгом по кругу (работало, но убрали по просьбе пользователя — заодно оно

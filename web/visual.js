@@ -232,6 +232,9 @@ const STATIC = new Set(['crab', 'starfish', 'octopus', 'shrimp_swarm']);
 const CRITTER_SP = new Set(['jellyfish', 'shrimp_swarm', 'octopus', 'stingray', 'sea_turtle', 'starfish', 'crab']);
 // звук при приближении камеры (папка samples/): бульки у медузы, осьминога и черепахи, треск креветок, щёлканье краба
 const NEAR_SND = { jellyfish: 'bubbles', octopus: 'bubbles', sea_turtle: 'bubbles', shrimp_swarm: 'shrimp', crab: 'crab' };
+// v22: «радиус тела» для наведения мыши (м): полдлины/полразмаха модели (косяк — круг, по которому ходят рыбы)
+const BODY_R = { seagull: 1.7, tern: 1.3, cormorant: 1.6, albatross: 3.2, pelican: 1.8, dolphin: 2.5, whale: 10, sea_lion: 1.9, fish_school: 6,
+  shark: 3.5, orca: 4.5, jellyfish: 1.2, shrimp_swarm: 1.6, octopus: 1.4, stingray: 2.3, sea_turtle: 1.4, starfish: .8, crab: .7, ship: 50 };
 const SPEED = { seagull: 9, tern: 10, cormorant: 8, albatross: 7, pelican: 7, dolphin: 7, whale: 3, sea_lion: 3, fish_school: 3, shark: 6, orca: 6,
   jellyfish: 1.2, sea_turtle: 2, stingray: 3, crab: 1.5, starfish: .3, octopus: .8, shrimp_swarm: 2, ship: 15 };
 
@@ -2334,20 +2337,32 @@ export class Visual {
   }
 
   // ------------------------------------------------------------------ наведение мыши
-  _updateHover() {
-    if (!this._mouseOver) { this.tipEl.classList.remove('show'); return; }
-    const w = this.w, h = this.h, mx = this._mouse.x, my = this._mouse.y, v = new V3();
-    let best = null, bestD = 34;
+  // v22: подпись появлялась «через раз» (замер qa/hover_check.mjs: видна 19–86% времени, пока курсор ведёт за зверем):
+  // зверь ловился, только если курсор ближе 34 px к центру модели — у кита и у косяка (центр — пустота между рыбами)
+  // это малая часть тела, а у плывущего зверя центр то входил в круг, то выходил. Теперь зона — по размеру зверя на
+  // экране, у уже выбранного она в 1.6 раза шире; подпись стоит над зверем и держится 0.35 с, если курсор соскочил
+  _updateHover(dt = 0) {
+    if (!this._mouseOver) { this._hov = null; this.tipEl.classList.remove('show'); return; }
+    const w = this.w, h = this.h, mx = this._mouse.x, my = this._mouse.y, v = this._hv ??= new V3(), cam = this.camera.position;
+    const pxPerM = h / (2 * Math.tan(this.camera.fov * Math.PI / 360));   // пикселей экрана на метр на расстоянии 1 м
+    let best = null, bestK = 1, bx = 0, by = 0, br = 0;
     for (const o of this.agents.values()) {
       if (o.gone) continue;
       v.copy(o.obj.position).project(this.camera);
       if (v.z > 1 || v.z < -1) continue;
       const px = (v.x * .5 + .5) * w, py = (-v.y * .5 + .5) * h, d = Math.hypot(px - mx, py - my);
-      if (d < bestD) { bestD = d; best = o; }
+      const rad = clamp((BODY_R[o.sp] ?? 1.5) * pxPerM / Math.max(1, o.obj.position.distanceTo(cam)), 0, 260);
+      const k = d / (Math.max(30, rad) * (o === this._hov ? 1.6 : 1));
+      if (k < bestK) { bestK = k; best = o; bx = px; by = py; br = rad; }
     }
-    if (best) {
-      this.tipEl.textContent = best.sp === 'fish_school' ? NAMES.fish_school : `${NAMES[best.sp] || best.sp} №${best.n}`;
-      this.tipEl.style.left = this._mouse.clientX + 'px'; this.tipEl.style.top = this._mouse.clientY + 'px';
+    if (best) { this._hov = best; this._hovT = .35; this._hovP = [bx, by, br]; }
+    else if (this._hov && ((this._hovT -= dt) <= 0 || this._hov.gone)) this._hov = null;
+    const o = this._hov;
+    if (o) {
+      const txt = o.sp === 'fish_school' ? NAMES.fish_school : `${NAMES[o.sp] || o.sp} №${o.n}`;
+      if (this.tipEl.textContent !== txt) this.tipEl.textContent = txt;
+      const r = this.stage.getBoundingClientRect(), [px, py, rad] = this._hovP;
+      this.tipEl.style.left = (r.left + px) + 'px'; this.tipEl.style.top = (r.top + py - Math.min(rad, 60) * .5) + 'px';
       this.tipEl.classList.add('show');
     } else this.tipEl.classList.remove('show');
   }
@@ -2492,7 +2507,7 @@ export class Visual {
     this._nearSounds(dt);
     if (this.shoals) this._stepAmbient(dt, t);
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
-    this._updateHover();
+    this._updateHover(dt);
     this.renderer.setRenderTarget(this.rt); this.renderer.render(this.scene, this.camera);
     this.renderer.setRenderTarget(null); this.renderer.render(this.postScene, this.postCam);
     return P;

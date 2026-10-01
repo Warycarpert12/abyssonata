@@ -819,6 +819,7 @@ export class Visual {
       const spread = 1 + scare * 2.2, cx = s.c.x + Math.cos(s.a) * 6, cz = s.c.z + Math.sin(s.a) * 4;
       s.f.forEach(([x, y, z, ph], i) => {
         P.set(cx + x * spread + Math.sin(t * 1.6 + ph) * .4, s.c.y + y + Math.sin(t * 2.2 + ph) * .15, cz + z * spread + Math.cos(t * 1.4 + ph) * .4);
+        P.y = Math.min(-.3, Math.max(P.y, islandH(P.x, P.z) + .3));   // v21: над камнем рифа, но под водой (~12% рыбок были внутри гряды)
         Q.setFromAxisAngle(Y, Math.atan2(-Math.sin(s.a) * s.sp, Math.cos(s.a) * s.sp) + Math.sin(t * 7 + ph) * .2);
         M.compose(P, Q, Sc); s.m.setMatrixAt(i, M);
       });
@@ -1824,6 +1825,8 @@ export class Visual {
       p.lerp(base.clone().setY(5 + Math.sin(o.t * .7) * .6), o.fly);
       if (o.dive > 0 && o.diveP) p.set(o.diveP.x, p.y, o.diveP.z);   // v19: пикирует туда, где вода
       ob.position.lerp(p, 1 - Math.exp(-dt * 2));
+      // v21: взлетая с воды к далёкой цели, первые доли секунды скользил телом сквозь пляж — над сушей не ниже +2.5 м
+      { const g = groundAt(ob.position.x, ob.position.z, 1); if (g > -.3) ob.position.y = Math.max(ob.position.y, g + 2.5); }
       // v14 (Википедия «Brown pelican»): нырок — взлёт на ~12 м, пике камнем клювом вперёд (крылья сложены), вход в воду,
       // всплытие; потом сливает воду из клюва (голова вверх) и глотает рыбу
       const dv = o.dive > 0 ? 1 - o.dive / 2.6 : -1, scoop = 0;

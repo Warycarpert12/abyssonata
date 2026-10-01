@@ -164,19 +164,40 @@ todButtons.forEach(btn => btn.addEventListener('click', () => {
 }));
 
 let last = performance.now(), hudT = 0;
-// v21: слабое устройство — если картинка 3 с подряд ниже ~24 кадров/с, ступенчато снижаем качество картинки и
-// разгружаем звук (audio.weak). На нормальных устройствах не срабатывает; в QA-снимках (&lowres) выключено
-const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, badW = 0;
+// --- качество картинки (v22): «Авто / Высокое / Низкое» в настройках, выбор запоминается в браузере.
+// Высокое — полное разрешение (basePR: до ×1.5 на телефоне, до ×2 на ПК) и сглаживание. Низкое — ×0.75 от одной точки на
+// пиксель экрана, без сглаживания. Авто — начинает с высокого; если картинка долго ниже ~24 кадров/с, сначала снимает
+// сглаживание, потом разрешение не ниже ×0.8 и не ниже одной точки на пиксель экрана (в v21 доходило до ×0.55 — «мыло»
+// на Honor 30); только понижает — туда-обратно не переключается. Звук разгружается (audio.weak) как в v21: после двух
+// «плохих» ступеней подряд — при любом выборе. В QA-снимках (&lowres) — без изменений
+const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false } };
+const AUTO = [Q.high, { k: 1, msaa: false }, { k: Math.max(.8, Math.min(1, 1 / visual.basePR)), msaa: false }];
+let qMode = 'auto'; try { qMode = localStorage.getItem('om.quality') || 'auto'; } catch { /* приватное окно */ }
+if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
+const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, strain = 0, badW = 0;
+const applyQ = () => { if (autoQ) visual.setQuality(qMode === 'auto' ? AUTO[qLevel] : Q[qMode]); };
+const setQMode = m => {
+  qMode = m; qLevel = 0; fpsT = -3; fpsN = fpsSum = badW = 0; applyQ();
+  try { localStorage.setItem('om.quality', m); } catch { /* приватное окно */ }
+  document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
+};
 const watchFps = raw => {
-  if (!autoQ || document.hidden || qLevel >= 2 || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
+  if (!autoQ || document.hidden || strain >= 2 || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
   fpsT += raw; if (fpsT < 0) return;   // первые 5 с после входа — догрузка и распаковка, не считаем
   fpsN++; fpsSum += raw;
   if (fpsT < 3) return;
   badW = fpsSum / fpsN > 1 / 24 ? badW + 1 : 0;   // две плохие трёхсекундные полосы подряд — не разовая заминка
-  if (badW >= 2) { badW = 0; qLevel++; visual.setQuality(qLevel); if (qLevel >= 2) audio.weak = true; console.info('[quality] слабое устройство — уровень', qLevel); fpsT = -2; }
+  if (badW >= 2) {
+    badW = 0; strain++;
+    if (qMode === 'auto' && qLevel < AUTO.length - 1) { qLevel++; applyQ(); }
+    if (strain >= 2) audio.weak = true;
+    console.info('[quality] слабое устройство — ступень', strain, qMode === 'auto' ? `(картинка: ${qLevel})` : `(картинка: ${qMode}, не меняется)`); fpsT = -2;
+  }
   else fpsT = 0;
   fpsN = 0; fpsSum = 0;
 };
+document.querySelectorAll('#quality button').forEach(b => b.addEventListener('click', () => setQMode(b.dataset.q)));
+setQMode(qMode);
 function frame(now) {
   requestAnimationFrame(frame);   // v21: первым делом — ошибка ниже не должна остановить цикл
   // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходил

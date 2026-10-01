@@ -334,6 +334,7 @@ export class Visual {
     // рисует кадр так долго, что за время снимка мир не успевает ожить
     const gl = this.renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
     const soft = dbg && /swiftshader|llvmpipe|software/i.test(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL));
+    this.soft = soft;
     this.rt = new THREE.WebGLRenderTarget(1, 1, { samples: soft ? 0 : 4 });
     this.rt.texture.generateMipmaps = true; this.rt.texture.minFilter = THREE.LinearMipmapLinearFilter;
     this.postMat = new THREE.ShaderMaterial({
@@ -2387,14 +2388,12 @@ export class Visual {
     return smooth(75, 28, d) * smooth(60, 22, c.y);
   }
 
-  // v21: качество для слабых устройств (main.js по частоте кадров): 0 — как было, 1 — разрешение ×0.75, 2 — ×0.55 и без
-  // сглаживания MSAA. Только понижается
-  setQuality(level) {
-    if (level <= (this.quality ?? 0)) return;
-    this.quality = level;
-    this.renderer.setPixelRatio(this.basePR * [1, .75, .55][level]);
-    if (level >= 2 && this.rt.samples) { this.rt.samples = 0; this.rt.dispose(); }
-    this.resize();
+  // качество картинки (v21 — только понижение по частоте кадров; v22 — и выбор в настройках, см. main.js): k — доля
+  // разрешения от basePR, msaa — сглаживание буфера (в программном рендере его нет вовсе)
+  setQuality({ k = 1, msaa = true } = {}) {
+    const pr = this.basePR * k, samples = msaa && !this.soft ? 4 : 0;
+    if (Math.abs(pr - this.renderer.getPixelRatio()) > 1e-3) { this.renderer.setPixelRatio(pr); this.resize(); }
+    if (samples !== this.rt.samples) { this.rt.samples = samples; this.rt.dispose(); }
   }
   resize() {
     const w = this.stage.clientWidth, h = this.stage.clientHeight;

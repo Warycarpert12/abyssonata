@@ -72,11 +72,19 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 #census .cs:hover { background: rgba(211,220,211,.12); }
 #census .cs.on { background: rgba(146,191,189,.24); }
 /* громкость (v11): «Природа» — все звуки мира, «Музыка» — на будущее (пока не играет) */
-#vol { right: 18px; top: 18px; width: 250px; }
+#vol { right: 18px; top: 18px; width: 262px; }
 #vol .row { display: grid; grid-template-columns: 74px 1fr 34px; gap: 10px; align-items: center; margin: 7px 0; }
 #vol .k { color: var(--p5); } #vol .v { text-align: right; color: var(--p4); }
 #vol input[type=range] { width: 100%; accent-color: var(--p3); height: 14px; background: transparent; cursor: pointer; }
 #vol .row.off { opacity: .45; } #vol .row.off input { cursor: default; }
+/* v22: качество картинки — три кнопки в ряд, выбранная подсвечена */
+#vol .row.q { grid-template-columns: auto 1fr; }
+.seg { display: flex; border: 1px solid var(--panel-edge); border-radius: 10px; overflow: hidden; }
+.seg button { flex: auto; font: inherit; font-size: 9.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--p4); background: transparent;
+  border: 0; border-left: 1px solid var(--line); padding: 5px 5px; cursor: pointer; white-space: nowrap; transition: background .2s, color .2s; }
+.seg button:first-child { border-left: 0; }
+.seg button.active { background: rgba(146,191,189,.45); color: #17251f; text-shadow: none; }
+@media (hover: hover) { .seg button:not(.active):hover { background: rgba(211,220,211,.12); } }
 
 #credits { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); font-size: 9px; color: rgba(211,220,211,.5); z-index: 5; pointer-events: none; white-space: nowrap; }
 /* v21: ссылка «Авторы и лицензии» — в подписи внизу и на экране входа, маленькая и неяркая */
@@ -117,14 +125,15 @@ html, body { height: 100dvh; overscroll-behavior: none; }
   .panel h2 { font-size: 10px; margin-bottom: 5px; padding-bottom: 4px; }
   #hud { left: 10px; top: 10px; width: 212px; } #hud .row { grid-template-columns: 70px 1fr 46px; gap: 6px; margin: 3px 0; }
   #hud .row.txt { grid-template-columns: 70px 1fr; }
-  #vol { right: 10px; top: 10px; width: 184px; } #vol .row { grid-template-columns: 56px 1fr 26px; gap: 6px; margin: 3px 0; }
+  #vol { right: 10px; top: 10px; width: 204px; } #vol .row { grid-template-columns: 56px 1fr 26px; gap: 6px; margin: 3px 0; }
+  .seg button { font-size: 8px; letter-spacing: .01em; padding: 4px 3px; }
   #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: 48dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
   #log { right: 10px; bottom: 10px; width: 250px; } #log li { font-size: 10px; grid-template-columns: 38px 1fr; }
   #log ul { max-height: 30dvh; overflow-y: auto; }
   #tod { bottom: 10px; gap: 5px; } #tod button { padding: 6px 10px; font-size: 9.5px; border-radius: 11px; }
   #credits { display: none; }
 }
-@media (max-aspect-ratio: 4/3) and (min-height: 561px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 230px; } }
+@media (max-aspect-ratio: 4/3) and (min-height: 561px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 250px; } }
 /* телефон вертикально — просим повернуть (океан задуман широким) */
 #rotate { display: none; }
 @media (orientation: portrait) and (max-width: 900px) {
@@ -176,9 +185,10 @@ html, body { height: 100dvh; overscroll-behavior: none; }
 
   <section id="census" class="panel"><h2>ОБИТАТЕЛИ</h2><div id="census-body">—</div></section>
   <section id="vol" class="panel">
-    <h2>ГРОМКОСТЬ</h2>
+    <h2>НАСТРОЙКИ</h2>
     <div class="row"><label class="k" for="vol-nature">Природа</label><input id="vol-nature" type="range" min="0" max="100" value="100"><span id="v-nature" class="v">100</span></div>
     <div class="row" title="Абстрактный слой: искажённое «эхо» звуков мира, как в мурмур"><label class="k" for="vol-music">Музыка</label><input id="vol-music" type="range" min="0" max="100" value="70"><span id="v-music" class="v">70</span></div>
+    <div class="row q"><span class="k">Картинка</span><div class="seg" id="quality" role="group" aria-label="Качество картинки"><button data-q="auto" title="Само снижает качество, если устройство не успевает (не ниже чёткого)">Авто</button><button data-q="high">Высокое</button><button data-q="low">Низкое</button></div></div>
   </section>
   <section id="log" class="panel"><h2>ЖУРНАЛ СОБЫТИЙ</h2><ul id="log-list"></ul></section>
   <div id="tip"></div>

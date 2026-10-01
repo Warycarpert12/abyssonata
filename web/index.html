@@ -40,6 +40,12 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
   box-shadow: var(--ca-box), var(--glass-in); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
 #tod button:hover { border-color: rgba(211,220,211,.6); color: #fff; transform: translateY(-1px); }
 #tod button.active { background: rgba(146,191,189,.45); color: #17251f; border-color: rgba(211,220,211,.75); text-shadow: none; }
+/* v22: пауза — рядом со временем суток, через разделитель; значок «❚❚» / «▶» нарисован рамками (одинаково на всех экранах) */
+#tod .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--panel-edge); }
+#pause::before { content: ''; display: inline-block; width: 7px; height: 9px; margin-right: 7px; vertical-align: -1px;
+  border-left: 2.5px solid currentColor; border-right: 2.5px solid currentColor; box-sizing: border-box; }
+#pause.on { background: rgba(216,199,154,.38); color: #fff; border-color: rgba(216,199,154,.7); }
+#pause.on::before { width: 0; height: 0; border-left: 8px solid currentColor; border-right: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
 
 /* панели */
 .panel { position: absolute; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 16px; padding: 13px 17px; font-size: 13px;
@@ -169,6 +175,8 @@ html, body { height: 100dvh; overscroll-behavior: none; }
       <button data-tod=".28">Утро</button>
       <button data-tod=".5">День</button>
       <button data-tod=".72">Вечер</button>
+      <span class="sep"></span>
+      <button id="pause" title="Пауза (пробел)">Пауза</button>
     </div>
   </div>
 

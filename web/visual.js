@@ -2404,7 +2404,9 @@ export class Visual {
   }
 
   // ------------------------------------------------------------------ кадр
-  frame(dt, t) {
+  // v22: dt — шаг мира (на паузе 0: звери, вода, эффекты замирают), cam — настоящий шаг кадра: камеру на паузе можно
+  // крутить и приближать (dtc: OrbitControls, слежение за зверем, границы), облёт сам не включается
+  frame(dt, t, dtc = dt) {
     const k = 1 - Math.exp(-dt * 1.4);
     for (const key of Object.keys(this.cur)) if (key !== 'tod') this.cur[key] += (this.tgt[key] - this.cur[key]) * k;
     this.cur.tod = this.tgt.tod;   // доля суток — круговая, не лерпим (см. v5)
@@ -2476,9 +2478,9 @@ export class Visual {
     this.flashV = Math.max(0, (this.flashV || 0) - dt * 2.6); this.flashEl.style.opacity = (this.flashV * .4).toFixed(3);
     const ru = this.rain.material.uniforms; ru.uTime.value = t; ru.uAmt.value = this.cur.rain; ru.uSlant.value = .18 + this.cur.wind * .35;
 
-    this._stepFollow(dt);
-    if (!this._drag) this._idle += dt;
-    const spin = this.controls.autoRotate = !this._follow && !this._freeCam && this._idle > 12;   // v15: через 12 с (было 20)
+    this._stepFollow(dtc);
+    if (!this._drag) this._idle += dtc;
+    const spin = this.controls.autoRotate = !this._follow && !this._freeCam && !this.paused && this._idle > 12;   // v15: через 12 с (было 20)
     if (spin) {
       // v16: облёт — вокруг всей локации (центр острова), камера на ~105 м под ~46°; когда она проходит над стороной
       // рифа (дуга в 55–82 м к +z), центр кадра плавно смещается к рифу — он отчётливо виден внизу кадра; с других
@@ -2492,7 +2494,7 @@ export class Visual {
       sp.radius = lerp(sp.radius, 105, k); sp.phi = lerp(sp.phi, .8, k);
       this.camera.position.copy(tg0).add(new V3().setFromSpherical(sp));
     }
-    this.controls.update(dt);
+    this.controls.update(dtc);
     this._qaLook();
     // границы (v13 свободнее): точка обзора — в пределах 150 м от острова (островки, риф, звери вокруг), по высоте — от
     // рельефа до 30 м; возвращается плавно, камера сдвигается вместе с ней (вид не меняется). Было: 42 м и потолок 8 м,
@@ -2503,7 +2505,7 @@ export class Visual {
       const want = tg.clone(), hr = Math.hypot(tg.x, tg.z);
       if (hr > 150) { want.x *= 150 / hr; want.z *= 150 / hr; }
       want.y = clamp(want.y, Math.max(0, islandH(want.x, want.z) + .5), 30);
-      const off = want.sub(tg).multiplyScalar(1 - Math.exp(-dt * 4)); tg.add(off); cam.add(off);
+      const off = want.sub(tg).multiplyScalar(1 - Math.exp(-dtc * 4)); tg.add(off); cam.add(off);
     }
     // камера — не под воду и не сквозь остров
     const floor = Math.max(1.5, islandH(cam.x, cam.z) + 1.5); if (cam.y < floor) cam.y = floor;
@@ -2520,7 +2522,7 @@ export class Visual {
     this._nearSounds(dt);
     if (this.shoals) this._stepAmbient(dt, t);
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
-    this._updateHover(dt);
+    this._updateHover(dtc);
     this.renderer.setRenderTarget(this.rt); this.renderer.render(this.scene, this.camera);
     this.renderer.setRenderTarget(null); this.renderer.render(this.postScene, this.postCam);
     return P;

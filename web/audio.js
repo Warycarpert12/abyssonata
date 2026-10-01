@@ -128,6 +128,13 @@ export class OceanAudio {
     }
   }
 
+  // v22: пауза — весь звук замирает на месте (контекст приостановлен) и продолжается с того же места
+  setPaused(p) {
+    this.paused = p;
+    if (this.ctx) (p ? this.ctx.suspend() : this.ctx.resume()).catch(() => {});
+    if (this.keep) p ? this.keep.pause() : this.keep.play().catch(() => {});
+  }
+
   async _start() {
     // v21: браузер без Web Audio — вход без звука, а не «Не вышло — нажми ещё раз» по кругу
     if (!(window.AudioContext || window.webkitAudioContext)) throw Object.assign(new Error('этот браузер не поддерживает Web Audio'), { noAudio: true });

@@ -157,13 +157,27 @@ if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and
 // кольцо-перемотка с драгом по кругу (работало, но убрали по просьбе пользователя — заодно оно
 // перехватывало указатель у OrbitControls/наведения, см. CHANGELOG); сам механизм остался в
 // world.setTimeOfDay(frac), эти кнопки — просто другой UI поверх него.
-const todButtons = document.querySelectorAll('#tod button');
+const todButtons = document.querySelectorAll('#tod button[data-tod]');
 todButtons.forEach(btn => btn.addEventListener('click', () => {
   world.setTimeOfDay(parseFloat(btn.dataset.tod));
   todButtons.forEach(b => b.classList.remove('active')); btn.classList.add('active');
 }));
 
-let last = performance.now(), hudT = 0;
+// --- пауза (v22): кнопка «Пауза» и пробел. Мир не считается, звук приостановлен, журнал не пополняется, звери и вода
+// замирают; камеру можно крутить и приближать (visual.frame получает шаг мира 0 и настоящий шаг кадра)
+let paused = false;
+const pauseBtn = document.getElementById('pause');
+const setPaused = p => {
+  paused = p; visual.paused = p; audio.setPaused(p);
+  pauseBtn.classList.toggle('on', p); pauseBtn.textContent = p ? 'Дальше' : 'Пауза'; pauseBtn.title = (p ? 'Продолжить' : 'Пауза') + ' (пробел)';
+};
+pauseBtn.addEventListener('click', () => setPaused(!paused));
+addEventListener('keydown', e => {
+  if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  e.preventDefault(); setPaused(!paused);   // и не «нажимаем» кнопку, на которой фокус
+});
+
+let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время мира (на паузе стоит)
 // --- качество картинки (v22): «Авто / Высокое / Низкое» в настройках, выбор запоминается в браузере.
 // Высокое — полное разрешение (basePR: до ×1.5 на телефоне, до ×2 на ПК) и сглаживание. Низкое — ×0.75 от одной точки на
 // пиксель экрана, без сглаживания. Авто — начинает с высокого; если картинка долго ниже ~24 кадров/с, сначала снимает
@@ -182,7 +196,7 @@ const setQMode = m => {
   document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
 };
 const watchFps = raw => {
-  if (!autoQ || document.hidden || strain >= 2 || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
+  if (!autoQ || document.hidden || paused || strain >= 2 || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
   fpsT += raw; if (fpsT < 0) return;   // первые 5 с после входа — догрузка и распаковка, не считаем
   fpsN++; fpsSum += raw;
   if (fpsT < 3) return;
@@ -205,9 +219,10 @@ function frame(now) {
   const raw = (now - last) / 1000, dt = Math.max(0, Math.min(raw, .1)); last = now;
   if (raw > 0 && raw < 1) watchFps(raw);
   // одна ошибка (в мире или в отрисовке) не должна насовсем остановить requestAnimationFrame-цикл
-  try { world.step(dt); } catch (e) { console.error('world step failed', e?.stack || e); }
+  const wdt = paused ? 0 : dt; wt += wdt;
+  if (!paused) try { world.step(dt); } catch (e) { console.error('world step failed', e?.stack || e); }
   try { audio.prox = visual.proximity(); } catch { /* до загрузки сцены */ }   // насекомые слышны, только когда камера у острова
-  try { visual.frame(dt, now / 1000); hudT += dt; if (hudT > .25) { hudT = 0; visual.hud(); } }
+  try { visual.frame(wdt, wt, dt); hudT += wdt; if (hudT > .25) { hudT = 0; visual.hud(); } }
   catch (e) { console.error('render frame failed', e?.stack || e); }
 }
 requestAnimationFrame(frame);

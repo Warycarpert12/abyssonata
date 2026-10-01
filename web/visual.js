@@ -1686,8 +1686,14 @@ export class Visual {
         return d >= FLEE_R ? own : new V3(qp.x + dx / d * FLEE_R, own.y, qp.z + dz / d * FLEE_R);
       }
       const a = o.seed * 2.1, rr = REL_R[o.sp] ?? 0, x = qp.x + Math.cos(a) * rr, z = qp.z + Math.sin(a) * rr;
-      if (o.sp === 'crab') return islandH(x, z) < 0 ? own : new V3(x, groundAt(x, z, .3), z);   // в воду не идёт
-      if (o.sp === 'octopus') { const g = islandH(x, z); return g > -.3 ? own : new V3(x, g + .1, z); }   // на сушу не вылезает
+      // v20: краб идёт к медузе на песке, только если она рядом и путь целиком по суше (по прямой через залив он
+      // «брёл» по воде); осьминог остаётся в расщелине — к крабу на берегу он полз сквозь островок
+      if (o.sp === 'crab') {
+        const far = Math.hypot(x - own.x, z - own.z) > 12;
+        let dry = !far; for (let k = 0; dry && k <= 4; k++) dry = islandH(lerp(own.x, x, k / 4), lerp(own.z, z, k / 4)) >= .1;
+        return dry ? new V3(x, groundAt(x, z, .3), z) : own;
+      }
+      if (o.sp === 'octopus') return own;
       return new V3(x, own.y, z);
     }
     if (o.sp === 'ship') { const th = o.th0 + o.thDir * o.t * .0048; return new V3(Math.cos(th) * 1450, 0, Math.sin(th) * 1450); }

@@ -165,7 +165,7 @@ class Bird extends Agent {
       if (c.drift) this.x = Math.max(-0.9, Math.min(0.9, this.x + gauss(0, c.drift) * Math.sqrt(dt)));
       // v19 («Gull», «Tern»): птицы слетаются туда, где охотятся дельфины, кит или косатки и рыба у поверхности
       const feed = this.eco.feed;
-      if (c.dive && feed && this.rel !== feed.a.uid && Math.random() < 0.08 * dt) this.relate(feed.a, 'to', feed.t);
+      if (c.dive && feed && this.rk !== 'flock' && this.rel !== feed.a.uid && Math.random() < 0.08 * dt) this.relate(feed.a, 'to', feed.t);   // v20: ведомый — за ведущим
       const atFeed = feed && this.rel === feed.a.uid && this.relT > 0;
       if (atFeed) this.x += Math.max(-0.05, Math.min(0.05, feed.a.x - this.x)) * dt;
       this.tCall -= dt; this.tDive -= dt;

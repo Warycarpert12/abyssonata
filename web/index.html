@@ -58,6 +58,10 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 .bar.warm > i { background: var(--p2); } .bar.act > i { background: var(--p4); } .bar.ten > i { background: var(--red); }
 #log { right: 18px; bottom: 18px; width: 380px; }
 #log ul { list-style: none; margin: 0; padding: 0; }
+/* v22: журнал и «Обитатели» листаются (пальцем — по вертикали; прокрутка не уходит на страницу); на ПК журнал — те же ~9
+   строк, дальше — прокрутка */
+#log ul { max-height: 196px; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
+#census { touch-action: pan-y; overscroll-behavior: contain; }
 #log li { display: grid; grid-template-columns: 50px 1fr; gap: 8px; padding: 3px 0; color: #b8c7c2; font-size: 12px; line-height: 1.25; }
 #log li time { color: var(--p5); }
 #log li.new { color: #fff; }
@@ -116,7 +120,7 @@ html, body { height: 100dvh; overscroll-behavior: none; }
   #vol { right: 10px; top: 10px; width: 184px; } #vol .row { grid-template-columns: 56px 1fr 26px; gap: 6px; margin: 3px 0; }
   #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: 48dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
   #log { right: 10px; bottom: 10px; width: 250px; } #log li { font-size: 10px; grid-template-columns: 38px 1fr; }
-  #log ul { max-height: 30dvh; overflow: hidden; }
+  #log ul { max-height: 30dvh; overflow-y: auto; }
   #tod { bottom: 10px; gap: 5px; } #tod button { padding: 6px 10px; font-size: 9.5px; border-radius: 11px; }
   #credits { display: none; }
 }

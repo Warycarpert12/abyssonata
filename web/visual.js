@@ -15,6 +15,15 @@ import { Noise2D } from './noise.js';
 THREE.ColorManagement.enabled = false;
 
 const $ = s => document.querySelector(s);
+// v22: «нажатие» в листаемом списке — короткое (до 0.6 с) и почти без движения (до 8 px); начал листать — не нажатие
+// (браузер, начиная прокрутку, присылает pointercancel). fn получает элемент строки, найденный при касании
+export function tapOnly(box, sel, fn) {
+  let d = null;
+  box.addEventListener('pointerdown', e => { const r = e.target.closest(sel); d = r && (e.pointerType === 'mouse' ? e.button === 0 : true) ? { r, id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() } : null; });
+  box.addEventListener('pointermove', e => { if (d && e.pointerId === d.id && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8) d = null; });
+  box.addEventListener('pointercancel', () => { d = null; });
+  box.addEventListener('pointerup', e => { if (d && e.pointerId === d.id && performance.now() - d.t < 600 && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 8) fn(d.r, e); d = null; });
+}
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
@@ -250,7 +259,9 @@ export class Visual {
     this.assets = null; this.clock = 0;
     this._mouse = { x: -1e9, y: -1e9, clientX: 0, clientY: 0 }; this._mouseOver = false;
     // нажатие на строку «Обитателей» — показать этого зверя (pointerdown: список перестраивается каждые 0.25 с)
-    $('#census-body').addEventListener('pointerdown', e => { const r = e.target.closest('[data-sp]'); if (r) this.focusSpecies(r.dataset.sp); });
+    // v22: только короткое нажатие без движения — на телефоне список листается пальцем, и раньше каждое касание
+    // (pointerdown) уже было «показать» (вид запоминается при касании: список перестраивается каждые 0.25 с)
+    tapOnly($('#census-body'), '[data-sp]', r => this.focusSpecies(r.dataset.sp));
     this._initScene();
     addEventListener('resize', () => this.resize());
     this.resize();
@@ -2320,8 +2331,11 @@ export class Visual {
     if (['wave_break', 'splash', 'surf_surge', 'surf_calm'].includes(e.type)) return;
     const li = document.createElement('li'); li.className = 'new';
     li.innerHTML = `<time>${e.time ?? ''}</time><span></span>`; li.lastChild.textContent = e.text[0].toUpperCase() + e.text.slice(1);
-    this.logList.prepend(li); setTimeout(() => li.classList.remove('new'), 2500);
-    while (this.logList.children.length > 9) this.logList.lastChild.remove();
+    // v22: журнал листается (40 записей); если его отлистали вниз — новая запись сверху не сдвигает то, что читают
+    const box = this.logList, keep = box.scrollTop > 2;
+    box.prepend(li); setTimeout(() => li.classList.remove('new'), 2500);
+    if (keep) box.scrollTop += li.offsetHeight;
+    while (box.children.length > 40) box.lastChild.remove();
   }
 
   // ------------------------------------------------------------------ палитра

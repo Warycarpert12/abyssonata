@@ -162,7 +162,7 @@ function navPath(p, t, need, rad) {
 const TURNS = [0, .35, .7, 1.05, 1.4, 1.75, 2.1, 2.45, 2.8];
 // v19: пловец, который сейчас не плавает: черепаха греется на пляже или спит на рифе, медуза выброшена на песок —
 // их не уводит на глубину (deepSpot/swimStep) и не толкает с мели (_separate)
-const landed = o => !o.gone && ((o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && o.st === 'stranded')) && (o.landT = o.t, true);   // landT — для qa/move_check
+const landed = o => ((!o.gone && o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && (o.flat || (!o.gone && o.st === 'stranded')))) && (o.landT = o.t, true);   // landT — для qa/move_check
 function swimStep(o, tgt, max) {
   const p = o.anchor, dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
   p.y += clamp(tgt.y - p.y, -max, max); if (d < 1e-4) return;
@@ -1442,7 +1442,7 @@ export class Visual {
       if (!far) o.fade = 1;   // уже был при загрузке страницы (и в QA ?spawn=ship) — сразу виден
     }
     o.anchor = this._goal(o);
-    if (far && !STATIC.has(a.sp) && a.sp !== 'ship') {   // новые приходят из дымки: морские — из открытого моря (снаружи от своей цели), птицы — с любой стороны
+    if (far && !STATIC.has(a.sp) && a.sp !== 'ship' && a.st !== 'stranded') {   // v21: медузу выносит волной — появляется на месте   // новые приходят из дымки: морские — из открытого моря (снаружи от своей цели), птицы — с любой стороны
       const y = o.anchor.y, out = o.anchor.clone().setY(0).normalize();
       const dir = BIRDS.has(a.sp) && a.sp !== 'pelican' ? new V3(rnd(-1, 1), 0, rnd(-1, 1)).normalize()
         : out.applyAxisAngle(new V3(0, 1, 0), POD[a.sp] ? this.podPh[a.sp] % 1.4 - .7 : rnd(-.7, .7));   // v18: стая — вся с одной стороны
@@ -1512,7 +1512,8 @@ export class Visual {
              d.yz += vec2(q.y * c - q.z * sn, q.y * sn + q.z * c) - q.yz; d.x += hr * sin(uWT * .7) * L * .05 * uWA;`,
       jelly: `float bell = smoothstep(.5, .8, yn), tip = clamp(1. - yn / .55, 0., 1.);
              d.xz -= hp.xz * .24 * uWA * bell; d.y += (uY.y - uY.x) * .06 * uWA * bell;
-             d.x += sin(uWT - tip * 4.) * tip * tip * uBox.z * .45; d.z += cos(uWT * .8 - tip * 3.5) * tip * tip * uBox.z * .45;`,
+             d.x += sin(uWT - tip * 4.) * tip * tip * uBox.z * .45 * (1. - uWB); d.z += cos(uWT * .8 - tip * 3.5) * tip * tip * uBox.z * .45 * (1. - uWB);
+             d.xz -= hp.xz * tip * .65 * uWB;`,
       // v13: краб — ноги по бокам перебирают (через одну), клешни спереди пощёлкивают; звезда — лучи медленно изгибаются;
       // осьминог — щупальца волнами; креветка — бьёт хвостом, шевелит усами
       crab: `float s = smoothstep(.45, .9, abs(hp.x) / uBox.z) * smoothstep(.6, .1, yn);
@@ -1724,7 +1725,8 @@ export class Visual {
     if (o.sp === 'sea_turtle' && o.st === 'bask') { const e = shoreAt(0, o.ang0, .25), x = e.x - e.dx * 1.2, z = e.z - e.dz * 1.2; return new V3(x, groundAt(x, z, .6) + .15, z); }
     if (o.sp === 'sea_turtle' && o.st === 'sleep') { const a = Math.sin(o.seed * 5) * REEF.half, r = REEF.r; return new V3(Math.sin(a) * r, islandH(Math.sin(a) * r, Math.cos(a) * r) + .6, Math.cos(a) * r); }
     if (o.sp === 'jellyfish' && o.st === 'stranded') {
-      const e = shoreAt(o.site, o.x * Math.PI + o.site * 2.3 + o.seed * .2, .25), x = e.x - e.dx * .3, z = e.z - e.dz * .3;
+      // v21: на сухом песке в ~1.5 м от кромки (лежала прямо на границе воды)
+      const e = shoreAt(o.site, o.x * Math.PI + o.site * 2.3 + o.seed * .2, .25), x = e.x - e.dx * 1.5, z = e.z - e.dz * 1.5;
       return new V3(x, groundAt(x, z, .3) + .05, z);
     }
     // скат — над песчаной отмелью главного острова, у дна
@@ -1952,13 +1954,22 @@ export class Visual {
     } else if (o.sp === 'jellyfish') {
       // v12 «динамичнее»: купол резко сжимается — медуза рывком всплывает, потом медленно раскрывается и опускается,
       // щупальца волнами тянутся следом (_wiggle 'jelly'); ночью неон сильнее, вспыхивает на каждом сжатии, есть ореол
-      if (o.st === 'stranded' || (o.gone && o.flat)) {   // v19: выброшена штормом — плоская лужица на песке, чуть светится
-        o.flat = true; ob.position.lerp(base, 1 - Math.exp(-dt * 2));
-        if (o.model) o.model.scale.set(1.35, .3, 1.35);
-        if (o.wig) o.wig.a.value = 0;
+      if (o.st === 'stranded' || o.flat) {   // v19: выброшена штормом — плоская лужица на песке, чуть светится
+        // v21: лежит НА песке там, куда вынесло (низ модели на земле; раньше висела куполом), сплющена, щупальца
+        // подобраны под купол (uWB); появляется за ~2 с, при смыве — тает на месте
+        const washed = o.gone || o.st === 'leave';
+        o.flat = true; o.flatK = clamp((o.flatK ?? 0) + dt * (washed ? -.4 : .5));
+        const q = (o.flatPos ??= base.clone()).clone(); if (o.landOff) q.add(o.landOff);
+        const sy = .07 * o.flatK, bx = this.assets?.jellyfish?.box;
+        q.y = groundAt(q.x, q.z, .4) + .02 - (bx ? bx.min.y * sy : 0);
+        ob.position.lerp(q, 1 - Math.exp(-dt * 4));
+        if (o.model) o.model.scale.set(.9 * o.flatK, sy, .9 * o.flatK);
+        if (o.wig) { o.wig.a.value = 0; o.wig.b.value = 1; }
         for (const m of o.mats || []) m.emissiveIntensity = .5 + (1 - (this._day ?? 1)) * .5;
         if (o.halo) o.halo.material.opacity = .08 + (1 - (this._day ?? 1)) * .2;
-        ob.rotation.set(0, o.seed, 0); return;
+        // лежит по склону песка, а не горизонтальным диском, висящим краем над землёй
+        const e = .6, gx = islandH(q.x + e, q.z) - islandH(q.x - e, q.z), gz = islandH(q.x, q.z + e) - islandH(q.x, q.z - e);
+        ob.quaternion.setFromUnitVectors(new V3(0, 1, 0), new V3(-gx, 2 * e, -gz).normalize()); ob.rotateY(o.seed); return;
       }
       o.jp = (o.jp ?? Math.random()) + dt / (2.2 + (o.seed % 1) * .8);
       const ph = o.jp % 1, pulse = ph < .25 ? Math.sin(ph / .25 * Math.PI * .5) : Math.max(0, 1 - (ph - .25) / .45);

@@ -151,10 +151,23 @@ todButtons.forEach(btn => btn.addEventListener('click', () => {
 }));
 
 let last = performance.now(), hudT = 0;
+// v21: слабое устройство — если картинка 3 с подряд ниже ~24 кадров/с, ступенчато снижаем качество картинки и
+// разгружаем звук (audio.weak). На нормальных устройствах не срабатывает; в QA-снимках (&lowres) выключено
+const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0;
+const watchFps = raw => {
+  if (!autoQ || document.hidden || qLevel >= 2) return;
+  fpsT += raw; if (fpsT < 0) return;   // первые 5 с — загрузка, не считаем
+  fpsN++; fpsSum += raw;
+  if (fpsT < 3) return;
+  if (fpsSum / fpsN > 1 / 24) { qLevel++; visual.setQuality(qLevel); audio.weak = true; console.info('[quality] слабое устройство — уровень', qLevel); fpsT = -2; }
+  else fpsT = 0;
+  fpsN = 0; fpsSum = 0;
+};
 function frame(now) {
   // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходил
   // отрицательным (в безголовом браузере −0.74 с), и мир с панелью «отматывались назад»
-  const dt = Math.max(0, Math.min((now - last) / 1000, .1)); last = now;
+  const raw = (now - last) / 1000, dt = Math.max(0, Math.min(raw, .1)); last = now;
+  if (raw > 0 && raw < 1) watchFps(raw);
   // одна ошибка (в мире или в отрисовке) не должна насовсем остановить requestAnimationFrame-цикл
   try { world.step(dt); } catch (e) { console.error('world step failed', e?.stack || e); }
   audio.prox = visual.proximity();   // насекомые слышны, только когда камера у острова

@@ -260,7 +260,7 @@ export class Visual {
     // ?lowres=1 — половинное разрешение для безголовых QA-снимков (программный рендер иначе успевает 1–2 кадра)
     // v14: на телефоне (сенсорный экран) — не выше 1.5: плотные экраны иначе рисуют в 3 раза больше точек и греются
     const touch = matchMedia('(pointer: coarse)').matches;
-    renderer.setPixelRatio(new URLSearchParams(location.search).has('lowres') ? .5 : Math.min(devicePixelRatio || 1, touch ? 1.5 : 2));
+    renderer.setPixelRatio(this.basePR = new URLSearchParams(location.search).has('lowres') ? .5 : Math.min(devicePixelRatio || 1, touch ? 1.5 : 2));
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace;   // цвета как заданы (см. CLAUDE.md), без sRGB-осветления
     const scene = this.scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xaab5b4, 120, 420);
@@ -2278,6 +2278,15 @@ export class Visual {
     return smooth(75, 28, d) * smooth(60, 22, c.y);
   }
 
+  // v21: качество для слабых устройств (main.js по частоте кадров): 0 — как было, 1 — разрешение ×0.75, 2 — ×0.55 и без
+  // сглаживания MSAA. Только понижается
+  setQuality(level) {
+    if (level <= (this.quality ?? 0)) return;
+    this.quality = level;
+    this.renderer.setPixelRatio(this.basePR * [1, .75, .55][level]);
+    if (level >= 2 && this.rt.samples) { this.rt.samples = 0; this.rt.dispose(); }
+    this.resize();
+  }
   resize() {
     const w = this.stage.clientWidth, h = this.stage.clientHeight;
     this.w = w; this.h = h;

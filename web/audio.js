@@ -85,6 +85,10 @@ export class OceanAudio {
     // устройствах — всё как было. ?lite=1 — включить для проверки
     const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     this.lite = ios || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || new URLSearchParams(location.search).get('lite') === '1';
+    // v21: слабое устройство (main.js включает, если картинка долго ниже ~24 кадров/с): не больше 10 разовых звуков
+    // одновременно, слой обновляется 12 раз в секунду, без «эха» абстрактного слоя — меньше работы звуковому потоку
+    // (треск/обрывы). На облегчённом (iPhone) предел голосов действует всегда. Обычные устройства — как было
+    this.weak = false; this.voices = 0;
   }
 
   async start() {
@@ -242,6 +246,7 @@ export class OceanAudio {
   update(s) {
     if (!this.ready) return;
     const now = this.ctx.currentTime, t = now - this.t0;
+    if (this.weak) { if (now - (this._upd ?? -1) < .083) return; this._upd = now; }   // v21: слабое устройство — 12 раз/с
     const night = lerp(.75, 1, s.daylight);
     const rl = s.rain_active ? clamp((s.rain - .4) / .4) : 0;   // сила дождя 0..1 — только когда дождь объявлен (синхронно с журналом/картинкой)
     const storm = rl;
@@ -265,7 +270,7 @@ export class OceanAudio {
 
     this.musicGen.update(s, now);
     if (now > this.nextAbs) {   // абстрактный слой: чаще ночью и в тишину, реже днём и в дождь
-      this._abstract(s);
+      if (!this.weak) this._abstract(s);   // v21: на слабом устройстве — без него (много голосов разом)
       this.nextAbs = now + rrand(25, 70) * (s.daylight > .5 ? 1.4 : .8) * (rl > .3 ? 2 : 1);
     }
     const on = !!s.rain_active;
@@ -378,6 +383,7 @@ export class OceanAudio {
   }
 
   _oneShot(buf, rate, amp, lpfHz, atk, rel, pan01, cat = '', off = 0, len = null) {
+    if ((this.weak || this.lite) && this.voices >= 10) return;   // v21: предел одновременных голосов на слабых устройствах
     const ctx = this.ctx, now = ctx.currentTime;
     const dur = (len ?? buf.duration - off) / rate, env = ctx.createGain(), lpf = ctx.createBiquadFilter();
     const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
@@ -395,6 +401,7 @@ export class OceanAudio {
     src.connect(lpf); lpf.connect(env);
     if (panner) { panner.pan.value = pan01 * 2 - 1; env.connect(panner); panner.connect(this.bus); }
     else env.connect(this.bus);
+    this.voices++; src.onended = () => this.voices--;
     src.start(now, off); src.stop(now + dur + .05);
   }
 }

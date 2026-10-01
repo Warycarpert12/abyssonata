@@ -262,6 +262,13 @@ export class Visual {
     // v22: только короткое нажатие без движения — на телефоне список листается пальцем, и раньше каждое касание
     // (pointerdown) уже было «показать» (вид запоминается при касании: список перестраивается каждые 0.25 с)
     tapOnly($('#census-body'), '[data-sp]', r => this.focusSpecies(r.dataset.sp));
+    this._logQ = []; this._logLast = new Map(); this._logRecs = new WeakMap(); this._logT = 0; this._logHoldM = false; this._logHoldT = 0;
+    const lg = $('#log'), hold = () => { this._logHoldT = performance.now() + 4000; };
+    lg.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') this._logHoldM = true; });
+    lg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') this._logHoldM = false; });
+    lg.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') hold(); });
+    this.logList.addEventListener('scroll', hold, { passive: true });
+    tapOnly(this.logList, 'li', li => this.focusEvent(this._logRecs.get(li)));
     this._initScene();
     addEventListener('resize', () => this.resize());
     this.resize();
@@ -295,7 +302,7 @@ export class Visual {
     // медленное вращение вокруг всей локации, как в мурмур (~3 мин на оборот): сразу при входе и снова через 12 с после того,
     // как камеру отпустили; пока держишь камеру или следишь за зверем — стоит
     controls.autoRotateSpeed = .35; this._idle = 99;
-    controls.addEventListener('start', () => { this._follow = null; this._drag = true; this._idle = 0; });   // взялся за камеру сам — перестаём следовать за зверем
+    controls.addEventListener('start', () => { this._follow = null; this._fly = null; this._drag = true; this._idle = 0; });   // взялся за камеру сам — перестаём следовать за зверем
     controls.addEventListener('end', () => { this._drag = false; this._idle = 0; });
     controls.screenSpacePanning = false;   // сдвиг — вдоль «земли», не вверх-вниз
     controls.maxPolarAngle = Math.PI * .47;   // можно опустить камеру почти к воде и посмотреть на небо
@@ -2328,15 +2335,54 @@ export class Visual {
   }
 
   // ------------------------------------------------------------------ журнал
+  // v22: журнал «не летит»: не больше одной новой строки за 0.9 с времени мира (очередь до 8, старые лишние — отбрасываются);
+  // то же событие (тип) за 15 с — не новая строка, а «×N» у прежней (или у ждущей в очереди); пока над журналом мышь или
+  // его листают пальцем (и 4 с после) — новые строки ждут. Запись помнит зверя и место: нажатие — камера туда (focusEvent)
   _addLog(e) {
     if (['wave_break', 'splash', 'surf_surge', 'surf_calm'].includes(e.type)) return;
-    const li = document.createElement('li'); li.className = 'new';
-    li.innerHTML = `<time>${e.time ?? ''}</time><span></span>`; li.lastChild.textContent = e.text[0].toUpperCase() + e.text.slice(1);
+    const o = this.agents.get(e.agent);
+    const rec = { type: e.type, time: e.time ?? '', text: e.text[0].toUpperCase() + e.text.slice(1), agent: o ? o.id : null, n: 1,
+      pos: o ? o.obj.position.clone() : this.W((e.panorama ?? .5) * 2 - 1, e.distance ?? .5, 0) };
+    const q = this._logQ.find(r => r.type === rec.type);
+    if (q) { Object.assign(q, { ...rec, n: q.n + 1 }); return; }
+    const last = this._logLast.get(rec.type);
+    if (last && this.clock - last.at < 15 && last.li.isConnected) { last.at = this.clock; this._fillLog(last.li, { ...rec, n: (this._logRecs.get(last.li)?.n || 1) + 1 }); return; }
+    this._logQ.push(rec); if (this._logQ.length > 8) this._logQ.shift();
+  }
+  _fillLog(li, rec) {
+    li.innerHTML = '<time></time><span></span>'; li.firstChild.textContent = rec.time; li.lastChild.textContent = rec.text;
+    if (rec.n > 1) { const b = document.createElement('b'); b.textContent = '×' + rec.n; li.lastChild.append(' ', b); }
+    this._logRecs.set(li, rec);
+    li.classList.add('new'); clearTimeout(li._t); li._t = setTimeout(() => li.classList.remove('new'), 2500);
+  }
+  _stepLog(dt) {
+    if ((this._logT -= dt) > 0 || !this._logQ.length || this._logHoldM || performance.now() < this._logHoldT) return;
+    this._logT = .9;
+    const rec = this._logQ.shift(), li = document.createElement('li');
+    this._fillLog(li, rec); this._logLast.set(rec.type, { li, at: this.clock });
     // v22: журнал листается (40 записей); если его отлистали вниз — новая запись сверху не сдвигает то, что читают
     const box = this.logList, keep = box.scrollTop > 2;
-    box.prepend(li); setTimeout(() => li.classList.remove('new'), 2500);
+    box.prepend(li);
     if (keep) box.scrollTop += li.offsetHeight;
     while (box.children.length > 40) box.lastChild.remove();
+  }
+  // нажатие на запись журнала: зверь ещё здесь — камера к нему и следит (как «показать обитателя»); ушёл — к месту события
+  focusEvent(r) {
+    if (!r) return;
+    const o = r.agent != null && this.agents.get(r.agent);
+    if (o && !o.gone) { this._fly = null; this._follow = { id: o.id, sp: o.sp, t: 0, dist: FOLLOW_D[o.sp] || 12 }; this._freeCam = false; this._censusHTML = null; return; }
+    const p = r.pos.clone(), hr = Math.hypot(p.x, p.z); if (hr > 150) { p.x *= 150 / hr; p.z *= 150 / hr; }
+    p.y = clamp(p.y, Math.max(0, islandH(p.x, p.z) + .5), 30);
+    this._follow = null; this._fly = { p, t: 0 }; this._idle = 0;
+  }
+  _stepFly(dt) {
+    const f = this._fly; if (!f) return;
+    const tg = this.controls.target, cam = this.camera.position, k = 1 - Math.exp(-dt * 2.2), before = tg.clone();
+    f.t += dt; tg.lerp(f.p, k); cam.add(tg.clone().sub(before));
+    const off = cam.clone().sub(tg), d = off.length() || 1; off.multiplyScalar(lerp(d, 32, k) / d);
+    if (off.y < 12) off.y = lerp(off.y, 16, k);
+    cam.copy(tg).add(off);
+    if (tg.distanceTo(f.p) < .3 || f.t > 6) { this._fly = null; this._idle = 0; }
   }
 
   // ------------------------------------------------------------------ палитра
@@ -2478,9 +2524,9 @@ export class Visual {
     this.flashV = Math.max(0, (this.flashV || 0) - dt * 2.6); this.flashEl.style.opacity = (this.flashV * .4).toFixed(3);
     const ru = this.rain.material.uniforms; ru.uTime.value = t; ru.uAmt.value = this.cur.rain; ru.uSlant.value = .18 + this.cur.wind * .35;
 
-    this._stepFollow(dtc);
+    this._stepFollow(dtc); this._stepFly(dtc);
     if (!this._drag) this._idle += dtc;
-    const spin = this.controls.autoRotate = !this._follow && !this._freeCam && !this.paused && this._idle > 12;   // v15: через 12 с (было 20)
+    const spin = this.controls.autoRotate = !this._follow && !this._fly && !this.paused && !this._freeCam && this._idle > 12;   // v15: через 12 с (было 20)
     if (spin) {
       // v16: облёт — вокруг всей локации (центр острова), камера на ~105 м под ~46°; когда она проходит над стороной
       // рифа (дуга в 55–82 м к +z), центр кадра плавно смещается к рифу — он отчётливо виден внизу кадра; с других
@@ -2522,7 +2568,7 @@ export class Visual {
     this._nearSounds(dt);
     if (this.shoals) this._stepAmbient(dt, t);
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
-    this._updateHover(dtc);
+    this._updateHover(dtc); this._stepLog(dt);
     this.renderer.setRenderTarget(this.rt); this.renderer.render(this.scene, this.camera);
     this.renderer.setRenderTarget(null); this.renderer.render(this.postScene, this.postCam);
     return P;

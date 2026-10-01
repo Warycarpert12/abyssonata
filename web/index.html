@@ -70,6 +70,10 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 #census { touch-action: pan-y; overscroll-behavior: contain; }
 #log li { display: grid; grid-template-columns: 50px 1fr; gap: 8px; padding: 3px 0; color: #b8c7c2; font-size: 12px; line-height: 1.25; }
 #log li time { color: var(--p5); }
+/* v22: запись журнала нажимается — камера к зверю или к месту события; «×N» — сколько раз подряд это случилось */
+#log li { cursor: pointer; border-radius: 6px; padding-left: 4px; padding-right: 4px; transition: background .2s; }
+#log li b { color: var(--p3); font-weight: 600; white-space: nowrap; }
+@media (hover: hover) { #log li:hover { background: rgba(211,220,211,.10); } }
 #log li.new { color: #fff; }
 #census { left: 18px; bottom: 18px; width: 300px; font-size: 12px; line-height: 1.7; color: #b8c7c2; }
 #census b { color: var(--p4); font-weight: 600; margin-right: 12px; }

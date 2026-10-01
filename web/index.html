@@ -38,8 +38,14 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
   background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 14px; padding: 9px 18px; cursor: pointer;
   transition: border-color .2s, background .2s, transform .2s; text-shadow: var(--ca);
   box-shadow: var(--ca-box), var(--glass-in); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
-#tod button:hover { border-color: rgba(211,220,211,.6); color: #fff; transform: translateY(-1px); }
-#tod button.active { background: rgba(146,191,189,.45); color: #17251f; border-color: rgba(211,220,211,.75); text-shadow: none; }
+/* v22: подсветка наведения — только там, где есть мышь: на сенсорном экране :hover «залипал» после нажатия */
+@media (hover: hover) { #tod button:not(.active):hover { border-color: rgba(211,220,211,.6); color: #fff; transform: translateY(-1px); } }
+/* v22: выбранное время суток — сплошная заливка, светлая рамка и точка сверху; следует за часами мира (main.js) */
+#tod button[data-tod] { position: relative; }
+#tod button.active { background: rgba(146,191,189,.62); color: #12201c; border-color: rgba(238,244,238,.9); text-shadow: none; font-weight: 600;
+  box-shadow: 0 0 14px rgba(146,191,189,.45), var(--glass-in); }
+#tod button.active::after { content: ''; position: absolute; left: 50%; top: -7px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%;
+  background: #eef4ee; box-shadow: 0 0 6px #eef4ee; }
 /* v22: пауза — рядом со временем суток, через разделитель; значок «❚❚» / «▶» нарисован рамками (одинаково на всех экранах) */
 #tod .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--panel-edge); }
 #pause::before { content: ''; display: inline-block; width: 7px; height: 9px; margin-right: 7px; vertical-align: -1px;
@@ -56,7 +62,7 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 .panel { position: absolute; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 16px; padding: 13px 17px; font-size: 13px;
   text-shadow: var(--ca); box-shadow: var(--ca-box), var(--glass-in); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   transition: background .25s; }
-.panel:hover { background: rgba(146,191,189,.16); }
+@media (hover: hover) { .panel:hover { background: rgba(146,191,189,.16); } }
 .panel h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--p3); letter-spacing: .14em;
   border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 #hud { left: 18px; top: 18px; width: 300px; }
@@ -90,7 +96,7 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 #census b { color: var(--p4); font-weight: 600; margin-right: 12px; }
 /* v13: строка обитателя нажимается — камера подлетает к зверю и следует за ним (повторно — следующая особь) */
 #census .cs { cursor: pointer; border-radius: 7px; padding: 0 7px; margin: 0 -7px; transition: background .2s; }
-#census .cs:hover { background: rgba(211,220,211,.12); }
+@media (hover: hover) { #census .cs:hover { background: rgba(211,220,211,.12); } }
 #census .cs.on { background: rgba(146,191,189,.24); }
 /* громкость (v11): «Природа» — все звуки мира, «Музыка» — на будущее (пока не играет) */
 #vol { right: 18px; top: 18px; width: 262px; }
@@ -134,7 +140,7 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
   background: rgba(146,191,189,.22); border: 1px solid var(--panel-edge); border-radius: 18px; padding: 15px 36px; cursor: pointer;
   backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
   box-shadow: 0 0 40px 4px rgba(146,191,189,.18), var(--ca-box), var(--glass-in); transition: transform .2s, background .2s; }
-#gate-btn:hover { background: rgba(146,191,189,.34); transform: translateY(-1px); }
+@media (hover: hover) { #gate-btn:hover { background: rgba(146,191,189,.34); transform: translateY(-1px); } }
 #gate-btn:active { transform: translateY(1px); }
 #gate-err { margin: 16px 0 0; font-size: 11px; color: var(--red); max-width: 320px; letter-spacing: .04em; text-transform: none; }
 

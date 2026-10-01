@@ -178,10 +178,13 @@ if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and
 // перехватывало указатель у OrbitControls/наведения, см. CHANGELOG); сам механизм остался в
 // world.setTimeOfDay(frac), эти кнопки — просто другой UI поверх него.
 const todButtons = document.querySelectorAll('#tod button[data-tod]');
+// v22: выделена кнопка той части суток, что сейчас в мире (границы — посередине между кнопками), а не только нажатая
+const markTod = tod => { const k = tod < .15 || tod >= .87 ? 0 : tod < .39 ? 1 : tod < .61 ? 2 : 3; todButtons.forEach((b, i) => b.classList.toggle('active', i === k)); };
 todButtons.forEach(btn => btn.addEventListener('click', () => {
   world.setTimeOfDay(parseFloat(btn.dataset.tod));
-  todButtons.forEach(b => b.classList.remove('active')); btn.classList.add('active');
+  markTod(parseFloat(btn.dataset.tod));
 }));
+world.onState(m => { if ((markTod.n = (markTod.n || 0) + 1) % 30 === 0) markTod(m.time_of_day); });   // раз в ~0.5 с
 
 // --- пауза (v22): кнопка «Пауза» и пробел. Мир не считается, звук приостановлен, журнал не пополняется, звери и вода
 // замирают; камеру можно крутить и приближать (visual.frame получает шаг мира 0 и настоящий шаг кадра)

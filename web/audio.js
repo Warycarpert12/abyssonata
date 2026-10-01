@@ -124,9 +124,13 @@ export class OceanAudio {
     // локальный serve.py параметр не читает и отдаёт WAV
     const opus = !!document.createElement('audio').canPlayType('audio/ogg; codecs="opus"');
     // v19: статический сайт (GitHub Pages, APK — build_site.py) — список записей (MP3) в samples.json рядом со страницей
-    let man = null;
-    try { const r = await fetch(this.base + '/samples.json'); if (r.ok) man = await r.json(); } catch {}
-    this.manifest = man || await (await fetch(this.base + '/manifest.json?fmt=' + (opus ? 'opus' : 'mp3'))).json();
+    // v21: список проверяется — PWA-манифест (тот же адрес manifest.json на статическом сайте) за него не принимается
+    const isList = m => m && Array.isArray(m.surf);
+    const get = async u => { try { const r = await fetch(u); return r.ok ? await r.json() : null; } catch { return null; } };
+    let man = await get(this.base + '/samples.json');
+    if (!isList(man)) man = await get(this.base + '/manifest.json?fmt=' + (opus ? 'opus' : 'mp3'));
+    if (!isList(man)) throw new Error('не найден список звуков (samples.json)');
+    this.manifest = man;
     if (this.lite) {   // v21: петли насекомых — только те, что заиграют (из 6/5 записей звучат 3/2, см. _buildInsects)
       const pick = (a, k) => (a || []).slice().sort(() => Math.random() - .5).slice(0, k);
       this.manifest = { ...this.manifest, insects_day: pick(this.manifest.insects_day, 3), insects_night: pick(this.manifest.insects_night, 2) };

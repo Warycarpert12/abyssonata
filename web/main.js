@@ -5,6 +5,10 @@ import { World } from './world.js';
 import { Visual } from './visual.js';
 import { OceanAudio } from './audio.js';
 
+// v21 QA: &rseed=N — повторяемые случайные числа (одинаковые сцены для снимков «было/стало»); без параметра — как всегда
+{ const rs = new URLSearchParams(location.search).get('rseed');
+  if (rs !== null) { let r = (+rs * 2654435761) >>> 0; Math.random = () => { r = (r + 0x6D2B79F5) >>> 0; let x = Math.imul(r ^ (r >>> 15), 1 | r); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; } }
+
 // --- место в океане (v17, интернет-версия на колонке, serve_public.py: не больше 30 зрителей одновременно).
 // Сначала просим место; пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки
 // до этого не качаются). Локальный serve.py про места не знает (404) — тогда просто входим.
@@ -60,6 +64,24 @@ world.start({ startTod, seed });
 // ?spawn=shark,orca,jellyfish,... — вызвать гостя сразу (программный рендер в QA успевает лишь пару первых кадров);
 // два нулевых шага: на первом симуляция только снимает начальное состояние, экосистема появляется на втором
 if (qs.has('spawn')) { world.step(0); world.step(0); qs.get('spawn').split(',').forEach(k => world.debugSpawn(k.trim())); visual.synced = false; }   // гости — сразу на месте, не из дымки
+// v21 QA (только с параметрами в адресе, на обычный мир не влияет): &qa=dry — баклан сразу сушит крылья на камне;
+// &pre=N — прожить N секунд мира и движения зверей до первого кадра (в безголовом снимке мир живёт ~1 с)
+if (qs.get('qa') === 'dry') {
+  world.step(0); world.step(0); world.debugSpawn('cormorant'); visual.synced = false;
+  const eco = world.sim.eco, cs = eco.agents.filter(a => a.species === 'cormorant'), b = cs[cs.length - 1];
+  eco.agents = eco.agents.filter(a => a.species !== 'cormorant' || a === b);   // единственный — не отправят улетать «лишним»
+  b.state = 'dry'; b.dryLeft = 1e9;
+}
+// &qa=crabs — четыре краба и медуза на песке на одном берегу почти в одной точке; &qa=lionswim — морской лев плывёт
+if (qs.get('qa') === 'crabs') {
+  world.step(0); world.step(0); for (const k of ['crab', 'crab', 'crab', 'crab', 'stranded']) world.debugSpawn(k); visual.synced = false;
+  world.sim.eco.agents.filter(a => a.species === 'crab' || a.stranded).forEach((a, i) => { a.site = 0; a.x = .62 + i * .006; a.life = 1e9; a.tAct = 1e9; a.c = { ...a.c, drift: 0 }; });
+}
+if (qs.get('qa') === 'lionswim') {
+  world.step(0); world.step(0); world.debugSpawn('sea_lion'); visual.synced = false;
+  for (const a of world.sim.eco.agents) if (a.species === 'sea_lion') { a.away = 1e9; a.rafty = 0; a.life = 1e9; }
+}
+for (let i = 0, n = Math.min(600, +qs.get('pre') * 10 || 0); i < n; i++) { world.step(.1); for (const o of visual.agents.values()) visual._stepAgent(o, .1); visual._separate(.1); }
 
 // --- гейт входа: запускает AudioContext по клику (обязателен жест пользователя) ---
 const gate = document.querySelector('#gate');

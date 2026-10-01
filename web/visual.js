@@ -1805,7 +1805,7 @@ export class Visual {
       // v19: круг полёта заходит на остров (холмы до 11 м) — над сушей держимся выше рельефа
       if (o.st !== 'sit' || o.gone) p.y = Math.max(p.y, groundAt(p.x, p.z, 2) + (o.dive > 0 || o.hover > 0 ? .3 : 5));   // v21: 3 → 5 м
       ob.position.lerp(p, 1 - Math.exp(-dt * 4));
-      if (!(o.dive > 0) && !(o.hover > 0) && o.st !== 'dry') ob.position.y = Math.max(ob.position.y, groundAt(ob.position.x, ob.position.z, 1.5) + 3.5);   // v19: и в движении не ниже (v21: 1.5 → 3.5 м — у холмов птица выглядела сидящей)
+      if (!(o.dive > 0) && !(o.hover > 0) && o.st !== 'dry' && o.st !== 'sit') { const g = groundAt(ob.position.x, ob.position.z, 1.5); ob.position.y = Math.max(ob.position.y, g + (g > 0 ? 3.5 : 1.5)); }   // v21: +3.5 только над сушей   // v19: и в движении не ниже (v21: 1.5 → 3.5 м — у холмов птица выглядела сидящей)
       const v = ob.position.clone().sub(prev), sp = Math.hypot(v.x, v.z) / Math.max(dt, 1e-3);
       if (sp > .05) { const h = Math.atan2(v.x, v.z), dh = Math.atan2(Math.sin(h - (o.hPrev ?? h)), Math.cos(h - (o.hPrev ?? h))); o.hPrev = h;
         o.bank = lerp(o.bank ?? 0, clamp(-dh / Math.max(dt, 1e-3) * sp * .06, -.9, .9), 1 - Math.exp(-dt * 3)); }

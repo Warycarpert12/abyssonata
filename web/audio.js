@@ -150,12 +150,17 @@ export class OceanAudio {
     if (this.buffers[cat]) return this.buffers[cat];
     if (this._loading[cat]) return this._loading[cat];
     const files = (this.manifest[cat] || []);
-    this._loading[cat] = Promise.all(files.map(async f => {
-      const buf = await (await fetch(`${this.base}/samples/${cat}/${f}`)).arrayBuffer();
-      const b = normalize(await this.ctx.decodeAudioData(buf), .8);   // как b.normalize(0.8) в ocean_live.scd
+    // v21: allSettled + r.ok — одна битая запись не глушит категорию; ничего не загрузилось — повтор при следующем звуке
+    this._loading[cat] = Promise.allSettled(files.map(async f => {
+      const r = await fetch(`${this.base}/samples/${cat}/${f}`);
+      if (!r.ok) throw new Error(`${cat}/${f}: HTTP ${r.status}`);
+      const b = normalize(await this.ctx.decodeAudioData(await r.arrayBuffer()), .8);   // как b.normalize(0.8) в ocean_live.scd
       if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, analyse(b));
       return b;
-    })).then(bufs => {
+    })).then(res => {
+      for (const x of res) if (x.status === 'rejected') console.warn('звук не загрузился:', x.reason?.message || x.reason);
+      const bufs = res.filter(x => x.status === 'fulfilled').map(x => x.value);
+      if (!bufs.length && files.length) { delete this._loading[cat]; return bufs; }
       if (LEVEL.has(cat)) { const r = bufs.map(b => this.info.get(b).rms).sort((a, b) => a - b); this.info.set(bufs, r[r.length >> 1]); }   // медиана категории
       this.buffers[cat] = bufs; return bufs;
     });

@@ -103,9 +103,10 @@ class Bird extends Agent {
   leave(text = null) {
     if (this.state === 'leave') return [];
     this.pending = []; this.state = 'leave'; this.side = this.x >= 0 ? 1 : -1;
-    // v20: ведомые пеликаны улетают вместе с ведущим
-    for (const f of this.eco.agents) if (f !== this && f.rel === this.uid && f.rk === 'flock') this.eco._out = this.eco._out.concat(f.leave());
-    return [this.ev(`${this.species}_leave`, text || `${this.label} ${this.w('улетел')}`, 0.2, 3.0, 'leave')];
+    let out = [this.ev(`${this.species}_leave`, text || `${this.label} ${this.w('улетел')}`, 0.2, 3.0, 'leave')];
+    // v20: ведомые пеликаны улетают вместе с ведущим (их события — в том же ответе, иначе _manage их затирал)
+    for (const f of this.eco.agents) if (f !== this && f.rel === this.uid && f.rk === 'flock') out = out.concat(f.leave());
+    return out;
   }
   _call(act = 'call') { return this.c.call ? this.callEvent(`${this.label} ${choice(this.c.says)}`, act) : []; }
   _dive() {

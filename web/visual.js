@@ -6,11 +6,11 @@
 // кораллы-«молекулы» на скалах, пена-крошка по кромке, золотистые водоросли и светящаяся ночью лагуна.
 // Координаты существ из симуляции прежние (x — «лево/право», d — «от берега вдаль»), здесь x превращается
 // в угол вокруг острова, d — в расстояние от берега (см. W()).
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import * as THREE from './three.module.min.js';   // v21: без import map (её нет в Safari до iOS 16.4)
+import { OrbitControls } from './three-addons/controls/OrbitControls.js';
+import { GLTFLoader } from './three-addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from './three-addons/utils/SkeletonUtils.js';
+import { mergeGeometries } from './three-addons/utils/BufferGeometryUtils.js';
 import { Noise2D } from './noise.js';
 THREE.ColorManagement.enabled = false;
 
@@ -933,7 +933,7 @@ export class Visual {
         life: rnd(...{ ants: [30, 50], beetle: [20, 35], snake: [25, 40] }[kind]), count: 9 + (Math.random() * 7 | 0),
         keep: { ants: 140, beetle: 2, snake: 64 }[kind],
         col: kind === 'beetle' ? pick([[.2, .55, .55], [.62, .2, .22], [.7, .58, .2]]) : pick([[.55, .7, .4], [.62, .5, .78]]), col2: pick([[.9, .8, .5], [.3, .35, .3]]) });
-      if (this._crawlQA) for (let j = 0; j < 400; j++) this._crawlStep(this.crawlers.at(-1), .02);   // QA: уже в пути (снимок — ~1 с жизни мира)
+      if (this._crawlQA) for (let j = 0; j < 400; j++) this._crawlStep(this.crawlers[this.crawlers.length - 1], .02);   // QA: уже в пути (снимок — ~1 с жизни мира)
       return;
     }
   }
@@ -1470,7 +1470,7 @@ export class Visual {
     else if (o.sp === 'whale') o.model = add('whale');
     else if (o.sp === 'shark') {
       o.model = add('shark');
-      const mx = o.mixers.at(-1), cl = this.assets.shark.clips, pick = re => cl.find(c => re.test(c.name));
+      const mx = o.mixers[o.mixers.length - 1],   /* v21: без .at() — его нет в Safari до 15.4 */ cl = this.assets.shark.clips, pick = re => cl.find(c => re.test(c.name));
       if (mx) o.acts = { swim: mx.existingAction(pick(/(^|\|)swim$/i)), bite: pick(/bite/i) && mx.clipAction(pick(/bite/i)), fast: pick(/fast/i) && mx.clipAction(pick(/fast/i)) };
     }
     else if (o.sp === 'orca') o.model = add('orca');

@@ -44,6 +44,11 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 #tod .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--panel-edge); }
 #pause::before { content: ''; display: inline-block; width: 7px; height: 9px; margin-right: 7px; vertical-align: -1px;
   border-left: 2.5px solid currentColor; border-right: 2.5px solid currentColor; box-sizing: border-box; }
+/* v22: «Линза» — переключатель: включена — подсвечена точкой-индикатором; на телефоне линзы нет — и кнопки */
+#lens-btn::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; border: 1.5px solid currentColor; vertical-align: 0; box-sizing: border-box; }
+#lens-btn.on::before { background: var(--p3); border-color: var(--p3); box-shadow: 0 0 6px var(--p3); }
+#lens-btn:not(.on) { color: var(--p5); }
+@media (pointer: coarse) { #lens-btn { display: none; } }
 #pause.on { background: rgba(216,199,154,.38); color: #fff; border-color: rgba(216,199,154,.7); }
 #pause.on::before { width: 0; height: 0; border-left: 8px solid currentColor; border-right: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
 
@@ -189,6 +194,7 @@ html, body { height: 100dvh; overscroll-behavior: none; }
       <button data-tod=".72">Вечер</button>
       <span class="sep"></span>
       <button id="pause" title="Пауза (пробел)">Пауза</button>
+      <button id="lens-btn" title="Эффект линзы под курсором на панелях и кнопках" aria-pressed="true">Линза</button>
     </div>
   </div>
 

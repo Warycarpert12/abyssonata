@@ -244,16 +244,34 @@ requestAnimationFrame(frame);
   x.putImageData(img, 0, 0);
   const map = document.getElementById('lens-map'), light = document.getElementById('lens-light'), noise = document.getElementById('lens-noise');
   map.setAttribute('href', c.toDataURL()); map.setAttribute('width', 2 * R); map.setAttribute('height', 2 * R);
-  let cur = null, t = 0;
-  setInterval(() => { t += .05; noise.setAttribute('baseFrequency', (0.012 + 0.004 * Math.sin(t)).toFixed(4)); }, 60);   // лёгкое «течение»
-  addEventListener('pointermove', ev => {
+  // v22: кнопка «Линза» (рядом с «Паузой», выбор запоминается, по умолчанию включена). Выключена — нет ни обработчика
+  // движения мыши, ни фильтра на элементах, ни таймера «течения». И включённая: таймер тикает, только пока линза над
+  // панелью/кнопкой (раньше — всегда, каждые 60 мс). На телефоне линзы нет — и кнопки (index.html, pointer: coarse)
+  let cur = null, t = 0, timer = 0, lensOn = true;
+  const flow = () => { t += .05; noise.setAttribute('baseFrequency', (0.012 + 0.004 * Math.sin(t)).toFixed(4)); };   // лёгкое «течение»
+  const put = el => {
+    if (el === cur) return;
+    if (cur) cur.style.filter = '';
+    cur = el; if (el) el.style.filter = 'url(#lens)';
+    if (el && !timer) timer = setInterval(flow, 60); else if (!el && timer) { clearInterval(timer); timer = 0; }
+  };
+  const move = ev => {
     if (ev.pointerType !== 'mouse') return;   // v18: на телефоне линзы нет — под пальцем она оставалась и всё «плыло»
     const el = ev.target.closest?.('.panel, #tod button, #gate-btn');
-    if (el !== cur) { if (cur) cur.style.filter = ''; cur = el; if (el) el.style.filter = 'url(#lens)'; }
+    put(el);
     if (el) {
       const b = el.getBoundingClientRect(), mx = ev.clientX - b.left, my = ev.clientY - b.top;
       map.setAttribute('x', mx - R); map.setAttribute('y', my - R);
       light.setAttribute('x', mx); light.setAttribute('y', my);
     }
-  });
+  };
+  const lensBtn = document.getElementById('lens-btn');
+  const setLens = on => {
+    lensOn = on; lensBtn.classList.toggle('on', on); lensBtn.setAttribute('aria-pressed', on);
+    if (on) addEventListener('pointermove', move); else { removeEventListener('pointermove', move); put(null); }
+    try { localStorage.setItem('om.lens', on ? '1' : '0'); } catch { /* приватное окно */ }
+  };
+  lensBtn.addEventListener('click', () => setLens(!lensOn));
+  let saved = null; try { saved = localStorage.getItem('om.lens'); } catch { /* приватное окно */ }
+  setLens(saved !== '0');
 }

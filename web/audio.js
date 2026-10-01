@@ -128,10 +128,18 @@ export class OceanAudio {
     }
   }
 
-  // v22: пауза — весь звук замирает на месте (контекст приостановлен) и продолжается с того же места
+  // v22: пауза — весь звук замирает на месте (контекст приостановлен) и продолжается с того же места. Без щелчка: общий
+  // выход (this.out) за 60 мс плавно уходит в тишину, и только потом контекст останавливается; «Дальше» — контекст
+  // включается, выход так же плавно возвращается (резкая остановка на полной громкости слышна как щелчок)
   setPaused(p) {
     this.paused = p;
-    if (this.ctx) (p ? this.ctx.suspend() : this.ctx.resume()).catch(() => {});
+    const ctx = this.ctx, g = this.out?.gain;
+    clearTimeout(this._susT);
+    if (ctx && g) {
+      const ramp = to => { const t = ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(to, t + .06); };
+      if (p) { ramp(0); this._susT = setTimeout(() => { if (this.paused) ctx.suspend().catch(() => {}); }, 120); }
+      else ctx.resume().then(() => { if (!this.paused) ramp(1); }).catch(() => {});
+    } else if (ctx) (p ? ctx.suspend() : ctx.resume()).catch(() => {});
     if (this.keep) p ? this.keep.pause() : this.keep.play().catch(() => {});
   }
 
@@ -164,7 +172,8 @@ export class OceanAudio {
     absOut.connect(dry); absOut.connect(absWet); absWet.connect(conv);
     this.nextAbs = ctx.currentTime + rrand(15, 35); this.revBufs = new WeakMap();
     this.musicGen = new Music(ctx, absOut);   // v15: фоновая музыка по погоде (web/music.js), та же полоска «Музыка»
-    limiter.connect(ctx.destination);
+    // v22: общий выход — для паузы без щелчка (setPaused плавно уводит его в тишину); 1 — громкость как была
+    const out = this.out = ctx.createGain(); limiter.connect(out); out.connect(ctx.destination);
 
     // v17: интернет-версия отдаёт сжатые записи — Opus, где браузер его понимает, иначе MP3 (старый Safari);
     // локальный serve.py параметр не читает и отдаёт WAV

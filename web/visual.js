@@ -267,7 +267,7 @@ export class Visual {
     lg.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') this._logHoldM = true; });
     lg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') this._logHoldM = false; });
     lg.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') hold(); });
-    this.logList.addEventListener('scroll', hold, { passive: true });
+    this.logList.addEventListener('scroll', () => { if (performance.now() - (this._logOwn || 0) > 150) hold(); }, { passive: true });   // свой сдвиг (_stepLog) — не листание
     tapOnly(this.logList, 'li', li => this.focusEvent(this._logRecs.get(li)));
     this._initScene();
     addEventListener('resize', () => this.resize());
@@ -2186,7 +2186,7 @@ export class Visual {
   focusSpecies(sp) {
     const list = [...this.agents.values()].filter(o => o.sp === sp && !o.gone).sort((a, b) => a.id - b.id); if (!list.length) return;
     const i = this._follow?.sp === sp ? (list.findIndex(o => o.id === this._follow.id) + 1) % list.length : 0;
-    this._follow = { id: list[i].id, sp, t: 0, dist: FOLLOW_D[sp] || 12 }; this._freeCam = false; this._censusHTML = null;
+    this._follow = { id: list[i].id, sp, t: 0, dist: FOLLOW_D[sp] || 12 }; this._fly = null; this._freeCam = false; this._censusHTML = null;
   }
   _stepFollow(dt) {
     const f = this._follow, C = this.controls;
@@ -2376,7 +2376,7 @@ export class Visual {
     // v22: журнал листается (40 записей); если его отлистали вниз — новая запись сверху не сдвигает то, что читают
     const box = this.logList, keep = box.scrollTop > 2;
     box.prepend(li);
-    if (keep) box.scrollTop += li.offsetHeight;
+    if (keep) { this._logOwn = performance.now(); box.scrollTop += li.offsetHeight; }
     while (box.children.length > 40) box.lastChild.remove();
   }
   // нажатие на запись журнала: зверь ещё здесь — камера к нему и следит (как «показать обитателя»); ушёл — к месту события

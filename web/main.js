@@ -200,10 +200,12 @@ if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and
     clearTimeout(tmo); tmo = setTimeout(hide, 7000);
   };
   const hide = () => { at = null; hint.classList.remove('show'); };
+  let kind = '';   // тип указателя — из pointerdown (у click в старых Safari его нет)
   for (const el of document.querySelectorAll('#hud [data-tip]')) {
     el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(el); });
     el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hide(); });
-    el.addEventListener('click', e => { if (e.pointerType === 'mouse') return; e.stopPropagation(); at === el ? hide() : show(el); });
+    el.addEventListener('pointerdown', e => { kind = e.pointerType; });
+    el.addEventListener('click', e => { if (kind === 'mouse') return; e.stopPropagation(); at === el ? hide() : show(el); });
   }
   addEventListener('pointerdown', e => { if (at && !e.target.closest?.('#hud [data-tip]')) hide(); });
 }
@@ -236,6 +238,7 @@ document.querySelector('#follow button').addEventListener('click', () => visual.
 addEventListener('keydown', e => { if (e.key === 'Escape') visual.unfollow(); });
 addEventListener('keydown', e => {
   if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (document.querySelector('#gate:not(.clear)')) return;   // до входа пробел — как раньше (нажимает «Войти»), не пауза
   e.preventDefault(); setPaused(!paused);   // и не «нажимаем» кнопку, на которой фокус
 });
 

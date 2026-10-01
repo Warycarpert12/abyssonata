@@ -142,6 +142,7 @@ export class OceanAudio {
     const ctx = this.ctx;
     // v22: resume() в iOS иногда не отвечает (контекст «interrupted») — не ждём дольше 3 с, звук догонит при следующем нажатии
     await Promise.race([ctx.resume(), new Promise(r => setTimeout(r, 3000))]);
+    if (this.paused) ctx.suspend().catch(() => {});   // пауза поставлена до конца входа — звук не включаем
     this.t0 = ctx.currentTime;
 
     // master: bus -> лимитер (как SC Limiter) -> выход; + посыл в ревербератор (как FreeVerb2)

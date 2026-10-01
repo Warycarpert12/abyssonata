@@ -1,4 +1,4 @@
-"""Ocean Murmur — сборка статического сайта (v19: GitHub Pages и APK).
+"""Abyssonata — сборка статического сайта (v19: GitHub Pages и APK).
 
 1. Если рядом есть samples/ (WAV, только на ПК) — сжимает их в samples_mp3/ (MP3, пересжимает только новые и
    изменённые, копирует CREDITS.txt, убирает сжатые копии удалённых записей). Нужен Python-пакет soundfile.

@@ -1,4 +1,4 @@
-// Ocean Murmur — склейка: мир теперь считается прямо в браузере (World оборачивает sim.js),
+// Abyssonata — склейка: мир теперь считается прямо в браузере (World оборачивает sim.js),
 // один поток данных кормит картинку (Visual) и звук (OceanAudio), поэтому они всегда синхронны.
 // Звук стартует по клику (гейт «Войти в океан») — без жеста пользователя браузер звук не запустит.
 import { World } from './world.js';
@@ -173,13 +173,22 @@ window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.que
 // &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)
 if (qs.get('noaudio') === '1') leaveGate(true);
 
+// v22: проект переименован — настройки теперь под ключами abyssonata.*; сохранённые раньше под om.* переносим, чтобы
+// громкость, качество картинки и линза не сбросились (сайт остаётся на том же адресе-источнике warycarpert12.github.io)
+try {
+  for (const k of ['vol.nature', 'vol.music', 'quality', 'lens']) {
+    const old = localStorage.getItem('om.' + k); if (old === null) continue;
+    if (localStorage.getItem('abyssonata.' + k) === null) localStorage.setItem('abyssonata.' + k, old);
+    localStorage.removeItem('om.' + k);
+  }
+} catch { /* приватное окно — не страшно */ }
 // --- громкость (v11): «Природа» управляет всеми звуками мира, «Музыка» — заготовка на будущее (значение хранится,
 // но ни на что не влияет). Положение полосок запоминается в браузере
 {
   const load = k => { try { const v = localStorage.getItem(k); return v === null ? null : +v; } catch { return null; } };
   const save = (k, v) => { try { localStorage.setItem(k, v); } catch { /* приватное окно — не страшно */ } };
-  // v14: «Музыка» заработала — это абстрактный слой «как в мурмур» (audio._abstract)
-  for (const [id, key, apply] of [['nature', 'om.vol.nature', v => audio.setNature(v / 100)], ['music', 'om.vol.music', v => audio.setMusic(v / 100)]]) {
+  // v14: «Музыка» заработала — это абстрактный слой, как у образца (audio._abstract)
+  for (const [id, key, apply] of [['nature', 'abyssonata.vol.nature', v => audio.setNature(v / 100)], ['music', 'abyssonata.vol.music', v => audio.setMusic(v / 100)]]) {
     const el = document.getElementById('vol-' + id), out = document.getElementById('v-' + id), v0 = load(key);
     if (v0 !== null) el.value = v0;
     const upd = () => { out.textContent = el.value; apply(+el.value); save(key, el.value); };
@@ -260,13 +269,13 @@ let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время
 // «плохих» ступеней подряд — при любом выборе. В QA-снимках (&lowres) — без изменений
 const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false } };
 const AUTO = [Q.high, { k: 1, msaa: false }, { k: Math.max(.8, Math.min(1, 1 / visual.basePR)), msaa: false }];
-let qMode = 'auto'; try { qMode = localStorage.getItem('om.quality') || 'auto'; } catch { /* приватное окно */ }
+let qMode = 'auto'; try { qMode = localStorage.getItem('abyssonata.quality') || 'auto'; } catch { /* приватное окно */ }
 if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
 const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, strain = 0, badW = 0;
 const applyQ = () => { if (autoQ) visual.setQuality(qMode === 'auto' ? AUTO[qLevel] : Q[qMode]); };
 const setQMode = m => {
   qMode = m; qLevel = 0; fpsT = -3; fpsN = fpsSum = badW = 0; applyQ();
-  try { localStorage.setItem('om.quality', m); } catch { /* приватное окно */ }
+  try { localStorage.setItem('abyssonata.quality', m); } catch { /* приватное окно */ }
   document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
 };
 const watchFps = raw => {
@@ -340,9 +349,9 @@ requestAnimationFrame(frame);
   const setLens = on => {
     lensOn = on; lensBtn.classList.toggle('on', on); lensBtn.setAttribute('aria-pressed', on);
     if (on) addEventListener('pointermove', move); else { removeEventListener('pointermove', move); put(null); }
-    try { localStorage.setItem('om.lens', on ? '1' : '0'); } catch { /* приватное окно */ }
+    try { localStorage.setItem('abyssonata.lens', on ? '1' : '0'); } catch { /* приватное окно */ }
   };
   lensBtn.addEventListener('click', () => setLens(!lensOn));
-  let saved = null; try { saved = localStorage.getItem('om.lens'); } catch { /* приватное окно */ }
+  let saved = null; try { saved = localStorage.getItem('abyssonata.lens'); } catch { /* приватное окно */ }
   setLens(saved !== '0');
 }

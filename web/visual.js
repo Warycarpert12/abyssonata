@@ -1761,7 +1761,9 @@ export class Visual {
     // якорь движется к цели с ограниченной скоростью — так существа приходят из дымки и уходят в неё
     const tgt = this._goal(o, dt), dv = tgt.clone().sub(o.anchor), dl = dv.length(), vmax = (SPEED[o.sp] || 5) * dt;
     // пловцы огибают мель (v18, swimStep); птицы — по прямой (пеликан тоже прилетает по воздуху)
-    if (ORB[o.sp] && !BIRDS.has(o.sp) && !landed(o)) {
+    // v21: черепаха спит на рифе/греется на пляже, медуза на песке — без обхода мели только последние 12 м (черепаха
+    // плыла к месту сна на рифе по прямой — через главный остров)
+    if (ORB[o.sp] && !BIRDS.has(o.sp) && !(landed(o) && dl < 12)) {
       const via = this._via(o, tgt, dt);
       if (o.path?.length) { const d = via.clone().sub(o.anchor).setY(0), l = d.length(); o.anchor.addScaledVector(d, Math.min(1, vmax / (l || 1))); o.anchor.y += clamp(tgt.y - o.anchor.y, -vmax, vmax); }
       else swimStep(o, via, vmax);

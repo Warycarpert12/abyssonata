@@ -61,12 +61,18 @@ export function islandH(x, z) {
   const t = r / coast;
   let h = lerp(-10, .7, smooth(1.75, .9, t));                         // подводная отмель → пляж
   const inland = smooth(.92, .5, t);
-  h += inland * (1.2 + 2.2 * (fbm(x * .05, z * .05) * .5 + .5));       // холмы с травой
-  h += inland * Math.pow(Math.max(0, fbm(x * .045 + 40, z * .045 - 7, 3) + .15), 1.6) * 17;   // скалистые вершины
+  // v22: шумы холмов и скал — только на суше: в воде их вклад умножается на inland = 0 (и hill = 0 у островков).
+  // Результат тот же до бита (qa/terrain_check.mjs), а для точек в воде — их у зверей большинство — в 2–3 раза быстрее:
+  // на слабом устройстве islandH занимала до 40% кадра (qa/perf_profile.mjs, CPU ×4)
+  if (inland > 0) {
+    h += inland * (1.2 + 2.2 * (fbm(x * .05, z * .05) * .5 + .5));       // холмы с травой
+    h += inland * Math.pow(Math.max(0, fbm(x * .045 + 40, z * .045 - 7, 3) + .15), 1.6) * 17;   // скалистые вершины
+  }
   for (const [cx, cz, rad, ht] of ISLETS) {   // островок — тот же профиль, что у главного, в своём масштабе
     const dx = x - cx, dz = z - cz, d = Math.hypot(dx, dz); if (d > rad * 2.2) continue;
     const ai = Math.atan2(dz, dx), ti = d / (rad * (1 + .22 * nz(Math.cos(ai) * 1.1 + cx, Math.sin(ai) * 1.1 + cz)));
-    h = Math.max(h, lerp(-10, .7, smooth(1.75, .9, ti)) + smooth(.92, .45, ti) * (.8 + ht * (fbm(x * .07 + cx, z * .07 + cz, 3) * .5 + .5)));
+    const hill = smooth(.92, .45, ti);
+    h = Math.max(h, lerp(-10, .7, smooth(1.75, .9, ti)) + (hill > 0 ? hill * (.8 + ht * (fbm(x * .07 + cx, z * .07 + cz, 3) * .5 + .5)) : 0));
   }
   h += reefH(x, z);
   return h;

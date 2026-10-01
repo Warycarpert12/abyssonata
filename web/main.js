@@ -5,19 +5,28 @@ import { World } from './world.js';
 import { Visual } from './visual.js';
 import { OceanAudio } from './audio.js';
 
+// v21 QA: &rseed=N — повторяемые случайные числа (одинаковые сцены для снимков «было/стало»); без параметра — как всегда
+{ const rs = new URLSearchParams(location.search).get('rseed');
+  if (rs !== null) { let r = (+rs * 2654435761) >>> 0; Math.random = () => { r = (r + 0x6D2B79F5) >>> 0; let x = Math.imul(r ^ (r >>> 15), 1 | r); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; } }
+
 // --- место в океане (v17, интернет-версия на колонке, serve_public.py: не больше 30 зрителей одновременно).
 // Сначала просим место; пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки
 // до этого не качаются). Локальный serve.py про места не знает (404) — тогда просто входим.
 {
   const gateP = document.querySelector('#gate-card p'), btn = document.querySelector('#gate-btn');
   const join = async () => {
-    try { const r = await fetch('/api/join', { method: 'POST' }); return r.ok ? await r.json() : { ok: true, local: true }; }
+    try {   // v21: не дольше 5 с (AbortController — есть и в старом Safari)
+      const ac = new AbortController(), to = setTimeout(() => ac.abort(), 5000);
+      const r = await fetch('/api/join', { method: 'POST', signal: ac.signal }); clearTimeout(to);
+      return r.ok ? await r.json() : { ok: true, local: true };
+    }
     catch { return { ok: true, local: true }; }
   };
   let j = await join();
-  if (!j.ok) {
+  if (j.ok === false) {
+    window.__omReady = true;   // v21: код работает, просто очередь — запасное сообщение не нужно
     const txt = gateP.textContent; btn.style.display = 'none';
-    while (!j.ok) {
+    while (j.ok === false) {
       gateP.textContent = `Сейчас в океане слишком много людей (${j.count} из ${j.limit}). Подождите — страница зайдёт сама, как только освободится место.`;
       await new Promise(r => setTimeout(r, 15000)); j = await join();
     }
@@ -38,7 +47,7 @@ world.onState(m => visual.onState(m));
 world.onEvent(m => visual.onEvent(m));
 world.onState(m => { if (audio.ready) audio.update(m); });
 // звук события — из той же точки, где его видно на экране (сторона/дальность относительно камеры)
-world.onEvent(m => { if (audio.ready) audio.onEvent({ ...m, ...visual.spatial(m) }); });
+world.onEvent(m => { if (audio.ready) audio.onEvent({ ...m, ...visual.spatial(m) }).catch(e => console.warn('звук события:', e)); });
 
 // местные звуки от картинки: плеск (рифовая рыбка, прыжки из воды), стрекот кузнечика, звуки при приближении
 // (бульки, треск креветок, щёлканье краба) — из той точки, где это видно; k — насколько близко (1 — вплотную)
@@ -47,7 +56,7 @@ const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shri
 visual.onLocalSound = (cat, pos, k = 1) => {
   if (!audio.ready) return;
   const sp = visual.spatialAt(pos), [amp, rate] = LOCAL[cat] || [.05, 1];
-  audio.playLocal(cat, sp.panorama, sp.distance, amp * k, rate);
+  audio.playLocal(cat, sp.panorama, sp.distance, amp * k, rate).catch(e => console.warn('местный звук:', e));
 };
 
 const qs = new URLSearchParams(location.search);
@@ -60,6 +69,24 @@ world.start({ startTod, seed });
 // ?spawn=shark,orca,jellyfish,... — вызвать гостя сразу (программный рендер в QA успевает лишь пару первых кадров);
 // два нулевых шага: на первом симуляция только снимает начальное состояние, экосистема появляется на втором
 if (qs.has('spawn')) { world.step(0); world.step(0); qs.get('spawn').split(',').forEach(k => world.debugSpawn(k.trim())); visual.synced = false; }   // гости — сразу на месте, не из дымки
+// v21 QA (только с параметрами в адресе, на обычный мир не влияет): &qa=dry — баклан сразу сушит крылья на камне;
+// &pre=N — прожить N секунд мира и движения зверей до первого кадра (в безголовом снимке мир живёт ~1 с)
+if (qs.get('qa') === 'dry') {
+  world.step(0); world.step(0); world.debugSpawn('cormorant'); visual.synced = false;
+  const eco = world.sim.eco, cs = eco.agents.filter(a => a.species === 'cormorant'), b = cs[cs.length - 1];
+  eco.agents = eco.agents.filter(a => a.species !== 'cormorant' || a === b);   // единственный — не отправят улетать «лишним»
+  b.state = 'dry'; b.dryLeft = 1e9;
+}
+// &qa=crabs — четыре краба и медуза на песке на одном берегу почти в одной точке; &qa=lionswim — морской лев плывёт
+if (qs.get('qa') === 'crabs') {
+  world.step(0); world.step(0); for (const k of ['crab', 'crab', 'crab', 'crab', 'stranded']) world.debugSpawn(k); visual.synced = false;
+  world.sim.eco.agents.filter(a => a.species === 'crab' || a.stranded).forEach((a, i) => { a.site = 0; a.x = .62 + i * .006; a.life = 1e9; a.tAct = 1e9; a.c = { ...a.c, drift: 0 }; });
+}
+if (qs.get('qa') === 'lionswim') {
+  world.step(0); world.step(0); world.debugSpawn('sea_lion'); visual.synced = false;
+  for (const a of world.sim.eco.agents) if (a.species === 'sea_lion') { a.away = 1e9; a.rafty = 0; a.life = 1e9; }
+}
+for (let i = 0, n = Math.min(600, +qs.get('pre') * 10 || 0); i < n; i++) { world.step(.1); for (const o of visual.agents.values()) visual._stepAgent(o, .1); visual._separate(.1); }
 
 // --- гейт входа: запускает AudioContext по клику (обязателен жест пользователя) ---
 const gate = document.querySelector('#gate');
@@ -85,6 +112,7 @@ const enter = async () => {
     await audio.start();
     gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800);
   } catch (e) {
+    if (e?.noAudio) { console.warn('океан без звука:', e.message); gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800); return; }   // v21
     console.error('audio start failed', e);
     btn.textContent = 'Не вышло — нажми ещё раз';
     const msg = gate.querySelector('#gate-err') || Object.assign(document.createElement('p'), { id: 'gate-err' });
@@ -93,6 +121,8 @@ const enter = async () => {
   }
 };
 gate.querySelector('#gate-btn').addEventListener('click', enter);
+// v21: код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
+window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
 // &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)
 if (qs.get('noaudio') === '1') { gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800); }
 
@@ -127,16 +157,30 @@ todButtons.forEach(btn => btn.addEventListener('click', () => {
 }));
 
 let last = performance.now(), hudT = 0;
+// v21: слабое устройство — если картинка 3 с подряд ниже ~24 кадров/с, ступенчато снижаем качество картинки и
+// разгружаем звук (audio.weak). На нормальных устройствах не срабатывает; в QA-снимках (&lowres) выключено
+const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, badW = 0;
+const watchFps = raw => {
+  if (!autoQ || document.hidden || qLevel >= 2 || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
+  fpsT += raw; if (fpsT < 0) return;   // первые 5 с после входа — догрузка и распаковка, не считаем
+  fpsN++; fpsSum += raw;
+  if (fpsT < 3) return;
+  badW = fpsSum / fpsN > 1 / 24 ? badW + 1 : 0;   // две плохие трёхсекундные полосы подряд — не разовая заминка
+  if (badW >= 2) { badW = 0; qLevel++; visual.setQuality(qLevel); if (qLevel >= 2) audio.weak = true; console.info('[quality] слабое устройство — уровень', qLevel); fpsT = -2; }
+  else fpsT = 0;
+  fpsN = 0; fpsSum = 0;
+};
 function frame(now) {
+  requestAnimationFrame(frame);   // v21: первым делом — ошибка ниже не должна остановить цикл
   // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходил
   // отрицательным (в безголовом браузере −0.74 с), и мир с панелью «отматывались назад»
-  const dt = Math.max(0, Math.min((now - last) / 1000, .1)); last = now;
+  const raw = (now - last) / 1000, dt = Math.max(0, Math.min(raw, .1)); last = now;
+  if (raw > 0 && raw < 1) watchFps(raw);
   // одна ошибка (в мире или в отрисовке) не должна насовсем остановить requestAnimationFrame-цикл
   try { world.step(dt); } catch (e) { console.error('world step failed', e?.stack || e); }
-  audio.prox = visual.proximity();   // насекомые слышны, только когда камера у острова
+  try { audio.prox = visual.proximity(); } catch { /* до загрузки сцены */ }   // насекомые слышны, только когда камера у острова
   try { visual.frame(dt, now / 1000); hudT += dt; if (hudT > .25) { hudT = 0; visual.hud(); } }
   catch (e) { console.error('render frame failed', e?.stack || e); }
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 

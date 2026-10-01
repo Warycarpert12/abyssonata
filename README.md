@@ -12,3 +12,12 @@
 
 - Звуки — CC0 / public domain (авторы — `samples_mp3/*/CREDITS.txt`), 3D-модели — CC0 и CC-BY (`web/models/CREDITS.txt`).
 - Сборка: `python build_site.py` → `_site/` (на GitHub собирается и публикуется сам, `.github/workflows/pages.yml`).
+
+## Лицензия
+
+Код — [MIT](LICENSE), © 2026 Гонтарук Артём (Warycarpert12): можно использовать, менять и распространять с указанием
+авторства. Сторонние материалы — со своими лицензиями, полный список с авторами и источниками — [THIRD_PARTY.md](THIRD_PARTY.md)
+(на сайте — ссылка «Авторы и лицензии»):
+- звуки — CC0 1.0 / Public domain (Freesound, Wikimedia Commons, BigSoundBank);
+- 3D-модели — CC0 1.0 (Quaternius) и CC-BY 3.0 (Poly by Google, angelo raffaele Catalano — с обязательным указанием автора);
+- three.js — MIT.

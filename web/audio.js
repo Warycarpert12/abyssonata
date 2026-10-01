@@ -80,13 +80,34 @@ export class OceanAudio {
     this.nature = 1;            // полоска «Природа» (0..1): общая громкость всех звуков мира (v11)
     this.music = .49;           // полоска «Музыка» (v14): абстрактный слой (_abstract), квадрат положения полоски
     this.info = new WeakMap();  // буфер -> { rms, on: [секунды «вступлений»] } (см. analyse); список буферов -> медиана rms
+    // v21: облегчённый звук для iPhone/iPad и устройств с малой памятью (распакованные записи — до ~560 МБ, iOS закрывал
+    // вкладку): записи в 32 кГц, звуки зверей — по первому звуку, петли насекомых — только играющие. На обычных
+    // устройствах — всё как было. ?lite=1 — включить для проверки
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    this.lite = ios || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || new URLSearchParams(location.search).get('lite') === '1';
+    // v21: слабое устройство (main.js включает, если картинка долго ниже ~24 кадров/с): не больше 10 разовых звуков
+    // одновременно, слой обновляется 12 раз в секунду, без «эха» абстрактного слоя — меньше работы звуковому потоку
+    // (треск/обрывы). На облегчённом (iPhone) предел голосов действует всегда. Обычные устройства — как было
+    this.weak = false; this.voices = 0;
   }
 
-  async start() {
-    if (this.ready) return;
+  // v21: один запуск на все нажатия «Войти»; при ошибке контекст закрывается (раньше — второй AudioContext)
+  start() {
+    if (this.ready) return Promise.resolve();
+    this._starting ??= this._start().catch(async e => {
+      try { await this.ctx?.close(); } catch { /* уже закрыт */ }
+      this.ctx = null; this.buffers = {}; this._loading = {};
+      throw e;
+    }).finally(() => { this._starting = null; });
+    return this._starting;
+  }
+
+  async _start() {
     // latencyHint 'playback' (v12): звуковой буфер побольше — меньше риск «заиканий» звука, когда видеокарта/процессор
     // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна
-    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+    // v21: браузер без Web Audio — вход без звука, а не «Не вышло — нажми ещё раз» по кругу
+    if (!(window.AudioContext || window.webkitAudioContext)) throw Object.assign(new Error('этот браузер не поддерживает Web Audio'), { noAudio: true });
+    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)(this.lite ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' });
     await ctx.resume();
     this.t0 = ctx.currentTime;
 
@@ -115,9 +136,17 @@ export class OceanAudio {
     // локальный serve.py параметр не читает и отдаёт WAV
     const opus = !!document.createElement('audio').canPlayType('audio/ogg; codecs="opus"');
     // v19: статический сайт (GitHub Pages, APK — build_site.py) — список записей (MP3) в samples.json рядом со страницей
-    let man = null;
-    try { const r = await fetch(this.base + '/samples.json'); if (r.ok) man = await r.json(); } catch {}
-    this.manifest = man || await (await fetch(this.base + '/manifest.json?fmt=' + (opus ? 'opus' : 'mp3'))).json();
+    // v21: список проверяется — PWA-манифест (тот же адрес manifest.json на статическом сайте) за него не принимается
+    const isList = m => m && Array.isArray(m.surf);
+    const get = async u => { try { const r = await fetch(u); return r.ok ? await r.json() : null; } catch { return null; } };
+    let man = await get(this.base + '/samples.json');
+    if (!isList(man)) man = await get(this.base + '/manifest.json?fmt=' + (opus ? 'opus' : 'mp3'));
+    if (!isList(man)) throw new Error('не найден список звуков (samples.json)');
+    this.manifest = man;
+    if (this.lite) {   // v21: петли насекомых — только те, что заиграют (из 6/5 записей звучат 3/2, см. _buildInsects)
+      const pick = (a, k) => (a || []).slice().sort(() => Math.random() - .5).slice(0, k);
+      this.manifest = { ...this.manifest, insects_day: pick(this.manifest.insects_day, 3), insects_night: pick(this.manifest.insects_night, 2) };
+    }
     await this._loadCategory('surf');
     await this._loadCategory('rain_light'); await this._loadCategory('rain_heavy'); await this._loadCategory('rain_water');
     await this._loadCategory('insects_day'); await this._loadCategory('insects_night');
@@ -129,19 +158,25 @@ export class OceanAudio {
     this._buildInsects();
     this.ready = true;
     // остальное (плеск, птицы, киты...) подгружаем лениво по первому событию — не тормозим старт
-    for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) this._loadCategory(c);
+    if (!this.lite) for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) this._loadCategory(c);
+    // v21: на облегчённом — категория грузится при первом своём звуке (onEvent/playLocal ждут её)
   }
 
   async _loadCategory(cat) {
     if (this.buffers[cat]) return this.buffers[cat];
     if (this._loading[cat]) return this._loading[cat];
     const files = (this.manifest[cat] || []);
-    this._loading[cat] = Promise.all(files.map(async f => {
-      const buf = await (await fetch(`${this.base}/samples/${cat}/${f}`)).arrayBuffer();
-      const b = normalize(await this.ctx.decodeAudioData(buf), .8);   // как b.normalize(0.8) в ocean_live.scd
+    // v21: allSettled + r.ok — одна битая запись не глушит категорию; ничего не загрузилось — повтор при следующем звуке
+    this._loading[cat] = Promise.allSettled(files.map(async f => {
+      const r = await fetch(`${this.base}/samples/${cat}/${f}`);
+      if (!r.ok) throw new Error(`${cat}/${f}: HTTP ${r.status}`);
+      const b = normalize(await this.ctx.decodeAudioData(await r.arrayBuffer()), .8);   // как b.normalize(0.8) в ocean_live.scd
       if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, analyse(b));
       return b;
-    })).then(bufs => {
+    })).then(res => {
+      for (const x of res) if (x.status === 'rejected') console.warn('звук не загрузился:', x.reason?.message || x.reason);
+      const bufs = res.filter(x => x.status === 'fulfilled').map(x => x.value);
+      if (!bufs.length && files.length) { delete this._loading[cat]; return bufs; }
       if (LEVEL.has(cat)) { const r = bufs.map(b => this.info.get(b).rms).sort((a, b) => a - b); this.info.set(bufs, r[r.length >> 1]); }   // медиана категории
       this.buffers[cat] = bufs; return bufs;
     });
@@ -232,6 +267,7 @@ export class OceanAudio {
   update(s) {
     if (!this.ready) return;
     const now = this.ctx.currentTime, t = now - this.t0;
+    if (this.weak) { if (now - (this._upd ?? -1) < .083) return; this._upd = now; }   // v21: слабое устройство — 12 раз/с
     const night = lerp(.75, 1, s.daylight);
     const rl = s.rain_active ? clamp((s.rain - .4) / .4) : 0;   // сила дождя 0..1 — только когда дождь объявлен (синхронно с журналом/картинкой)
     const storm = rl;
@@ -255,7 +291,7 @@ export class OceanAudio {
 
     this.musicGen.update(s, now);
     if (now > this.nextAbs) {   // абстрактный слой: чаще ночью и в тишину, реже днём и в дождь
-      this._abstract(s);
+      if (!this.weak) this._abstract(s);   // v21: на слабом устройстве — без него (много голосов разом)
       this.nextAbs = now + rrand(25, 70) * (s.daylight > .5 ? 1.4 : .8) * (rl > .3 ? 2 : 1);
     }
     const on = !!s.rain_active;
@@ -321,7 +357,7 @@ export class OceanAudio {
         const env = ctx.createGain(), a = rrand(.02, .05) * (1 - i / n * .5);
         env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(a, t + len * .3); env.gain.linearRampToValueAtTime(0, t + len);
         src.connect(env); out(env, t, t + len, rrand(-.9, .9), rrand(-.9, .9));
-        src.start(t, Math.min(buf.duration - .2, at + rrand(-.2, .2) + (Math.random() < .5 ? 0 : i * .03))); src.stop(t + len + .05);
+        src.start(t, Math.max(0, Math.min(buf.duration - .2, at + rrand(-.2, .2) + (Math.random() < .5 ? 0 : i * .03)))); src.stop(t + len + .05);   // v21: не меньше 0
       }
       return;
     }
@@ -368,6 +404,7 @@ export class OceanAudio {
   }
 
   _oneShot(buf, rate, amp, lpfHz, atk, rel, pan01, cat = '', off = 0, len = null) {
+    if ((this.weak || this.lite) && this.voices >= 10) return;   // v21: предел одновременных голосов на слабых устройствах
     const ctx = this.ctx, now = ctx.currentTime;
     const dur = (len ?? buf.duration - off) / rate, env = ctx.createGain(), lpf = ctx.createBiquadFilter();
     const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
@@ -385,6 +422,7 @@ export class OceanAudio {
     src.connect(lpf); lpf.connect(env);
     if (panner) { panner.pan.value = pan01 * 2 - 1; env.connect(panner); panner.connect(this.bus); }
     else env.connect(this.bus);
+    this.voices++; src.onended = () => this.voices--;
     src.start(now, off); src.stop(now + dur + .05);
   }
 }

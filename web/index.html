@@ -75,6 +75,9 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 #vol .row.off { opacity: .45; } #vol .row.off input { cursor: default; }
 
 #credits { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); font-size: 9px; color: rgba(211,220,211,.5); z-index: 5; pointer-events: none; white-space: nowrap; }
+/* v21: ссылка «Авторы и лицензии» — в подписи внизу и на экране входа, маленькая и неяркая */
+#credits a, #gate-lic { pointer-events: auto; color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+#gate-lic { display: inline-block; margin-top: 18px; font-size: 10px; letter-spacing: .08em; color: rgba(211,220,211,.45); }
 /* подсказка при наведении на существо */
 #tip { position: fixed; z-index: 40; padding: 4px 10px; border-radius: 10px; background: rgba(146,191,189,.16); backdrop-filter: var(--glass); color: #eef4ee; font-size: 12px; text-shadow: var(--ca);
   border: 1px solid var(--panel-edge); box-shadow: var(--glass-in); pointer-events: none; opacity: 0; transition: opacity .12s; transform: translate(-50%, -130%); white-space: nowrap; }
@@ -202,6 +205,7 @@ html, body { height: 100dvh; overscroll-behavior: none; }
     <h1>Ocean Murmur</h1>
     <p>Звук играет прямо здесь, в браузере</p>
     <button id="gate-btn">Войти в океан</button>
+    <br><a id="gate-lic" href="credits.html" target="_blank" rel="noopener">Авторы и лицензии</a>
   </div>
 </div>
 
@@ -224,6 +228,6 @@ html, body { height: 100dvh; overscroll-behavior: none; }
 })();
 </script>
 <script type="module" src="main.js"></script>
-<div id="credits">3D: Quaternius (CC0) · чайки, пеликан, морской лев, косатка, медуза, осьминог, звёзды, краб, черепаха — Poly by Google; креветка — angelo raffaele Catalano (CC-BY 3.0)</div>
+<div id="credits">3D: Quaternius (CC0) · чайки, пеликан, морской лев, косатка, медуза, осьминог, звёзды, краб, черепаха — Poly by Google; креветка — angelo raffaele Catalano (CC-BY 3.0) · <a href="credits.html" target="_blank" rel="noopener">Авторы и лицензии</a></div>
 </body>
 </html>

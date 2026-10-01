@@ -172,6 +172,9 @@ const setPaused = p => {
   pauseBtn.classList.toggle('on', p); pauseBtn.textContent = p ? 'Дальше' : 'Пауза'; pauseBtn.title = (p ? 'Продолжить' : 'Пауза') + ' (пробел)';
 };
 pauseBtn.addEventListener('click', () => setPaused(!paused));
+// v22: слежение за зверем — камера крутится вокруг него и приближается; отпустить — «✕» на плашке или Esc
+document.querySelector('#follow button').addEventListener('click', () => visual.unfollow());
+addEventListener('keydown', e => { if (e.key === 'Escape') visual.unfollow(); });
 addEventListener('keydown', e => {
   if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   e.preventDefault(); setPaused(!paused);   // и не «нажимаем» кнопку, на которой фокус

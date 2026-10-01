@@ -302,7 +302,9 @@ export class Visual {
     // медленное вращение вокруг всей локации, как в мурмур (~3 мин на оборот): сразу при входе и снова через 12 с после того,
     // как камеру отпустили; пока держишь камеру или следишь за зверем — стоит
     controls.autoRotateSpeed = .35; this._idle = 99;
-    controls.addEventListener('start', () => { this._follow = null; this._fly = null; this._drag = true; this._idle = 0; });   // взялся за камеру сам — перестаём следовать за зверем
+    // взялся за камеру сам: v22 — при слежении за зверем камера крутится вокруг него и приближается (слежение остаётся,
+    // выход — Esc или «✕» на плашке, см. main.js); без слежения — как раньше
+    controls.addEventListener('start', () => { if (this._follow) this._follow.user = true; this._fly = null; this._drag = true; this._idle = 0; });
     controls.addEventListener('end', () => { this._drag = false; this._idle = 0; });
     controls.screenSpacePanning = false;   // сдвиг — вдоль «земли», не вверх-вниз
     controls.maxPolarAngle = Math.PI * .47;   // можно опустить камеру почти к воде и посмотреть на небо
@@ -2187,17 +2189,28 @@ export class Visual {
     this._follow = { id: list[i].id, sp, t: 0, dist: FOLLOW_D[sp] || 12 }; this._freeCam = false; this._censusHTML = null;
   }
   _stepFollow(dt) {
-    const f = this._follow; if (!f) return;
+    const f = this._follow, C = this.controls;
+    // v22: при слежении — вращение и приближение вокруг зверя; сдвиг и «приближение к курсору» спорили бы со слежением
+    C.enablePan = !f; C.zoomToCursor = !f;
+    if (!f) return;
     const o = this.agents.get(f.id);
-    if (!o || o.gone) { this._follow = null; this._censusHTML = null; return; }
-    const tg = this.controls.target, cam = this.camera.position, p = o.fish?.length ? o.anchor.clone().setY(-1) : o.obj.position.clone();
+    if (!o || o.gone) { this.unfollow(); return; }
+    const tg = C.target, cam = this.camera.position, p = o.fish?.length ? o.anchor.clone().setY(-1) : o.obj.position.clone();
     f.t += dt; const k = 1 - Math.exp(-dt * (f.t < 2.5 ? 1.8 : 4));
     const before = tg.clone(); tg.lerp(p, k); cam.add(tg.clone().sub(before));   // камера едет вместе с точкой обзора
+    if (f.user) return;   // v22: человек взялся за камеру — расстояние и ракурс его, не возвращаем
     const off = cam.clone().sub(tg), d = off.length() || 1;
     off.multiplyScalar(lerp(d, f.dist, k) / d);
     if (off.y < f.dist * .4) off.y = lerp(off.y, f.dist * .5, k);   // смотрим сверху-сбоку (под воду — сквозь воду)
     cam.copy(tg).add(off);
   }
+  // v22: плашка «Слежу: Дельфин №3 ✕» — за кем сейчас камера (каждый кадр, и на паузе); ✕ или Esc — отпустить
+  _followChip() {
+    const f = this._follow, o = f && this.agents.get(f.id), fe = this._chipEl ??= $('#follow'); if (!fe) return;
+    const t = o ? `Слежу: ${o.sp === 'fish_school' ? NAMES.fish_school : `${NAMES[o.sp] || o.sp} №${o.n}`}` : '';
+    if (t !== this._chipT) { this._chipT = t; fe.firstChild.textContent = t; fe.classList.toggle('show', !!o); }
+  }
+  unfollow() { if (this._follow) { this._follow = null; this._censusHTML = null; this._idle = 0; } }
 
   // QA (?look=crab): один раз подвести камеру к первому существу этого вида — снять его крупно; границы камеры
   // для такого снимка не действуют (островки и риф дальше 42 м)
@@ -2524,7 +2537,7 @@ export class Visual {
     this.flashV = Math.max(0, (this.flashV || 0) - dt * 2.6); this.flashEl.style.opacity = (this.flashV * .4).toFixed(3);
     const ru = this.rain.material.uniforms; ru.uTime.value = t; ru.uAmt.value = this.cur.rain; ru.uSlant.value = .18 + this.cur.wind * .35;
 
-    this._stepFollow(dtc); this._stepFly(dtc);
+    this._stepFollow(dtc); this._stepFly(dtc); this._followChip();
     if (!this._drag) this._idle += dtc;
     const spin = this.controls.autoRotate = !this._follow && !this._fly && !this.paused && !this._freeCam && this._idle > 12;   // v15: через 12 с (было 20)
     if (spin) {

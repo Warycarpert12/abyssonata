@@ -80,13 +80,18 @@ export class OceanAudio {
     this.nature = 1;            // полоска «Природа» (0..1): общая громкость всех звуков мира (v11)
     this.music = .49;           // полоска «Музыка» (v14): абстрактный слой (_abstract), квадрат положения полоски
     this.info = new WeakMap();  // буфер -> { rms, on: [секунды «вступлений»] } (см. analyse); список буферов -> медиана rms
+    // v21: облегчённый звук для iPhone/iPad и устройств с малой памятью (распакованные записи — до ~560 МБ, iOS закрывал
+    // вкладку): записи в 32 кГц, звуки зверей — по первому звуку, петли насекомых — только играющие. На обычных
+    // устройствах — всё как было. ?lite=1 — включить для проверки
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    this.lite = ios || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || new URLSearchParams(location.search).get('lite') === '1';
   }
 
   async start() {
     if (this.ready) return;
     // latencyHint 'playback' (v12): звуковой буфер побольше — меньше риск «заиканий» звука, когда видеокарта/процессор
     // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна
-    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)(this.lite ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' });
     await ctx.resume();
     this.t0 = ctx.currentTime;
 
@@ -118,6 +123,10 @@ export class OceanAudio {
     let man = null;
     try { const r = await fetch(this.base + '/samples.json'); if (r.ok) man = await r.json(); } catch {}
     this.manifest = man || await (await fetch(this.base + '/manifest.json?fmt=' + (opus ? 'opus' : 'mp3'))).json();
+    if (this.lite) {   // v21: петли насекомых — только те, что заиграют (из 6/5 записей звучат 3/2, см. _buildInsects)
+      const pick = (a, k) => (a || []).slice().sort(() => Math.random() - .5).slice(0, k);
+      this.manifest = { ...this.manifest, insects_day: pick(this.manifest.insects_day, 3), insects_night: pick(this.manifest.insects_night, 2) };
+    }
     await this._loadCategory('surf');
     await this._loadCategory('rain_light'); await this._loadCategory('rain_heavy'); await this._loadCategory('rain_water');
     await this._loadCategory('insects_day'); await this._loadCategory('insects_night');
@@ -129,7 +138,8 @@ export class OceanAudio {
     this._buildInsects();
     this.ready = true;
     // остальное (плеск, птицы, киты...) подгружаем лениво по первому событию — не тормозим старт
-    for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) this._loadCategory(c);
+    if (!this.lite) for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) this._loadCategory(c);
+    // v21: на облегчённом — категория грузится при первом своём звуке (onEvent/playLocal ждут её)
   }
 
   async _loadCategory(cat) {

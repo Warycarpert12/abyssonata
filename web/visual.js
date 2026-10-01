@@ -162,7 +162,7 @@ function navPath(p, t, need, rad) {
 const TURNS = [0, .35, .7, 1.05, 1.4, 1.75, 2.1, 2.45, 2.8];
 // v19: пловец, который сейчас не плавает: черепаха греется на пляже или спит на рифе, медуза выброшена на песок —
 // их не уводит на глубину (deepSpot/swimStep) и не толкает с мели (_separate)
-const landed = o => !o.gone && ((o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && (o.st === 'stranded' || o.flat))) && (o.landT = o.t, true);   // landT — для qa/move_check
+const landed = o => ((!o.gone && o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && (o.flat || (!o.gone && o.st === 'stranded')))) && (o.landT = o.t, true);   // landT — для qa/move_check
 function swimStep(o, tgt, max) {
   const p = o.anchor, dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
   p.y += clamp(tgt.y - p.y, -max, max); if (d < 1e-4) return;
@@ -1956,8 +1956,10 @@ export class Visual {
       if (o.st === 'stranded' || o.flat) {   // v19: выброшена штормом — плоская лужица на песке, чуть светится
         // v20: лежит НА песке — низ модели на уровне земли (раньше висела над пляжем диском со щупальцами), сплющена
         // сильнее; появляется на месте, проявляясь за ~2 с, и расталкивается с соседями (landOff)
-        o.flat = true; o.flatK = Math.min(1, (o.flatK ?? 0) + dt * .5);
-        const q = base.clone(); if (o.landOff) q.add(o.landOff);
+        // v20: лежит там, куда вынесло (flatPos); смывает — сжимается на месте
+        const washed = o.gone || o.st === 'leave';
+        o.flat = true; o.flatK = clamp((o.flatK ?? 0) + dt * (washed ? -.4 : .5));
+        const q = (o.flatPos ??= base.clone()).clone(); if (o.landOff) q.add(o.landOff);
         const sy = .07 * o.flatK, bx = this.assets?.jellyfish?.box;
         q.y = groundAt(q.x, q.z, .4) + .02 - (bx ? bx.min.y * sy : 0);
         ob.position.lerp(q, 1 - Math.exp(-dt * 4));

@@ -2114,6 +2114,7 @@ export class Visual {
     }
     // v20: на суше — крабы, морские звёзды, медузы на песке. Толчок копится в o.landOff (не больше 2.5 м), к нему
     // прибавляется точка зверя в _stepAgent: иначе каждый кадр зверь снова тянулся в свою точку и «влезал» в соседа
+    for (const o of this.agents.values()) o.landOff?.multiplyScalar(1 - Math.min(1, dt * .08));   // v20: сосед ушёл — понемногу на своё место
     const ld = [...this.agents.values()].filter(o => !o.gone && LAND_R[o.sp] && (o.sp !== 'jellyfish' || o.flat) && (o.sp !== 'sea_lion' || (o.st === 'stay' && !o.wet)) && (o.sp !== 'sea_turtle' || o.st === 'bask') && o.st !== 'hide');
     for (let i = 0; i < ld.length; i++) for (let j = i + 1; j < ld.length; j++) {
       const A = ld[i], B = ld[j], a = A.obj.position, b = B.obj.position, dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz) || 1e-3;

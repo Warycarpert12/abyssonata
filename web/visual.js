@@ -2288,7 +2288,14 @@ export class Visual {
   _removeAgent(o) {
     this.scene.remove(o.obj); for (const f of o.fish || []) this.scene.remove(f.obj);   // рыбки косяка — отдельные объекты сцены
     this.agents.delete(o.id);
+    // v22: свои кости копий модели и свои крылья пеликана освобождаем сразу (раньше висели до сборки мусора). Материалы
+    // не трогаем: с ними ушли бы собранные шейдеры, и следующий такой же зверь собирал бы их заново — рывок
+    this._freeBones(o.obj); for (const f of o.fish || []) this._freeBones(f.obj);
+    o.wings?.[0].children[0].geometry.dispose();
   }
+  // v22: у каждой копии модели (SkeletonUtils.clone) свой скелет, и three.js держит для него текстуру костей — освобождаем,
+  // когда копия больше не рисуется (иначе с каждым прыжком рыбы и ушедшим зверем их становилось больше)
+  _freeBones(obj) { obj.traverse(n => n.skeleton?.dispose()); }
 
   // ------------------------------------------------------------------ эффекты
   _ripple(pos, size = 3, life = 1.6) {
@@ -2332,7 +2339,7 @@ export class Visual {
     this.fx.push(dt => {
       t += dt; const u = clamp(t / life); m.obj.position.lerpVectors(from, to, u); m.obj.position.y = Math.sin(u * Math.PI) * h;
       m.obj.rotation.x = -Math.cos(u * Math.PI) * .7; m.mixer?.update(dt * 2);
-      if (u >= 1) { this.scene.remove(m.obj); const q = to.clone().setY(.05); this._burst(q, 0xffffff, 20, 3.5 * k); this._ripple(q, 3 * k); return false; } return true;
+      if (u >= 1) { this.scene.remove(m.obj); this._freeBones(m.obj); const q = to.clone().setY(.05); this._burst(q, 0xffffff, 20, 3.5 * k); this._ripple(q, 3 * k); return false; } return true;
     });
   }
   // летучая рыба: настоящая рыбка по дуге над водой
@@ -2349,7 +2356,7 @@ export class Visual {
     this.fx.push(dt => {
       t += dt; const u = clamp(t / life); m.obj.position.lerpVectors(from, to, u); m.obj.position.y = Math.sin(u * Math.PI) * h;
       m.obj.rotation.x = -Math.cos(u * Math.PI) * .6; m.mixer?.update(dt * 2);
-      if (u >= 1) { this.scene.remove(m.obj); this._burst(to, 0xffffff, 22, 4.5); this._ripple(to, 2); this.onLocalSound?.('splash', to, .6); return false; } return true;
+      if (u >= 1) { this.scene.remove(m.obj); this._freeBones(m.obj); wing.dispose(); this._burst(to, 0xffffff, 22, 4.5); this._ripple(to, 2); this.onLocalSound?.('splash', to, .6); return false; } return true;
     });
   }
 

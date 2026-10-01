@@ -24,6 +24,7 @@ import { OceanAudio } from './audio.js';
   };
   let j = await join();
   if (j.ok === false) {
+    window.__omReady = true;   // v21: код работает, просто очередь — запасное сообщение не нужно
     const txt = gateP.textContent; btn.style.display = 'none';
     while (j.ok === false) {
       gateP.textContent = `Сейчас в океане слишком много людей (${j.count} из ${j.limit}). Подождите — страница зайдёт сама, как только освободится место.`;

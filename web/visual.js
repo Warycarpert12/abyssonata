@@ -1556,16 +1556,17 @@ export class Visual {
   }
   // взмахи крыльев: у модели чайки нет анимации — сгибаем вершины крыльев в шейдере (дальше от тела — сильнее)
   _makeFlap(o) {
-    o.flap = { value: 0 };
+    o.flap = { value: 0 }; o.fold = { value: 0 };   // v21: fold 0..1 — крылья сложены (птица на воде/на земле)
     o.model.traverse(n => {
       if (!n.isMesh) return;
       n.geometry.computeBoundingBox(); const bb = n.geometry.boundingBox, half = { value: Math.max(-bb.min.z, bb.max.z) };
       const src = n.material;   // clone() не копирует хуки тона/фактуры — переносим их сами
       n.material = src.clone(); n.material.onBeforeCompile = src.onBeforeCompile; n.material.customProgramCacheKey = src.customProgramCacheKey;
       this._hook(n.material, sh => {
-        sh.uniforms.uFlap = o.flap; sh.uniforms.uHalf = half;
-        sh.vertexShader = 'uniform float uFlap, uHalf;\n' + sh.vertexShader.replace('#include <begin_vertex>',
-          '#include <begin_vertex>\n float wf = clamp((abs(transformed.z) - .15 * uHalf) / (.85 * uHalf), 0., 1.); transformed.y += wf * wf * uFlap * uHalf;');
+        sh.uniforms.uFlap = o.flap; sh.uniforms.uHalf = half; sh.uniforms.uFold = o.fold;
+        sh.vertexShader = 'uniform float uFlap, uHalf, uFold;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+          '#include <begin_vertex>\n float wf = clamp((abs(transformed.z) - .15 * uHalf) / (.85 * uHalf), 0., 1.); transformed.y += wf * wf * uFlap * uHalf;' +
+          '\n float az = abs(transformed.z), wb = .15 * uHalf; if (az > wb) transformed.z = sign(transformed.z) * (wb + (az - wb) * (1. - .78 * uFold));');
       }, 'flap');
     });
   }
@@ -1772,15 +1773,19 @@ export class Visual {
     let pitch = 0, roll = 0;
     if (o.sp === 'cormorant' && o.st === 'dry' && !o.gone) {
       // v14: сушит крылья — стоит на камне у кромки, крылья раскинуты и чуть подрагивают, смотрит в сторону моря
-      if (!o.perch) { const e = shoreAt(0, o.ang0, .5); o.perch = new V3(e.x - e.dx * 2, 0, e.z - e.dz * 2); o.perch.y = groundAt(o.perch.x, o.perch.z, .4) + (this.assets?.gull_dark?.h ?? 1) * .5; o.perchH = Math.atan2(e.dx, e.dz); }
+      // v21: стоит вертикально, крылья раскрыты наполовину и горизонтально — как сушится настоящий баклан; раньше
+      // тело лёжа и крылья вверх «V» — выглядел птицей, застывшей в полёте над песком
+      if (!o.perch) { const e = shoreAt(0, o.ang0, .5); o.perch = new V3(e.x - e.dx * 2, 0, e.z - e.dz * 2); o.perch.y = groundAt(o.perch.x, o.perch.z, .4) + (this.assets?.gull_dark?.span ?? 1.4) * .42; o.perchH = Math.atan2(e.dx, e.dz); }
       ob.position.lerp(o.perch, 1 - Math.exp(-dt * 1.5));
       if (ob.position.distanceTo(o.perch) < 2) {
-        if (o.flap) o.flap.value = .42 + Math.sin(o.t * 3) * .04;
+        o.upK = Math.min(1, (o.upK ?? 0) + dt);
+        if (o.flap) o.flap.value = .05 + Math.sin(o.t * 3) * .02;
+        if (o.fold) o.fold.value = .45 * o.upK;
         o.heading += Math.atan2(Math.sin(o.perchH - o.heading), Math.cos(o.perchH - o.heading)) * (1 - Math.exp(-dt * 2));
-        ob.rotation.set(0, 0, 0); ob.rotateY(o.heading); ob.rotateX(-.35); return;
+        ob.rotation.set(0, 0, 0); ob.rotateY(o.heading); ob.rotateX(-.35 - .85 * o.upK); return;
       }
     } else if (BIRDS.has(o.sp) && o.sp !== 'pelican') {
-      o.perch = null;
+      o.perch = null; o.upK = 0;
       // v12 «резвее»: не ровный круг, а петли и восьмёрки с меняющимся радиусом и скоростью, набор высоты взмахами,
       // спуск планированием, крен в повороте (по скорости поворота), клюв вниз при снижении; при нырке — пике к воде
       const alb = o.sp === 'albatross', f = FLAP[o.sp] || FLAP.seagull;
@@ -1795,9 +1800,9 @@ export class Visual {
         if (o.diveP) { p.x = lerp(p.x, o.diveP.x, k); p.z = lerp(p.z, o.diveP.z, k); }   // v19: ныряет только в воду
       }
       // v19: круг полёта заходит на остров (холмы до 11 м) — над сушей держимся выше рельефа
-      if (o.st !== 'sit' || o.gone) p.y = Math.max(p.y, groundAt(p.x, p.z, 2) + (o.dive > 0 || o.hover > 0 ? .3 : 3));
+      if (o.st !== 'sit' || o.gone) p.y = Math.max(p.y, groundAt(p.x, p.z, 2) + (o.dive > 0 || o.hover > 0 ? .3 : 5));   // v21: 3 → 5 м
       ob.position.lerp(p, 1 - Math.exp(-dt * 4));
-      if (!(o.dive > 0) && !(o.hover > 0) && o.st !== 'dry') ob.position.y = Math.max(ob.position.y, groundAt(ob.position.x, ob.position.z, 1.5) + 1.5);   // v19: и в движении не ниже
+      if (!(o.dive > 0) && !(o.hover > 0) && o.st !== 'dry') ob.position.y = Math.max(ob.position.y, groundAt(ob.position.x, ob.position.z, 1.5) + 3.5);   // v19: и в движении не ниже (v21: 1.5 → 3.5 м — у холмов птица выглядела сидящей)
       const v = ob.position.clone().sub(prev), sp = Math.hypot(v.x, v.z) / Math.max(dt, 1e-3);
       if (sp > .05) { const h = Math.atan2(v.x, v.z), dh = Math.atan2(Math.sin(h - (o.hPrev ?? h)), Math.cos(h - (o.hPrev ?? h))); o.hPrev = h;
         o.bank = lerp(o.bank ?? 0, clamp(-dh / Math.max(dt, 1e-3) * sp * .06, -.9, .9), 1 - Math.exp(-dt * 3)); }
@@ -1806,6 +1811,7 @@ export class Visual {
       o.fp = (o.fp ?? 0) + dt * f[0] * (.7 + .6 * climb) * 6.2832;
       o.fAmp = lerp(o.fAmp ?? .3, o.st === 'sit' && !o.gone ? 0 : o.hover > 0 ? .6 : o.dive > 0 ? .12 : lerp(f[2], f[1], climb), 1 - Math.exp(-dt * 3));
       if (o.st === 'sit' && !o.gone) { roll = 0; pitch = 0; }
+      if (o.fold) o.fold.value = lerp(o.fold.value, o.st === 'sit' && !o.gone ? 1 : 0, 1 - Math.exp(-dt * 2));   // v21: сидит на воде — крылья сложены
       if (o.flap) o.flap.value = Math.sin(o.fp) * o.fAmp;
     } else if (o.sp === 'pelican') {
       // v12: прилетает и улетает по воздуху (на своих крыльях, _pelicanWings), на месте садится на воду; на воде

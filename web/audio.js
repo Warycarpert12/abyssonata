@@ -81,8 +81,8 @@ export class OceanAudio {
     this.music = .49;           // полоска «Музыка» (v14): абстрактный слой (_abstract), квадрат положения полоски
     this.info = new WeakMap();  // буфер -> { rms, on: [секунды «вступлений»] } (см. analyse); список буферов -> медиана rms
     // v21: облегчённый звук для iPhone/iPad и устройств с малой памятью (распакованные записи — до ~560 МБ, iOS закрывал
-    // вкладку): записи в 32 кГц, звуки зверей — по первому звуку, петли насекомых — только играющие. На обычных
-    // устройствах — всё как было. ?lite=1 — включить для проверки
+    // вкладку): записи в 32 кГц (на iPhone/iPad с v22 — в родной частоте устройства, см. unlock), звуки зверей — по первому
+    // звуку, петли насекомых — только играющие. На обычных устройствах — всё как было. ?lite=1 — включить для проверки
     const ios = this.ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     this.lite = ios || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || new URLSearchParams(location.search).get('lite') === '1';
     // v21: слабое устройство (main.js включает, если картинка долго ниже ~24 кадров/с): не больше 10 разовых звуков

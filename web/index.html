@@ -205,6 +205,23 @@ html, body { height: 100dvh; overscroll-behavior: none; }
 </div>
 
 <script type="importmap">{ "imports": { "three": "./three.module.min.js", "three/addons/": "./three-addons/" } }</script>
+<script>
+// v21: понятное сообщение вместо белого/«мёртвого» экрана (обычный скрипт — работает в любом браузере): нет WebGL 2 —
+// сразу; код океана упал при старте или не запустился за 40 с (старый браузер, мало памяти) — на экране входа
+(function () {
+  function show(msg) {
+    var card = document.getElementById('gate-card'), btn = document.getElementById('gate-btn');
+    if (!card || window.__omReady) return;
+    if (btn) btn.style.display = 'none';
+    var m = document.getElementById('gate-err') || document.createElement('p');
+    m.id = 'gate-err'; m.textContent = msg; if (!m.parentNode) card.appendChild(m);
+  }
+  var gl = null; try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
+  if (!gl) { show('На этом устройстве океан не запустится: браузер не поддерживает 3D-графику WebGL 2. Обновите систему или браузер (на iPhone — iOS 15 и новее) или откройте сайт на другом устройстве.'); return; }
+  window.addEventListener('error', function (e) { show('Океан не смог запуститься на этом устройстве: ' + (e.message || 'ошибка') + '. Попробуйте обновить браузер или открыть сайт на другом устройстве.'); });
+  setTimeout(function () { show('Океан не запустился на этом устройстве (слишком старый браузер или не хватает памяти). Попробуйте обновить систему/браузер или открыть сайт на компьютере.'); }, 40000);
+})();
+</script>
 <script type="module" src="main.js"></script>
 <div id="credits">3D: Quaternius (CC0) · чайки, пеликан, морской лев, косатка, медуза, осьминог, звёзды, краб, черепаха — Poly by Google; креветка — angelo raffaele Catalano (CC-BY 3.0)</div>
 </body>

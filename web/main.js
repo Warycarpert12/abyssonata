@@ -115,6 +115,8 @@ const enter = async () => {
   }
 };
 gate.querySelector('#gate-btn').addEventListener('click', enter);
+// v21: код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
+window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
 // &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)
 if (qs.get('noaudio') === '1') { gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800); }
 

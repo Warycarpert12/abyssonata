@@ -107,6 +107,42 @@ fsBtn.addEventListener('click', goFull);
 for (const ev of ['resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange']) (ev.includes('full') ? document : window).addEventListener(ev, fsUpd);
 fsUpd();
 
+// --- уход экрана входа (v22): вуаль тает, размытие снимается — мир становится чётким; карточка «рассыпается»: её стирает
+// слева направо, край дробится шумом (SVG-фильтр #dust), из стирающегося края разлетаются частицы. На телефоне, при
+// «Низком» качестве и при «меньше движения» в системе — просто плавно растворяется (simple — сразу так)
+const leaveGate = simple => {
+  if (!gate.isConnected || gate.classList.contains('clear')) return;
+  const card = gate.querySelector('#gate-card');
+  gate.classList.add('clear');
+  if (simple || phone || matchMedia('(prefers-reduced-motion: reduce)').matches || qMode === 'low') {
+    card.classList.add('fade'); setTimeout(() => gate.remove(), 1200); return;
+  }
+  const r = card.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), cv = Object.assign(document.createElement('canvas'), { id: 'gate-dust' });
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; document.body.appendChild(cv);
+  const g = cv.getContext('2d'), disp = document.getElementById('dust-disp'), COL = ['#d3dcd3', '#92bfbd', '#eef4ee', '#6a8a80'];
+  const parts = [], DUR = 1.4; let t0 = performance.now(), last = t0;
+  card.style.filter = 'url(#dust)';
+  const tick = now => {
+    const u = Math.min(1, (now - t0) / 1000 / DUR), dt = Math.min(.05, (now - last) / 1000); last = now;
+    const m = -.2 + u * 1.45, mask = `linear-gradient(100deg, transparent ${(m * 100).toFixed(1)}%, #000 ${(m * 100 + 24).toFixed(1)}%)`;
+    card.style.webkitMaskImage = card.style.maskImage = mask;
+    disp.setAttribute('scale', (50 * u * u * u).toFixed(1));   // дробление нарастает к концу — пока карточка видна, текст читается
+    if (u < 1) for (let i = 0; i < 16; i++) {   // из стирающегося края — частицы
+      const x = r.left + (m + .12 + Math.random() * .1) * r.width; if (x < r.left || x > r.right) continue;
+      parts.push({ x, y: r.top + Math.random() * r.height, vx: 40 + Math.random() * 120, vy: -15 - Math.random() * 60, a: 0, life: .8 + Math.random() * .9,
+        s: 1 + Math.random() * 1.8, c: COL[(Math.random() * COL.length) | 0] });
+    }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]; p.a += dt; if (p.a >= p.life) { parts.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 20 * dt; p.vx *= 1 - dt * .6;
+      g.globalAlpha = (1 - p.a / p.life) * .9; g.fillStyle = p.c; g.fillRect(p.x, p.y, p.s, p.s);
+    }
+    if (u < 1 || parts.length) requestAnimationFrame(tick); else { cv.remove(); gate.remove(); }
+  };
+  requestAnimationFrame(tick);
+};
+
 const enter = async () => {
   audio.unlock();   // v22: звук — первым делом и до любого await (iPhone включает звук только так)
   if (phone) goFull();   // до первого await — пока браузер считает это нажатием
@@ -114,9 +150,9 @@ const enter = async () => {
   btn.textContent = 'Открываю иллюминатор…';
   try {
     await audio.start();
-    gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800);
+    leaveGate();
   } catch (e) {
-    if (e?.noAudio) { console.warn('океан без звука:', e.message); gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800); return; }   // v21
+    if (e?.noAudio) { console.warn('океан без звука:', e.message); leaveGate(); return; }   // v21
     console.error('audio start failed', e);
     btn.textContent = 'Не вышло — нажми ещё раз';
     const msg = gate.querySelector('#gate-err') || Object.assign(document.createElement('p'), { id: 'gate-err' });
@@ -131,7 +167,7 @@ for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, ()
 // v21: код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
 window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
 // &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)
-if (qs.get('noaudio') === '1') { gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800); }
+if (qs.get('noaudio') === '1') leaveGate(true);
 
 // --- громкость (v11): «Природа» управляет всеми звуками мира, «Музыка» — заготовка на будущее (значение хранится,
 // но ни на что не влияет). Положение полосок запоминается в браузере

@@ -105,6 +105,8 @@ export class OceanAudio {
   async _start() {
     // latencyHint 'playback' (v12): звуковой буфер побольше — меньше риск «заиканий» звука, когда видеокарта/процессор
     // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна
+    // v21: браузер без Web Audio — вход без звука, а не «Не вышло — нажми ещё раз» по кругу
+    if (!(window.AudioContext || window.webkitAudioContext)) throw Object.assign(new Error('этот браузер не поддерживает Web Audio'), { noAudio: true });
     const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)(this.lite ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' });
     await ctx.resume();
     this.t0 = ctx.currentTime;

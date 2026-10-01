@@ -111,6 +111,7 @@ const enter = async () => {
     await audio.start();
     gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800);
   } catch (e) {
+    if (e?.noAudio) { console.warn('океан без звука:', e.message); gate.classList.add('hidden'); setTimeout(() => gate.remove(), 800); return; }   // v21
     console.error('audio start failed', e);
     btn.textContent = 'Не вышло — нажми ещё раз';
     const msg = gate.querySelector('#gate-err') || Object.assign(document.createElement('p'), { id: 'gate-err' });

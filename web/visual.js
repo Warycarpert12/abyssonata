@@ -262,6 +262,9 @@ export class Visual {
     const touch = matchMedia('(pointer: coarse)').matches;
     renderer.setPixelRatio(this.basePR = new URLSearchParams(location.search).has('lowres') ? .5 : Math.min(devicePixelRatio || 1, touch ? 1.5 : 2));
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace;   // цвета как заданы (см. CLAUDE.md), без sRGB-осветления
+    // v22: проверка шейдеров (getProgramInfoLog) заставляет кадр ждать, пока видеокарта соберёт шейдер; шейдеры у нас
+    // не меняются — проверяем только с ?debug
+    renderer.debug.checkShaderErrors = new URLSearchParams(location.search).has('debug');
     const scene = this.scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xaab5b4, 120, 420);
     const camera = this.camera = new THREE.PerspectiveCamera(45, 1, .5, 7000);   // v14: дальний остров ~2.1 км, вода до 5 км
@@ -1304,8 +1307,51 @@ export class Visual {
     this.assets = A;
     this._plantPalms();
     for (const o of this.agents.values()) this._attachModel(o);
+    this._warmUp();
     // v19: сетки обхода мели (navGrid, ~30 мс каждая на ПК) — заранее, по одной за раз, а не рывком посреди просмотра
     Object.keys(ORB).forEach((sp, i) => setTimeout(() => navGrid(SWIM_DEPTH[sp], ORB[sp]), 1500 + i * 400));
+  }
+  // v22: фризы раз в несколько секунд (замер: qa/perf_profile.mjs) — сборка шейдеров посреди игры. Каждый вид зверя
+  // при первом появлении и каждый эффект (круги на воде, брызги, дым, прыжок кузнечика) собирали шейдер, и кадр ждал
+  // её (getProgramInfoLog — 0.35–1.5 с в программном рендере). Эффекты удаляют свой материал, когда гаснут; погас
+  // последний — three.js выбрасывал и шейдер, и следующий всплеск собирал его заново (всплески — раз в 2–7 с).
+  // Теперь все шейдеры собираются заранее, пока открыт экран входа (compileAsync — без ожидания, где браузер умеет
+  // параллельную сборку), а образцы материалов (this.warm) живут всю игру — шейдеры больше не выбрасываются
+  _warmUp() {
+    const warm = this.warm = new THREE.Group(), at = new V3(0, -500, 0);
+    const SP = ['seagull', 'tern', 'albatross', 'cormorant', 'pelican', 'dolphin', 'whale', 'shark', 'orca', 'sea_lion', 'sea_turtle',
+      'shrimp_swarm', 'jellyfish', 'octopus', 'starfish', 'crab', 'stingray', 'fish_school'];
+    SP.forEach((sp, i) => {
+      const o = { id: -1 - i, sp, n: 0, seed: 1, t: 0, obj: new THREE.Group(), mixers: [], heading: 0 };
+      this._attachModel(o);
+      for (const f of o.fish || []) { this.scene.remove(f.obj); warm.add(f.obj); }
+      for (const w of o.wings || []) w.visible = true;   // крылья пеликана на воде скрыты — образец рисуется с ними
+      warm.add(o.obj);
+    });
+    const ship = { id: -99, sp: 'ship', obj: new THREE.Group() }; ship.obj.add(this._buildShip(ship)); warm.add(ship.obj);
+    // образцы материалов эффектов — те же параметры, что в _ripple/_burst/_smoke/_hop/_flyingFish/_leap
+    const pts = new THREE.BufferGeometry(); pts.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+    warm.add(new THREE.Mesh(new THREE.RingGeometry(.8, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .9, depthWrite: false })));
+    warm.add(new THREE.Points(pts, new THREE.PointsMaterial({ color: 0xffffff, size: .6, transparent: true, opacity: .95, depthWrite: false, map: this.glowTex })));
+    warm.add(new THREE.Points(pts, new THREE.PointsMaterial({ color: 0xffffff, size: 3.2, sizeAttenuation: true, transparent: true, depthWrite: false, fog: false, map: this.glowTex, opacity: 0 })));
+    warm.add(new THREE.Points(pts, new THREE.PointsMaterial({ color: 0xc8e86a, size: .14, sizeAttenuation: true, transparent: true })));
+    warm.add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, .5), new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true, opacity: .75, side: THREE.DoubleSide })));
+    const fish = this._clone('fish'); if (fish) warm.add(fish.obj);
+    warm.traverse(n => { n.frustumCulled = false; });
+    warm.position.copy(at); warm.updateMatrixWorld(true);
+    const t0 = performance.now(), rt = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.rt);   // как в кадре: сцена рисуется в буфер this.rt
+    const done = this.renderer.compileAsync(warm, this.camera, this.scene);
+    this.renderer.setRenderTarget(rt);
+    // без параллельной сборки (KHR_parallel_shader_compile) браузер доделывает шейдер при первой отрисовке — рисуем
+    // образцы один раз в буфер 1×1 вместе со сценой (тот же свет и туман, значит те же шейдеры), пока открыт вход
+    done.then(() => {
+      const tiny = new THREE.WebGLRenderTarget(1, 1), prev = this.renderer.getRenderTarget();
+      this.scene.add(warm); this.renderer.setRenderTarget(tiny); this.renderer.render(this.scene, this.camera);
+      this.renderer.setRenderTarget(prev); this.scene.remove(warm); tiny.dispose();
+      this.warmed = true;
+      if (new URLSearchParams(location.search).has('debug')) console.info(`[warm] шейдеры собраны за ${(performance.now() - t0).toFixed(0)} мс`);
+    }).catch(e => console.warn('прогрев шейдеров:', e));
   }
   _clone(name) {
     const a = this.assets?.[name]; if (!a) return null;

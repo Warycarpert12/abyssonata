@@ -158,7 +158,9 @@ export class OceanAudio {
     this._buildInsects();
     this.ready = true;
     // остальное (плеск, птицы, киты...) подгружаем лениво по первому событию — не тормозим старт
-    if (!this.lite) for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) this._loadCategory(c);
+    // v22: по одной категории за раз, а не все 16 разом: раньше за ~10 с после входа распаковывалось ~230 записей,
+    // кадры стояли по 0.7–1.4 с (замер qa/perf_profile.mjs). Категория, чей звук нужен раньше очереди, грузится сразу
+    if (!this.lite) (async () => { for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) await this._loadCategory(c); })();
     // v21: на облегчённом — категория грузится при первом своём звуке (onEvent/playLocal ждут её)
   }
 
@@ -167,12 +169,17 @@ export class OceanAudio {
     if (this._loading[cat]) return this._loading[cat];
     const files = (this.manifest[cat] || []);
     // v21: allSettled + r.ok — одна битая запись не глушит категорию; ничего не загрузилось — повтор при следующем звуке
+    // v22: записи категории скачиваются вместе, а распаковываются по одной (очередь this._dec): распаковка, нормализация
+    // и разбор записи — работа главного потока, пачкой они останавливали кадр
     this._loading[cat] = Promise.allSettled(files.map(async f => {
       const r = await fetch(`${this.base}/samples/${cat}/${f}`);
       if (!r.ok) throw new Error(`${cat}/${f}: HTTP ${r.status}`);
-      const b = normalize(await this.ctx.decodeAudioData(await r.arrayBuffer()), .8);   // как b.normalize(0.8) в ocean_live.scd
-      if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, analyse(b));
-      return b;
+      const ab = await r.arrayBuffer();
+      return this._dec = (this._dec || Promise.resolve()).catch(() => {}).then(async () => {
+        const b = await normalize(await decode(this.ctx, ab), .8);   // как b.normalize(0.8) в ocean_live.scd
+        if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, await analyse(b));
+        return b;
+      });
     })).then(res => {
       for (const x of res) if (x.status === 'rejected') console.warn('звук не загрузился:', x.reason?.message || x.reason);
       const bufs = res.filter(x => x.status === 'fulfilled').map(x => x.value);
@@ -377,7 +384,8 @@ export class OceanAudio {
     let r = this.revBufs.get(buf);
     if (!r) {
       r = this.ctx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
-      for (let c = 0; c < buf.numberOfChannels; c++) r.getChannelData(c).set(Float32Array.from(buf.getChannelData(c)).reverse());
+      // v22: прямо в новый буфер, без промежуточной копии (до 27 МБ мусора на запись кита — лишняя сборка мусора)
+      for (let c = 0; c < buf.numberOfChannels; c++) { const s = buf.getChannelData(c), d = r.getChannelData(c), n = s.length - 1; for (let i = 0; i <= n; i++) d[i] = s[n - i]; }
       this.revBufs.set(buf, r);
     }
     return r;
@@ -427,11 +435,19 @@ export class OceanAudio {
   }
 }
 
+// v22: распаковка с обратным вызовом — так она работает и в старом Safari (до 14.1 decodeAudioData не возвращала
+// Promise: звук на таких iPhone не загружался вовсе), и в новых браузерах
+const decode = (ctx, ab) => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p?.catch) p.catch(rej); });
+// v22: длинные циклы по записи — частями по ~0.25 млн отсчётов с паузой между ними (запись кита — 3.4 млн отсчётов,
+// одним куском это десятки мс на телефоне посреди кадра). Порядок вычислений прежний — результат тот же
+const CHUNK = 1 << 18, pause = () => new Promise(r => setTimeout(r, 0));
+
 // громкость (rms) и «вступления» записи: 50-мс окна, где энергия резко растёт после тишины (начало крика/всплеска)
-function analyse(buf) {
+async function analyse(buf) {
   const d = buf.getChannelData(0), win = Math.round(buf.sampleRate * .05), n = Math.floor(d.length / win), e = new Float32Array(n);
   let sum = 0, mx = 0;
-  for (let i = 0; i < n; i++) { let s = 0; for (let k = i * win; k < (i + 1) * win; k++) s += d[k] * d[k]; e[i] = s / win; sum += s; mx = Math.max(mx, e[i]); }
+  for (let i = 0; i < n; i++) { let s = 0; for (let k = i * win; k < (i + 1) * win; k++) s += d[k] * d[k]; e[i] = s / win; sum += s; mx = Math.max(mx, e[i]);
+    if ((i + 1) % Math.max(1, CHUNK / win | 0) === 0) await pause(); }
   const on = [0];
   for (let i = 3; i < n; i++) {
     const before = (e[i - 1] + e[i - 2] + e[i - 3]) / 3;
@@ -441,10 +457,12 @@ function analyse(buf) {
 }
 
 // пиковая нормализация буфера (на месте) — порт Buffer.normalize из SuperCollider
-function normalize(buf, peak) {
+async function normalize(buf, peak) {
   let m = 0;
-  for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } }
-  if (m > 0) { const g = peak / m; for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] *= g; } }
+  for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
+    for (let i0 = 0; i0 < d.length; i0 += CHUNK) { for (let i = i0, e = Math.min(d.length, i0 + CHUNK); i < e; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } await pause(); } }
+  if (m > 0) { const g = peak / m; for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
+    for (let i0 = 0; i0 < d.length; i0 += CHUNK) { for (let i = i0, e = Math.min(d.length, i0 + CHUNK); i < e; i++) d[i] *= g; await pause(); } } }
   return buf;
 }
 

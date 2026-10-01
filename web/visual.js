@@ -2368,8 +2368,8 @@ export class Visual {
     this._logRecs.set(li, rec);
     li.classList.add('new'); clearTimeout(li._t); li._t = setTimeout(() => li.classList.remove('new'), 2500);
   }
-  _stepLog(dt) {
-    if ((this._logT -= dt) > 0 || !this._logQ.length || this._logHoldM || performance.now() < this._logHoldT) return;
+  _stepLog(dt) {   // на паузе (шаг мира 0) очередь стоит
+    if (!dt || (this._logT -= dt) > 0 || !this._logQ.length || this._logHoldM || performance.now() < this._logHoldT) return;
     this._logT = .9;
     const rec = this._logQ.shift(), li = document.createElement('li');
     this._fillLog(li, rec); this._logLast.set(rec.type, { li, at: this.clock });

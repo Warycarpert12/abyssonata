@@ -181,9 +181,8 @@ export class OceanAudio {
       const pick = (a, k) => (a || []).slice().sort(() => Math.random() - .5).slice(0, k);
       this.manifest = { ...this.manifest, insects_day: pick(this.manifest.insects_day, 3), insects_night: pick(this.manifest.insects_night, 2) };
     }
-    await this._loadCategory('surf');
-    await this._loadCategory('rain_light'); await this._loadCategory('rain_heavy'); await this._loadCategory('rain_water');
-    await this._loadCategory('insects_day'); await this._loadCategory('insects_night');
+    // v22: всё, без чего не войти, — разом и без очереди (fast)
+    await Promise.all(['surf', 'rain_light', 'rain_heavy', 'rain_water', 'insects_day', 'insects_night'].map(c => this._loadCategory(c, true)));
 
     this._buildSurf();
     this._buildWind();
@@ -198,22 +197,25 @@ export class OceanAudio {
     // v21: на облегчённом — категория грузится при первом своём звуке (onEvent/playLocal ждут её)
   }
 
-  async _loadCategory(cat) {
+  async _loadCategory(cat, fast = false) {
     if (this.buffers[cat]) return this.buffers[cat];
     if (this._loading[cat]) return this._loading[cat];
     const files = (this.manifest[cat] || []);
     // v21: allSettled + r.ok — одна битая запись не глушит категорию; ничего не загрузилось — повтор при следующем звуке
-    // v22: записи категории скачиваются вместе, а распаковываются по одной (очередь this._dec): распаковка, нормализация
-    // и разбор записи — работа главного потока, пачкой они останавливали кадр
+    // v22: записи категории скачиваются вместе, а распаковываются по одной (очередь this._dec) и частями: распаковка,
+    // нормализация и разбор записи — работа главного потока, пачкой они останавливали кадр. fast — для записей, без которых
+    // не войти (прибой, дождь, насекомые): человек ждёт на экране входа — распаковка сразу и целиком (как в v21: в v22 вход
+    // из-за очереди стал вдвое дольше)
+    const one = async ab => {
+      const step = fast ? Infinity : CHUNK, b = await normalize(await decode(this.ctx, ab), .8, step);   // как b.normalize(0.8) в ocean_live.scd
+      if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, await analyse(b, step));
+      return b;
+    };
     this._loading[cat] = Promise.allSettled(files.map(async f => {
       const r = await fetch(`${this.base}/samples/${cat}/${f}`);
       if (!r.ok) throw new Error(`${cat}/${f}: HTTP ${r.status}`);
       const ab = await r.arrayBuffer();
-      return this._dec = (this._dec || Promise.resolve()).catch(() => {}).then(async () => {
-        const b = await normalize(await decode(this.ctx, ab), .8);   // как b.normalize(0.8) в ocean_live.scd
-        if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, await analyse(b));
-        return b;
-      });
+      return fast ? one(ab) : (this._dec = (this._dec || Promise.resolve()).catch(() => {}).then(() => one(ab)));
     })).then(res => {
       for (const x of res) if (x.status === 'rejected') console.warn('звук не загрузился:', x.reason?.message || x.reason);
       const bufs = res.filter(x => x.status === 'fulfilled').map(x => x.value);
@@ -478,11 +480,11 @@ const decode = (ctx, ab) => new Promise((res, rej) => { const p = ctx.decodeAudi
 const CHUNK = 1 << 18, pause = () => new Promise(r => setTimeout(r, 0));
 
 // громкость (rms) и «вступления» записи: 50-мс окна, где энергия резко растёт после тишины (начало крика/всплеска)
-async function analyse(buf) {
+async function analyse(buf, step = CHUNK) {
   const d = buf.getChannelData(0), win = Math.round(buf.sampleRate * .05), n = Math.floor(d.length / win), e = new Float32Array(n);
   let sum = 0, mx = 0;
   for (let i = 0; i < n; i++) { let s = 0; for (let k = i * win; k < (i + 1) * win; k++) s += d[k] * d[k]; e[i] = s / win; sum += s; mx = Math.max(mx, e[i]);
-    if ((i + 1) % Math.max(1, CHUNK / win | 0) === 0) await pause(); }
+    if (step !== Infinity && (i + 1) % Math.max(1, step / win | 0) === 0) await pause(); }
   const on = [0];
   for (let i = 3; i < n; i++) {
     const before = (e[i - 1] + e[i - 2] + e[i - 3]) / 3;
@@ -492,12 +494,12 @@ async function analyse(buf) {
 }
 
 // пиковая нормализация буфера (на месте) — порт Buffer.normalize из SuperCollider
-async function normalize(buf, peak) {
+async function normalize(buf, peak, step = CHUNK) {
   let m = 0;
   for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
-    for (let i0 = 0; i0 < d.length; i0 += CHUNK) { for (let i = i0, e = Math.min(d.length, i0 + CHUNK); i < e; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } await pause(); } }
+    for (let i0 = 0; i0 < d.length; i0 += step) { for (let i = i0, e = Math.min(d.length, i0 + step); i < e; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } if (step !== Infinity) await pause(); } }
   if (m > 0) { const g = peak / m; for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
-    for (let i0 = 0; i0 < d.length; i0 += CHUNK) { for (let i = i0, e = Math.min(d.length, i0 + CHUNK); i < e; i++) d[i] *= g; await pause(); } } }
+    for (let i0 = 0; i0 < d.length; i0 += step) { for (let i = i0, e = Math.min(d.length, i0 + step); i < e; i++) d[i] *= g; if (step !== Infinity) await pause(); } } }
   return buf;
 }
 

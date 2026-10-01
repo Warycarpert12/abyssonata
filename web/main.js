@@ -225,6 +225,11 @@ const markTod = tod => { const k = tod < .15 || tod >= .87 ? 0 : tod < .39 ? 1 :
 todButtons.forEach(btn => btn.addEventListener('click', () => {
   world.setTimeOfDay(parseFloat(btn.dataset.tod));
   markTod(parseFloat(btn.dataset.tod));
+  // v22: на паузе — сразу показать новый момент (мир при этом стоит): часы симуляции сдвинуты, но небо, свет и панель
+  // пересчитываются только шагом мира — без этого кнопка «Ночь» горела, а на экране оставался день. Нулевой шаг даёт
+  // ровно то, что дал бы следующий обычный шаг (рассвет/звёзды/дождь — события на новый момент); картинка — сразу, без
+  // плавного перехода
+  if (paused) { visual.snapped = false; try { world.step(0); } catch (e) { console.error('world step failed', e?.stack || e); } visual.hud(); }
 }));
 world.onState(m => { if ((markTod.n = (markTod.n || 0) + 1) % 30 === 0) markTod(m.time_of_day); });   // раз в ~0.5 с
 

@@ -91,8 +91,18 @@ export class OceanAudio {
     this.weak = false; this.voices = 0;
   }
 
-  async start() {
-    if (this.ready) return;
+  // v21: один запуск на все нажатия «Войти»; при ошибке контекст закрывается (раньше — второй AudioContext)
+  start() {
+    if (this.ready) return Promise.resolve();
+    this._starting ??= this._start().catch(async e => {
+      try { await this.ctx?.close(); } catch { /* уже закрыт */ }
+      this.ctx = null; this.buffers = {}; this._loading = {};
+      throw e;
+    }).finally(() => { this._starting = null; });
+    return this._starting;
+  }
+
+  async _start() {
     // latencyHint 'playback' (v12): звуковой буфер побольше — меньше риск «заиканий» звука, когда видеокарта/процессор
     // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна
     const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)(this.lite ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' });

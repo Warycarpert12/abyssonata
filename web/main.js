@@ -158,13 +158,14 @@ todButtons.forEach(btn => btn.addEventListener('click', () => {
 let last = performance.now(), hudT = 0;
 // v21: слабое устройство — если картинка 3 с подряд ниже ~24 кадров/с, ступенчато снижаем качество картинки и
 // разгружаем звук (audio.weak). На нормальных устройствах не срабатывает; в QA-снимках (&lowres) выключено
-const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0;
+const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, badW = 0;
 const watchFps = raw => {
-  if (!autoQ || document.hidden || qLevel >= 2) return;
-  fpsT += raw; if (fpsT < 0) return;   // первые 5 с — загрузка, не считаем
+  if (!autoQ || document.hidden || qLevel >= 2 || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
+  fpsT += raw; if (fpsT < 0) return;   // первые 5 с после входа — догрузка и распаковка, не считаем
   fpsN++; fpsSum += raw;
   if (fpsT < 3) return;
-  if (fpsSum / fpsN > 1 / 24) { qLevel++; visual.setQuality(qLevel); audio.weak = true; console.info('[quality] слабое устройство — уровень', qLevel); fpsT = -2; }
+  badW = fpsSum / fpsN > 1 / 24 ? badW + 1 : 0;   // две плохие трёхсекундные полосы подряд — не разовая заминка
+  if (badW >= 2) { badW = 0; qLevel++; visual.setQuality(qLevel); if (qLevel >= 2) audio.weak = true; console.info('[quality] слабое устройство — уровень', qLevel); fpsT = -2; }
   else fpsT = 0;
   fpsN = 0; fpsSum = 0;
 };

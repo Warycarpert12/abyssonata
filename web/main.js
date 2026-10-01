@@ -12,7 +12,9 @@ import { OceanAudio } from './audio.js';
 // --- место в океане (v17, интернет-версия на колонке, serve_public.py: не больше 30 зрителей одновременно).
 // Сначала просим место; пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки
 // до этого не качаются). Локальный serve.py про места не знает (404) — тогда просто входим.
-{
+// v22: только при запуске с домашнего сервера — статическая сборка (GitHub Pages, APK: метка om-site от build_site.py)
+// мест не считает, и запрос давал там красную ошибку в консоли
+if (document.querySelector('meta[name="om-site"]')?.content !== 'static' && !location.hostname.endsWith('.github.io')) {
   const gateP = document.querySelector('#gate-card p'), btn = document.querySelector('#gate-btn');
   const join = async () => {
     try {   // v21: не дольше 5 с (AbortController — есть и в старом Safari)

@@ -81,8 +81,9 @@ export class OceanAudio {
     this.music = .49;           // полоска «Музыка» (v14): абстрактный слой (_abstract), квадрат положения полоски
     this.info = new WeakMap();  // буфер -> { rms, on: [секунды «вступлений»] } (см. analyse); список буферов -> медиана rms
     // v21: облегчённый звук для iPhone/iPad и устройств с малой памятью (распакованные записи — до ~560 МБ, iOS закрывал
-    // вкладку): записи в 32 кГц (на iPhone/iPad с v22 — в родной частоте устройства, см. unlock), звуки зверей — по первому
-    // звуку, петли насекомых — только играющие. На обычных устройствах — всё как было. ?lite=1 — включить для проверки
+    // вкладку): записи в 32 кГц (на iPhone/iPad звук играет в родной частоте устройства, а записи распаковываются в 32 кГц —
+    // см. _decoder), звуки зверей — по первому звуку, петли насекомых — только играющие. На обычных устройствах — всё как
+    // было. ?lite=1 — включить для проверки
     const ios = this.ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     this.lite = ios || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || new URLSearchParams(location.search).get('lite') === '1';
     // v21: слабое устройство (main.js включает, если картинка долго ниже ~24 кадров/с): не больше 10 разовых звуков
@@ -206,6 +207,20 @@ export class OceanAudio {
     // v21: на облегчённом — категория грузится при первом своём звуке (onEvent/playLocal ждут её)
   }
 
+  // v22: чем распаковывать записи. На iPhone/iPad (облегчённый звук) контекст работает в родной частоте устройства (44.1/48
+  // кГц), и записи, распакованные им, занимали в 1.5 раза больше памяти, чем в v21 (там весь звук был в 32 кГц), — а iOS
+  // закрывает вкладку около 560 МБ. Поэтому там записи распаковываются отдельным «офлайн»-контекстом в 32 кГц (так же
+  // занимают память, как в v21), а играет их основной контекст в родной частоте — пересчёт частоты он делает сам при
+  // воспроизведении. Везде остальное — как было: распаковывает основной контекст
+  _decoder() {
+    if (!(this.lite && this.ios) || this.ctx.sampleRate === 32000) return this.ctx;
+    if (this._dctx === undefined) {
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      try { this._dctx = OAC ? new OAC(1, 1, 32000) : null; } catch { this._dctx = null; }
+    }
+    return this._dctx || this.ctx;
+  }
+
   async _loadCategory(cat, fast = false) {
     if (this.buffers[cat]) return this.buffers[cat];
     if (this._loading[cat]) return this._loading[cat];
@@ -216,7 +231,7 @@ export class OceanAudio {
     // не войти (прибой, дождь, насекомые): человек ждёт на экране входа — распаковка сразу и целиком (как в v21: в v22 вход
     // из-за очереди стал вдвое дольше)
     const one = async ab => {
-      const step = fast ? Infinity : CHUNK, b = await normalize(await decode(this.ctx, ab), .8, step);   // как b.normalize(0.8) в ocean_live.scd
+      const step = fast ? Infinity : CHUNK, b = await normalize(await decode(this._decoder(), ab), .8, step);   // как b.normalize(0.8) в ocean_live.scd
       if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, await analyse(b, step));
       return b;
     };

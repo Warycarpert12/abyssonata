@@ -238,6 +238,18 @@ CC-BY 3.0: https://creativecommons.org/licenses/by/3.0/ — авторы ука�
 |---|---|---|---|---|
 | bsb1290.mp3 | BigSoundBank #1290 | Joseph SARDIN | CC0 1.0 | https://bigsoundbank.com/ |
 
+### sand
+
+| Файл | Запись | Автор | Лицензия | Источник |
+|---|---|---|---|---|
+| fs651294.mp3 | Digging in wet course sand (raw file) | f3bbbo | CC0 1.0 | https://freesound.org/people/f3bbbo/sounds/651294/ |
+| fs662864_00.mp3 | digging sand with hands.WAV | schneidi67 | CC0 1.0 | https://freesound.org/people/schneidi67/sounds/662864/ |
+| fs662864_01.mp3 | digging sand with hands.WAV | schneidi67 | CC0 1.0 | https://freesound.org/people/schneidi67/sounds/662864/ |
+| fs662864_02.mp3 | digging sand with hands.WAV | schneidi67 | CC0 1.0 | https://freesound.org/people/schneidi67/sounds/662864/ |
+| fs683792_00.mp3 | Movement on Sand | Elements-Library | CC0 1.0 | https://freesound.org/people/Elements-Library/sounds/683792/ |
+| fs683792_01.mp3 | Movement on Sand | Elements-Library | CC0 1.0 | https://freesound.org/people/Elements-Library/sounds/683792/ |
+| fs683792_02.mp3 | Movement on Sand | Elements-Library | CC0 1.0 | https://freesound.org/people/Elements-Library/sounds/683792/ |
+
 ### seal
 
 | Файл | Запись | Автор | Лицензия | Источник |

@@ -1,0 +1,4 @@
+Шорох песка у черепашат при приближении камеры (играется тихо). v23, одобрено автором 03.10.2026.
+662864.ogg (превью HQ ogg через API) → fs662864_00.wav, fs662864_01.wav, fs662864_02.wav | digging sand with hands.WAV | schneidi67 | CC0 | https://freesound.org/people/schneidi67/sounds/662864/
+683792.ogg (превью HQ ogg через API) → fs683792_00.wav, fs683792_01.wav, fs683792_02.wav | Movement on Sand | Elements-Library | CC0 | https://freesound.org/people/Elements-Library/sounds/683792/
+651294.ogg (превью HQ ogg через API) → fs651294.wav | Digging in wet course sand (raw file) | f3bbbo | CC0 | https://freesound.org/people/f3bbbo/sounds/651294/

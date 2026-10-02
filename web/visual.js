@@ -736,6 +736,139 @@ export class Visual {
     this._buildFoam();
     this._buildNightLife();
     this._buildAmbient();
+    this._buildSeaFlora();
+  }
+
+  // v23 (этап 2, только картинка): подводные леса и луга по всему дну — между островками и вдали от главного острова,
+  // не только у берега. Семь видов: ламинария, морская трава, водоросли-кустики, ветвистые кораллы, кораллы-«мозги»,
+  // губки, анемоны. Каждый вид — один InstancedMesh (один вызов отрисовки). Где что растёт — по глубине и по шуму
+  // (заросли и поляны), цвет — по глубине. Качание течением и «расступание» перед зверями (uAvoid — до AVOID ближайших
+  // к камере пловцов и стаек) — в вершинном шейдере; процессор в кадре только переписывает эти точки (_floraAvoid).
+  // Свой генератор случайных чисел: раскладка одинаковая при каждом запуске и не трогает Math.random
+  _buildSeaFlora() {
+    let sd = 20261002;
+    const r01 = () => { sd = (sd + 0x6D2B79F5) >>> 0; let x = Math.imul(sd ^ (sd >>> 15), 1 | sd); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+    const rr = (a, b) => a + r01() * (b - a), pick = a => a[(r01() * a.length) | 0];
+    // --- формы (низ в 0, вверх +y). Атрибуты: color — от тёмного низа к светлому верху, aTip — доля высоты (для свечения)
+    const fin = (parts, dark = .45) => {
+      const g = mergeGeometries(parts.map(p => { p.deleteAttribute('uv'); return p; })); g.computeVertexNormals();
+      const P = g.attributes.position, n = P.count, top = Math.max(...Array.from({ length: n }, (_, i) => P.getY(i))) || 1;
+      const col = new Float32Array(n * 3), tip = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const u = clamp(P.getY(i) / top); tip[i] = u; col.fill(lerp(dark, 1, u), i * 3, i * 3 + 3); }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setAttribute('aTip', new THREE.BufferAttribute(tip, 1));
+      return g;
+    };
+    // лента ширины w, высоты h из n отрезков: закручена на tw рад к верху, отогнута вбок на bend м, к макушке сужается
+    // до доли tp ширины; повёрнута на rot
+    const ribbon = (w, h, n, tw, bend, rot, ox = 0, oz = 0, tp = 1) => {
+      const g = new THREE.PlaneGeometry(w, h, 1, n); g.translate(0, h / 2, 0);
+      const P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) { const y = P.getY(i), u = y / h, x = P.getX(i) * lerp(1, tp, u), a = tw * u; P.setXYZ(i, x * Math.cos(a) + bend * u * u, y, x * Math.sin(a)); }
+      return g.rotateY(rot).translate(ox, 0, oz);
+    };
+    const KELP = fin([0, 1, 2, 3].map(k => ribbon(.55, 1 - k * .14, 12, rr(1.5, 3), rr(-.2, .2), k * 1.6, rr(-.15, .15), rr(-.15, .15), .35)), .55);
+    const GRASS = fin(Array.from({ length: 6 }, (_, k) => ribbon(.06, rr(.6, 1), 3, rr(-.6, .6), rr(.08, .22), k * 1.05 + rr(-.3, .3), rr(-.06, .06), rr(-.06, .06))), .55);
+    const ALGAE = fin(Array.from({ length: 8 }, (_, k) => ribbon(.11, rr(.5, 1), 4, rr(-1.2, 1.2), rr(.15, .4), k * .785 + rr(-.3, .3))), .6);
+    const BRANCH = (() => {
+      const parts = [], up = new V3(0, 1, 0);
+      const br = (a, dir, len, r, d) => {
+        const b = a.clone().addScaledVector(dir, len), c = new THREE.CylinderGeometry(r * .72, r, len, 4, 1, true);
+        c.translate(0, len / 2, 0).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir)).translate(a.x, a.y, a.z); parts.push(c);
+        if (!d) { parts.push(new THREE.SphereGeometry(r * 1.6, 4, 2).translate(b.x, b.y, b.z)); return; }
+        for (let k = 0; k < 2; k++) {
+          const nd = dir.clone().add(new V3(rr(-1.1, 1.1), rr(0, .5), rr(-1.1, 1.1))).normalize(); if (nd.y < .3) { nd.y = .3; nd.normalize(); }
+          br(b, nd, len * rr(.62, .82), r * .7, d - 1);
+        }
+      };
+      br(new V3(), up, .42, .08, 3); return fin(parts, .6);
+    })();
+    const BRAIN = (() => {   // бугристая полусфера, низ — в песке
+      const g = new THREE.SphereGeometry(1, 10, 6), P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) { const v = new V3().fromBufferAttribute(P, i), k = 1 + .12 * fbm(v.x * 2.3, v.z * 2.3 + v.y * 1.7, 2); P.setXYZ(i, v.x * k, Math.max(-.2, v.y * .55 * k), v.z * k); }
+      return fin([g], .7);
+    })();
+    const SPONGE = fin([0, 1, 2].map(k => new THREE.CylinderGeometry(.2 - k * .03, .15 - k * .02, 1 - k * .25, 7, 2, true).translate(Math.cos(k * 2.3) * .2 * Math.min(k, 1), .5 - k * .125, Math.sin(k * 2.3) * .2 * Math.min(k, 1))), .55);
+    const ANEMONE = (() => {   // ножка и венчик изогнутых щупалец
+      const parts = [new THREE.CylinderGeometry(.12, .15, .22, 7, 1, true).translate(0, .11, 0)];
+      for (let k = 0; k < 10; k++) {
+        const a = k / 10 * 6.2832, c = new THREE.ConeGeometry(.03, .42, 3, 1).translate(0, .21, 0);
+        c.rotateZ(-(.35 + (k % 2) * .25)).rotateY(-a).translate(Math.cos(a) * .1, .2, Math.sin(a) * .1); parts.push(c);
+      }
+      return fin(parts, .5);
+    })();
+    // --- материал: тон вида (instanceColor) × вертикальный градиент, точечная фактура; F — гибкость (качание и
+    // расступание), E — свечение кончиков ночью
+    const AV = this.AVOID = 10;
+    this.uAvoid = { value: Array.from({ length: AV }, () => new THREE.Vector4(0, -9999, 0, 1)) };
+    const mat = (F, E, side, B) => this._hook(this._stippled(new THREE.MeshLambertMaterial({ vertexColors: true, side }), true, 14), sh => {
+      Object.assign(sh.uniforms, { uT: this.uT, uGlowK: this.uGlowK, uAvoid: this.uAvoid });
+      sh.vertexShader = `uniform float uT; uniform vec4 uAvoid[${AV}]; attribute float aTip; varying float vTip;\n` + sh.vertexShader.replace('#include <project_vertex>', `
+        vTip = aTip;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.);
+        vec3 ip = (modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.)).xyz;
+        float hm = max(0., wp.y - ip.y);
+        ${F ? `wp.xz += vec2(sin(uT * .8 + ip.x * .37 + hm * .5), cos(uT * .63 + ip.z * .29 + hm * .4)) * hm * hm / (hm + 1.) * ${(F * .09).toFixed(3)};
+        for (int i = 0; i < ${AV}; i++) {   // зверь рядом — стебли отклоняются от него и чуть пригибаются (корни на месте)
+          vec4 a = uAvoid[i]; vec2 d = wp.xz - a.xz; float L = length(d) + .001;
+          float k = (1. - smoothstep(a.w * .3, a.w * 1.3, L)) * (1. - smoothstep(a.w * .4, a.w * 1.6, abs(wp.y - a.y))) * smoothstep(0., 1.2, hm);
+          wp.xz += d / L * k * a.w * .8; wp.y -= k * hm * .2;
+        }` : ''}
+        vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
+      // B — своё мягкое свечение: остальная флора острова нарисована без освещения, и освещённая под водой рядом с ней темнее
+      sh.fragmentShader = 'uniform float uGlowK; varying float vTip;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>\n totalEmissiveRadiance += vColor * (${B.toFixed(2)} + uGlowK * ${E.toFixed(2)} * vTip * vTip);`);
+    }, `flora${F}|${E}|${B}`);
+    // --- где растёт: d — по глубине (м), p — «пятна» шума своего масштаба у каждого вида (заросли и поляны)
+    const patch = (x, z, f, o, th) => smooth(th, th + .18, fbm(x * f + o, z * f - o * .7, 2) * .5 + .5);
+    const band = (d, a, b, c, e) => smooth(a, b, d) * (1 - smooth(c, e, d));
+    const KINDS = [
+      { geo: KELP, n: 1500, F: 1, E: 0, B: .32, side: THREE.DoubleSide, pal: [[.86, .74, .4], [.7, .76, .42], [.55, .74, .6], [.8, .64, .42]], deepTint: [.4, .62, .62],
+        d: d => band(d, 3.2, 5, 30, 31), p: (x, z) => patch(x, z, .028, 11, .56), s: d => { const h = Math.min(d - .7, rr(3, 9)); return [rr(.8, 1.3), h, rr(.8, 1.3)]; } },
+      { geo: GRASS, n: 2600, F: 2, E: 0, B: .3, side: THREE.DoubleSide, pal: [[.6, .8, .45], [.72, .8, .48], [.5, .74, .55], [.8, .82, .52]], deepTint: [.4, .62, .6],
+        d: d => band(d, .7, 1.3, 8, 11), p: (x, z) => patch(x, z, .06, 37, .5), s: () => { const k = rr(.6, 1.2); return [k * rr(.8, 1.4), k, k * rr(.8, 1.4)]; } },
+      { geo: ALGAE, n: 1300, F: 1.4, E: .1, B: .3, side: THREE.DoubleSide, pal: [[.9, .52, .52], [.8, .55, .72], [.92, .72, .45], [.7, .5, .65]], deepTint: [.5, .45, .7],
+        d: d => band(d, 1, 2, 10.5, 12), p: (x, z) => patch(x, z, .05, 73, .52), s: () => { const k = rr(.5, 1.3); return [k, k * rr(.8, 1.3), k]; } },
+      { geo: BRANCH, n: 600, F: 0, E: .45, B: .35, side: THREE.FrontSide, pal: [[.98, .55, .5], [.98, .72, .52], [.8, .62, .95], [.95, .85, .6], [.6, .85, .9]], deepTint: [.6, .55, .85],
+        d: d => band(d, 1.5, 2.5, 10.5, 12), p: (x, z) => patch(x, z, .045, 91, .55), s: () => { const k = rr(.8, 2); return [k, k * rr(.8, 1.2), k]; } },
+      { geo: BRAIN, n: 550, F: 0, E: .15, B: .25, side: THREE.FrontSide, pal: [[.95, .78, .55], [.92, .6, .58], [.72, .85, .6], [.85, .7, .9]], deepTint: [.55, .6, .8],
+        d: d => band(d, 1.5, 2.5, 10.5, 12), p: (x, z) => patch(x, z, .045, 91, .5), s: () => { const k = rr(.35, .9); return [k * rr(1, 1.5), k, k * rr(1, 1.5)]; } },
+      { geo: SPONGE, n: 850, F: 0, E: .3, B: .3, side: THREE.DoubleSide, pal: [[.95, .72, .38], [.9, .55, .55], [.7, .82, .5], [.8, .62, .88]], deepTint: [.5, .5, .75],
+        d: d => band(d, 3, 4.5, 30, 31), p: (x, z) => patch(x, z, .04, 123, .55), s: () => { const k = rr(.7, 1.6); return [k, k * rr(.8, 1.6), k]; } },
+      { geo: ANEMONE, n: 650, F: .6, E: 1, B: .35, side: THREE.FrontSide, pal: [[1, .45, .72], [.45, 1, .9], [.72, .55, 1], [1, .72, .4], [.5, .82, 1]], deepTint: [.5, .6, .9],
+        d: d => band(d, 1, 1.8, 10.5, 12), p: (x, z) => patch(x, z, .07, 157, .52), s: () => { const k = rr(.9, 1.8); return [k, k * rr(.8, 1.2), k]; } },
+    ];
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E3 = new THREE.Euler(), P = new V3(), SC = new V3(), C = new THREE.Color();
+    this.flora = [];
+    for (const K of KINDS) {
+      const m = new THREE.InstancedMesh(K.geo, mat(K.F, K.E, K.side, K.B), K.n);
+      let i = 0;
+      for (let t = 0; t < K.n * 80 && i < K.n; t++) {
+        // точка — в круге до 170 м от центра: за картой рельефа (±S) дно ровное, −10 м (см. bed)
+        const a = r01() * 6.2832, r = 170 * Math.sqrt(r01()), x = Math.cos(a) * r, z = Math.sin(a) * r;
+        const g = this._h(x, z), d = -g, b = d < .7 ? 0 : K.d(d); if (!b || r01() > b * K.p(x, z)) continue;   // шум — только где глубина подходит
+        const [sx, sy, sz] = K.s(d); if (sy < .3) continue;
+        E3.set(rr(-.1, .1), r01() * 6.2832, rr(-.1, .1)); Q.setFromEuler(E3);
+        M.compose(P.set(x, g - .05, z), Q, SC.set(sx, sy, sz)); m.setMatrixAt(i, M);
+        const c = mix3(pick(K.pal), K.deepTint, smooth(1.5, 10, d) * .45).map(v => clamp(v * rr(.88, 1.08) * lerp(1, .85, smooth(2, 10, d))));
+        m.setColorAt(i, C.setRGB(...c)); i++;
+      }
+      m.count = i; m.frustumCulled = false; m.userData.n = i;
+      this.scene.add(m); this.flora.push(m);
+    }
+  }
+  // v23: точки, от которых расступается флора — ближайшие к камере звери в воде и стайки рыбок (центр и радиус тела)
+  _floraAvoid() {
+    if (!this.uAvoid) return;
+    const cam = this.camera.position, L = this._avL ||= [];
+    L.length = 0;
+    for (const o of this.agents.values()) {
+      const fish = o.fish?.length, r = fish ? 5 : SWIM_R[o.sp] ? BODY_R[o.sp] || 2 : 0; if (!r) continue;
+      const p = fish ? o.anchor : o.obj.position; if (p.y > .5) continue;   // над водой (птица, лев на берегу) — не задевает
+      L.push([p.distanceToSquared(cam), p.x, p.y, p.z, r]);
+    }
+    for (const s of this.shoals || []) { const x = s.c.x + Math.cos(s.a) * 5, z = s.c.z + Math.sin(s.a) * 5; L.push([(x - cam.x) ** 2 + (s.c.y - cam.y) ** 2 + (z - cam.z) ** 2, x, s.c.y, z, 2.5]); }
+    L.sort((a, b) => a[0] - b[0]);
+    this.uAvoid.value.forEach((v, i) => { const q = L[i]; if (q) v.set(q[1], q[2], q[3], q[4]); else v.set(0, -9999, 0, 1); });
   }
 
   // пена-крошка у кромки: каждая крупинка набегает от берега и откатывается с волной, растёт и тает
@@ -2593,6 +2726,7 @@ export class Visual {
     this._separate(dt);
     this._nearSounds(dt);
     if (this.shoals) this._stepAmbient(dt, t);
+    this._floraAvoid();
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
     this._updateHover(dtc); this._stepLog(dt);
     this.renderer.setRenderTarget(this.rt); this.renderer.render(this.scene, this.camera);

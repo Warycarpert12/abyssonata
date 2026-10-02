@@ -18,7 +18,7 @@ THREE.ColorManagement.enabled = false;
 const $ = s => document.querySelector(s);
 // v22: «нажатие» в листаемом списке — короткое (до 0.6 с) и почти без движения (до 8 px); начал листать — не нажатие
 // (браузер, начиная прокрутку, присылает pointercancel). fn получает элемент строки, найденный при касании
-export function tapOnly(box, sel, fn) {
+function tapOnly(box, sel, fn) {
   let d = null;
   box.addEventListener('pointerdown', e => { const r = e.target.closest(sel); d = r && (e.pointerType === 'mouse' ? e.button === 0 : true) ? { r, id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() } : null; });
   box.addEventListener('pointermove', e => { if (d && e.pointerId === d.id && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8) d = null; });
@@ -1411,7 +1411,6 @@ export class Visual {
       const tiny = new THREE.WebGLRenderTarget(1, 1), prev = this.renderer.getRenderTarget();
       this.scene.add(warm); this.renderer.setRenderTarget(tiny); this.renderer.render(this.scene, this.camera);
       this.renderer.setRenderTarget(prev); this.scene.remove(warm); tiny.dispose();
-      this.warmed = true;
       if (new URLSearchParams(location.search).has('debug')) console.info(`[warm] шейдеры собраны за ${(performance.now() - t0).toFixed(0)} мс`);
     }).catch(e => console.warn('прогрев шейдеров:', e));
   }

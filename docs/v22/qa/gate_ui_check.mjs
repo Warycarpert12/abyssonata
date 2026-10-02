@@ -1,6 +1,6 @@
 // QA v22: пока открыт экран входа, интерфейс мира скрыт и не ловит нажатия/наведение; после входа — проявляется, когда
 // карточка уже рассыпалась (ПК) или растворилась (телефон), примерно за 0.9 с. И на слабом ПК (долгий кадр сразу после
-// входа) карточка всё равно рассыпается, а не исчезает разом.
+// входа) карточка всё равно рассыпается, а не исчезает разом; при 2 кадрах/с интерфейс появляется не позже чем через ~4 с.
 //   node qa/gate_ui_check.mjs <адрес страницы с ?qa>
 import { chromium, devices } from 'playwright';
 const url = process.argv[2];
@@ -8,11 +8,14 @@ const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=sw
 let fails = 0; const ok = (c, m) => { console.log(`${c ? 'OK  ' : 'FAIL'} ${m}`); if (!c) fails++; };
 const UI = ['#hud', '#census', '#vol', '#log', '#tod', '#credits'];
 
-async function run(name, opt, tap, stall = 0) {
+async function run(name, opt, tap, stall = 0, slow = 0) {
   const ctx = await browser.newContext(opt), page = await ctx.newPage(), errs = [];
-  // stall — слабое устройство: первый кадр растворения приходит через stall мс (долгий кадр сразу после входа)
-  if (stall) await page.addInitScript(ms => { const raf = window.requestAnimationFrame.bind(window); let done = false;
-    window.requestAnimationFrame = cb => { if (!done && document.getElementById('gate-dust')) { done = true; setTimeout(() => raf(cb), ms); return 0; } return raf(cb); }; }, stall);
+  // stall — слабое устройство: первый кадр растворения приходит через stall мс (долгий кадр сразу после входа);
+  // slow — совсем медленное: после «Войти» каждый кадр — через slow мс (2 кадра/с при 500)
+  if (stall || slow) await page.addInitScript(([ms, every]) => { const raf = window.requestAnimationFrame.bind(window); let done = false;
+    window.requestAnimationFrame = cb => { if (!document.getElementById('gate-dust')) return raf(cb); window.__dust ??= performance.now();
+      if (every) { setTimeout(() => raf(cb), every); return 0; }
+      if (!done) { done = true; setTimeout(() => raf(cb), ms); return 0; } return raf(cb); }; }, [stall, slow]);
   page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   page.on('pageerror', e => errs.push('pageerror: ' + e.message));
   // момент, когда снимается body.gate-open: сколько карточки ещё не стёрто (маска) и видна ли она (растворение)
@@ -42,6 +45,7 @@ async function run(name, opt, tap, stall = 0) {
   const u = await page.evaluate(() => window.__ui);
   if (u.mask !== null) ok(u.mask >= 124, `${name}: интерфейс начал проявляться, когда карточка стёрта (маска ${u.mask}%)`);
   else ok(u.fade, `${name}: интерфейс начал проявляться после растворения карточки (растворение запущено, прошло ${((u.t - t0) / 1000).toFixed(1)} с)`);
+  if (slow) { const d = await page.evaluate(() => (window.__ui.t - window.__dust) / 1000); ok(d <= 5, `${name}: интерфейс проявился через ${d.toFixed(1)} с после начала растворения (не дольше 4 с + кадр)`); }
   // переход 0.9 с; без видеокарты кадры редкие (а время анимаций идёт по кадрам) — ждём до 8 с, пока всё проявится
   let b = await vis(); for (let k = 0; k < 40 && !b.every(x => x.vis === 'visible' && x.op > .99); k++) { await page.waitForTimeout(200); b = await vis(); }
   ok(b.every(x => x.vis === 'visible' && x.op > .99), `${name}: после входа всё видно: ${b.filter(x => x.vis !== 'visible' || x.op <= .99).map(x => x.s + ' ' + x.op).join(', ') || 'всё'}`);
@@ -54,6 +58,7 @@ await run('ПК', { viewport: { width: 1280, height: 720 } }, false);
 await run('телефон', devices['Pixel 7 landscape'], true);
 await run('iPhone', devices['iPhone 13 landscape'], true);
 await run('ПК, долгий кадр (2 с) сразу после входа', { viewport: { width: 1280, height: 720 } }, false, 2000);
+await run('ПК, 2 кадра в секунду после входа', { viewport: { width: 1280, height: 720 } }, false, 0, 500);
 await browser.close();
 console.log(fails ? `ПРОВАЛОВ: ${fails}` : 'всё прошло');
 process.exit(fails ? 1 : 0);

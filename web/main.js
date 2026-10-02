@@ -123,12 +123,14 @@ const leaveGate = simple => {
   const r = card.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), cv = Object.assign(document.createElement('canvas'), { id: 'gate-dust' });
   cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; document.body.appendChild(cv);
   const g = cv.getContext('2d'), disp = document.getElementById('dust-disp'), COL = ['#d3dcd3', '#92bfbd', '#eef4ee', '#6a8a80'];
-  // ход растворения копится по кадрам, не больше 0.05 с за кадр: при 60 и 30 кадрах/с — те же 1.4 с, а на слабом
-  // устройстве долгий кадр сразу после входа не «съедает» анимацию (карточка исчезала разом, без частиц)
-  const parts = [], DUR = 1.4; let u = 0, last = performance.now();
+  // ход растворения копится по кадрам, не больше 0.15 с за кадр: при 60 и 30 кадрах/с — те же 1.4 с, долгий кадр сразу
+  // после входа не «съедает» анимацию (карточка исчезала разом, без частиц), а на совсем медленном устройстве она всё
+  // равно заканчивается не позже чем через 4 с — интерфейс не ждёт дольше
+  const parts = [], DUR = 1.4; let u = 0, last = performance.now(); const tEnd = last + 4000;
   card.style.filter = 'url(#dust)';
   const tick = now => {
-    const dt = Math.min(.05, Math.max(0, now - last) / 1000); last = now; u = Math.min(1, u + dt / DUR);
+    const step = Math.max(0, now - last) / 1000, dt = Math.min(.05, step); last = now;
+    u = now >= tEnd ? 1 : Math.min(1, u + Math.min(.15, step) / DUR);
     if (u >= 1) showUI();   // карточка стёрта целиком — интерфейс проявляется (частицы ещё догорают)
     const m = -.2 + u * 1.45, mask = `linear-gradient(100deg, transparent ${(m * 100).toFixed(1)}%, #000 ${(m * 100 + 24).toFixed(1)}%)`;
     card.style.webkitMaskImage = card.style.maskImage = mask;

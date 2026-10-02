@@ -1,11 +1,10 @@
 // QA v22, переименование: настройки, сохранённые под старыми ключами (om.*), переезжают под новые (abyssonata.*) —
 // громкость «Природа»/«Музыка», качество картинки и линза после обновления сайта те же; старые ключи убраны; на
-// странице и в манифесте — новое имя.
+// странице, в манифесте и в credits.html — новое имя. Что старого имени нигде не осталось, проверяет поиск по файлам
+// репозитория (git grep) — сам скрипт его не содержит.
 //   node qa/rename_check.mjs <адрес страницы с ?qa>
 import { chromium } from 'playwright';
 const url = process.argv[2];
-// старое имя — собрано из кусочков, чтобы самого слова в репозитории не было (оно разрешено только в одной строке README)
-const OLD = new RegExp(['mu', 'rmur|му', 'рмур'].join(''), 'i');
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
 let fails = 0; const ok = (c, m) => { console.log(`${c ? 'OK  ' : 'FAIL'} ${m}`); if (!c) fails++; };
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } }), page = await ctx.newPage(), errs = [];
@@ -37,14 +36,13 @@ s = await st();
 ok(s.nature === '100' && s.music === '70' && s.q === 'auto' && s.lens === true, `чистый браузер — по умолчанию: ${s.nature}/${s.music}, ${s.q}, линза ${s.lens}`);
 const man = await page.evaluate(async () => (await fetch('manifest.json')).json()).catch(() => null);
 ok(man?.name === 'Abyssonata' && man?.short_name === 'Abyssonata', `manifest.json: ${man?.name} / ${man?.short_name}`);
-const crText = await page.evaluate(async () => (await fetch('credits.html')).text()), cr = { title: /<title>([^<]*)/.exec(crText)?.[1], old: OLD.test(crText) };
-ok(cr.title === 'Abyssonata — авторы и лицензии' && !cr.old, `credits.html: «${cr.title}», старого имени нет`);
+const crText = await page.evaluate(async () => (await fetch('credits.html')).text()), cr = { title: /<title>([^<]*)/.exec(crText)?.[1], code: /Код ([^—<]+) —/.exec(crText)?.[1]?.trim() };
+ok(cr.title === 'Abyssonata — авторы и лицензии' && cr.code === 'Abyssonata', `credits.html: «${cr.title}», «Код ${cr.code}»`);
 await page.close();   // вторая страница — без первой (программный рендер двух вкладок сразу очень медленный)
 const page2 = await ctx.newPage(); page2.on('pageerror', e => errs.push('pageerror: ' + e.message));
 await page2.goto(url + '&lowres=1', { waitUntil: 'commit' });
 await page2.waitForSelector('#gate-card h1', { timeout: 90000 });
 ok(await page2.evaluate(() => document.querySelector('#gate-card h1')?.textContent) === 'Abyssonata', 'экран входа: «Abyssonata»');
-const html = await page2.content(); ok(!OLD.test(html), 'в коде страницы старого имени нет');
 ok(!errs.length, 'ошибок в консоли нет' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
 await browser.close();
 console.log(fails ? `ПРОВАЛОВ: ${fails}` : 'всё прошло');

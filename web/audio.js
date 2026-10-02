@@ -1,4 +1,4 @@
-// Ocean Murmur — звук в браузере (Web Audio), 1:1 портирован с ocean_live.scd (SuperCollider):
+// Abyssonata — звук в браузере (Web Audio), 1:1 портирован с ocean_live.scd (SuperCollider):
 // та же схема слоёв и те же числа (amp/lpf/atk/rel), только играет на устройстве слушателя,
 // не на колонке. Все звуки — настоящие CC0-записи с сервера (/samples/...), кроме ветра и
 // гула глубины: они, как и в SC-версии, синтезируются из шума (см. synthWind/synthDepth).
@@ -81,9 +81,10 @@ export class OceanAudio {
     this.music = .49;           // полоска «Музыка» (v14): абстрактный слой (_abstract), квадрат положения полоски
     this.info = new WeakMap();  // буфер -> { rms, on: [секунды «вступлений»] } (см. analyse); список буферов -> медиана rms
     // v21: облегчённый звук для iPhone/iPad и устройств с малой памятью (распакованные записи — до ~560 МБ, iOS закрывал
-    // вкладку): записи в 32 кГц, звуки зверей — по первому звуку, петли насекомых — только играющие. На обычных
-    // устройствах — всё как было. ?lite=1 — включить для проверки
-    const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    // вкладку): записи в 32 кГц (на iPhone/iPad звук играет в родной частоте устройства, а записи распаковываются в 32 кГц —
+    // см. _decoder), звуки зверей — по первому звуку, петли насекомых — только играющие. На обычных устройствах — всё как
+    // было. ?lite=1 — включить для проверки
+    const ios = this.ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     this.lite = ios || (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4) || new URLSearchParams(location.search).get('lite') === '1';
     // v21: слабое устройство (main.js включает, если картинка долго ниже ~24 кадров/с): не больше 10 разовых звуков
     // одновременно, слой обновляется 12 раз в секунду, без «эха» абстрактного слоя — меньше работы звуковому потоку
@@ -102,13 +103,55 @@ export class OceanAudio {
     return this._starting;
   }
 
-  async _start() {
+  // v22: iPhone — звук включается только тем, что сделано прямо в обработчике нажатия, до первого await: создать
+  // AudioContext и вызвать resume(). Беззвучный переключатель iPhone глушит Web Audio — отключаем это: тип звуковой
+  // сессии «playback» (Safari 17+) и тихий зацикленный <audio> (старые iOS: играющий медиа-элемент переводит сессию
+  // в «воспроизведение»). Вызывать из обработчика нажатия; повторный вызов — снова будит звук (после блокировки экрана,
+  // звонка — iOS ставит контекст в «interrupted»)
+  unlock() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* нет — не страшно */ }
     // latencyHint 'playback' (v12): звуковой буфер побольше — меньше риск «заиканий» звука, когда видеокарта/процессор
-    // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна
+    // заняты картинкой (пользователь слышал «фризы»); задержка в ~0.1 с для фоновых звуков незаметна.
+    // v22: на iPhone — родная частота устройства (с заказанной 32 кГц Safari пересчитывает весь звук — лишний риск
+    // тишины и треска); облегчённая загрузка записей на iPhone остаётся
+    if (!this.ctx) { try { this.ctx = new AC(this.lite && !this.ios ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' }); } catch { this.ctx = new AC(); } }
+    if (this.ctx.state !== 'running' && !this.paused) this.ctx.resume().catch(() => {});
+    if (this.ios) {
+      if (!this.keep) {   // 0.5 с тишины (WAV 8 кГц, 8 бит)
+        const n = 4000, b = new Uint8Array(44 + n).fill(128), v = new DataView(b.buffer), w = (o, s) => [...s].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
+        w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+        this.keep = Object.assign(document.createElement('audio'), { src: URL.createObjectURL(new Blob([b], { type: 'audio/wav' })), loop: true });
+        this.keep.setAttribute('playsinline', ''); this.keep.setAttribute('x-webkit-airplay', 'deny');
+      }
+      if (this.keep.paused && !this.paused) this.keep.play().catch(() => {});
+    }
+  }
+
+  // v22: пауза — весь звук замирает на месте (контекст приостановлен) и продолжается с того же места. Без щелчка: общий
+  // выход (this.out) за 60 мс плавно уходит в тишину, и только потом контекст останавливается; «Дальше» — контекст
+  // включается, выход так же плавно возвращается (резкая остановка на полной громкости слышна как щелчок)
+  setPaused(p) {
+    this.paused = p;
+    const ctx = this.ctx, g = this.out?.gain;
+    clearTimeout(this._susT);
+    if (ctx && g) {
+      const ramp = to => { const t = ctx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(to, t + .06); };
+      if (p) { ramp(0); this._susT = setTimeout(() => { if (this.paused) ctx.suspend().catch(() => {}); }, 120); }
+      else ctx.resume().then(() => { if (!this.paused) ramp(1); }).catch(() => {});
+    } else if (ctx) (p ? ctx.suspend() : ctx.resume()).catch(() => {});
+    if (this.keep) p ? this.keep.pause() : this.keep.play().catch(() => {});
+  }
+
+  async _start() {
     // v21: браузер без Web Audio — вход без звука, а не «Не вышло — нажми ещё раз» по кругу
     if (!(window.AudioContext || window.webkitAudioContext)) throw Object.assign(new Error('этот браузер не поддерживает Web Audio'), { noAudio: true });
-    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)(this.lite ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' });
-    await ctx.resume();
+    this.unlock();   // обычно уже вызван из нажатия (main.js) — тогда контекст тот же
+    const ctx = this.ctx;
+    // v22: resume() в iOS иногда не отвечает (контекст «interrupted») — не ждём дольше 3 с, звук догонит при следующем нажатии
+    await Promise.race([ctx.resume(), new Promise(r => setTimeout(r, 3000))]);
+    if (this.paused) ctx.suspend().catch(() => {});   // пауза поставлена до конца входа — звук не включаем
     this.t0 = ctx.currentTime;
 
     // master: bus -> лимитер (как SC Limiter) -> выход; + посыл в ревербератор (как FreeVerb2)
@@ -130,7 +173,8 @@ export class OceanAudio {
     absOut.connect(dry); absOut.connect(absWet); absWet.connect(conv);
     this.nextAbs = ctx.currentTime + rrand(15, 35); this.revBufs = new WeakMap();
     this.musicGen = new Music(ctx, absOut);   // v15: фоновая музыка по погоде (web/music.js), та же полоска «Музыка»
-    limiter.connect(ctx.destination);
+    // v22: общий выход — для паузы без щелчка (setPaused плавно уводит его в тишину); 1 — громкость как была
+    const out = this.out = ctx.createGain(); limiter.connect(out); out.connect(ctx.destination);
 
     // v17: интернет-версия отдаёт сжатые записи — Opus, где браузер его понимает, иначе MP3 (старый Safari);
     // локальный serve.py параметр не читает и отдаёт WAV
@@ -147,9 +191,8 @@ export class OceanAudio {
       const pick = (a, k) => (a || []).slice().sort(() => Math.random() - .5).slice(0, k);
       this.manifest = { ...this.manifest, insects_day: pick(this.manifest.insects_day, 3), insects_night: pick(this.manifest.insects_night, 2) };
     }
-    await this._loadCategory('surf');
-    await this._loadCategory('rain_light'); await this._loadCategory('rain_heavy'); await this._loadCategory('rain_water');
-    await this._loadCategory('insects_day'); await this._loadCategory('insects_night');
+    // v22: всё, без чего не войти, — разом и без очереди (fast)
+    await Promise.all(['surf', 'rain_light', 'rain_heavy', 'rain_water', 'insects_day', 'insects_night'].map(c => this._loadCategory(c, true)));
 
     this._buildSurf();
     this._buildWind();
@@ -158,21 +201,45 @@ export class OceanAudio {
     this._buildInsects();
     this.ready = true;
     // остальное (плеск, птицы, киты...) подгружаем лениво по первому событию — не тормозим старт
-    if (!this.lite) for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) this._loadCategory(c);
+    // v22: по одной категории за раз, а не все 16 разом: раньше за ~10 с после входа распаковывалось ~230 записей,
+    // кадры стояли по 0.7–1.4 с (замер qa/perf_profile.mjs). Категория, чей звук нужен раньше очереди, грузится сразу
+    if (!this.lite) (async () => { for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) await this._loadCategory(c); })();
     // v21: на облегчённом — категория грузится при первом своём звуке (onEvent/playLocal ждут её)
   }
 
-  async _loadCategory(cat) {
+  // v22: чем распаковывать записи. На iPhone/iPad (облегчённый звук) контекст работает в родной частоте устройства (44.1/48
+  // кГц), и записи, распакованные им, занимали в 1.5 раза больше памяти, чем в v21 (там весь звук был в 32 кГц), — а iOS
+  // закрывает вкладку около 560 МБ. Поэтому там записи распаковываются отдельным «офлайн»-контекстом в 32 кГц (так же
+  // занимают память, как в v21), а играет их основной контекст в родной частоте — пересчёт частоты он делает сам при
+  // воспроизведении. Везде остальное — как было: распаковывает основной контекст
+  _decoder() {
+    if (!(this.lite && this.ios) || this.ctx.sampleRate === 32000) return this.ctx;
+    if (this._dctx === undefined) {
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      try { this._dctx = OAC ? new OAC(1, 1, 32000) : null; } catch { this._dctx = null; }
+    }
+    return this._dctx || this.ctx;
+  }
+
+  async _loadCategory(cat, fast = false) {
     if (this.buffers[cat]) return this.buffers[cat];
     if (this._loading[cat]) return this._loading[cat];
     const files = (this.manifest[cat] || []);
     // v21: allSettled + r.ok — одна битая запись не глушит категорию; ничего не загрузилось — повтор при следующем звуке
+    // v22: записи категории скачиваются вместе, а распаковываются по одной (очередь this._dec) и частями: распаковка,
+    // нормализация и разбор записи — работа главного потока, пачкой они останавливали кадр. fast — для записей, без которых
+    // не войти (прибой, дождь, насекомые): человек ждёт на экране входа — распаковка сразу и целиком (как в v21: в v22 вход
+    // из-за очереди стал вдвое дольше)
+    const one = async ab => {
+      const step = fast ? Infinity : CHUNK, b = await normalize(await decode(this._decoder(), ab), .8, step);   // как b.normalize(0.8) в ocean_live.scd
+      if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, await analyse(b, step));
+      return b;
+    };
     this._loading[cat] = Promise.allSettled(files.map(async f => {
       const r = await fetch(`${this.base}/samples/${cat}/${f}`);
       if (!r.ok) throw new Error(`${cat}/${f}: HTTP ${r.status}`);
-      const b = normalize(await this.ctx.decodeAudioData(await r.arrayBuffer()), .8);   // как b.normalize(0.8) в ocean_live.scd
-      if (WINDOW[cat] || LEVEL.has(cat)) this.info.set(b, analyse(b));
-      return b;
+      const ab = await r.arrayBuffer();
+      return fast ? one(ab) : (this._dec = (this._dec || Promise.resolve()).catch(() => {}).then(() => one(ab)));
     })).then(res => {
       for (const x of res) if (x.status === 'rejected') console.warn('звук не загрузился:', x.reason?.message || x.reason);
       const bufs = res.filter(x => x.status === 'fulfilled').map(x => x.value);
@@ -334,7 +401,7 @@ export class OceanAudio {
     }
   }
 
-  // --- абстрактный слой «как в мурмур» (v14) -------------------------------
+  // --- абстрактный слой, как у образца (v14) -------------------------------
   // Изредка из звуков самого мира рождается их искажённое «эхо»: кусок записи (кит, чайка, дельфин, бульки, косатка,
   // лев, гудок, сверчки) — замедленный в 2–4 раза (глубокий гул) или ускоренный (звон), иногда задом наперёд, через узкую
   // полосу с плывущей частотой, с долгим нарастанием и спадом, почти целиком в реверберации, медленно плывёт по стерео.
@@ -345,6 +412,7 @@ export class OceanAudio {
     if (!cats.length) return;
     const buf0 = choice(this.buffers[choice(cats)]), rev = Math.random() < .35, buf = rev ? this._reversed(buf0) : buf0;
     const out = (node, t0, t1, p0, p1) => {   // панорама плывёт от p0 к p1
+      if (!ctx.createStereoPanner) { node.connect(this.absOut); return; }   // v22: Safari до 14.1 — без панорамы
       const pan = ctx.createStereoPanner(); pan.pan.setValueAtTime(p0, t0); pan.pan.linearRampToValueAtTime(p1, t1);
       node.connect(pan); pan.connect(this.absOut);
     };
@@ -377,7 +445,8 @@ export class OceanAudio {
     let r = this.revBufs.get(buf);
     if (!r) {
       r = this.ctx.createBuffer(buf.numberOfChannels, buf.length, buf.sampleRate);
-      for (let c = 0; c < buf.numberOfChannels; c++) r.getChannelData(c).set(Float32Array.from(buf.getChannelData(c)).reverse());
+      // v22: прямо в новый буфер, без промежуточной копии (до 27 МБ мусора на запись кита — лишняя сборка мусора)
+      for (let c = 0; c < buf.numberOfChannels; c++) { const s = buf.getChannelData(c), d = r.getChannelData(c), n = s.length - 1; for (let i = 0; i <= n; i++) d[i] = s[n - i]; }
       this.revBufs.set(buf, r);
     }
     return r;
@@ -427,11 +496,19 @@ export class OceanAudio {
   }
 }
 
+// v22: распаковка с обратным вызовом — так она работает и в старом Safari (до 14.1 decodeAudioData не возвращала
+// Promise: звук на таких iPhone не загружался вовсе), и в новых браузерах
+const decode = (ctx, ab) => new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p?.catch) p.catch(rej); });
+// v22: длинные циклы по записи — частями по ~0.25 млн отсчётов с паузой между ними (запись кита — 3.4 млн отсчётов,
+// одним куском это десятки мс на телефоне посреди кадра). Порядок вычислений прежний — результат тот же
+const CHUNK = 1 << 18, pause = () => new Promise(r => setTimeout(r, 0));
+
 // громкость (rms) и «вступления» записи: 50-мс окна, где энергия резко растёт после тишины (начало крика/всплеска)
-function analyse(buf) {
+async function analyse(buf, step = CHUNK) {
   const d = buf.getChannelData(0), win = Math.round(buf.sampleRate * .05), n = Math.floor(d.length / win), e = new Float32Array(n);
   let sum = 0, mx = 0;
-  for (let i = 0; i < n; i++) { let s = 0; for (let k = i * win; k < (i + 1) * win; k++) s += d[k] * d[k]; e[i] = s / win; sum += s; mx = Math.max(mx, e[i]); }
+  for (let i = 0; i < n; i++) { let s = 0; for (let k = i * win; k < (i + 1) * win; k++) s += d[k] * d[k]; e[i] = s / win; sum += s; mx = Math.max(mx, e[i]);
+    if (step !== Infinity && (i + 1) % Math.max(1, step / win | 0) === 0) await pause(); }
   const on = [0];
   for (let i = 3; i < n; i++) {
     const before = (e[i - 1] + e[i - 2] + e[i - 3]) / 3;
@@ -441,10 +518,12 @@ function analyse(buf) {
 }
 
 // пиковая нормализация буфера (на месте) — порт Buffer.normalize из SuperCollider
-function normalize(buf, peak) {
+async function normalize(buf, peak, step = CHUNK) {
   let m = 0;
-  for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } }
-  if (m > 0) { const g = peak / m; for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] *= g; } }
+  for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
+    for (let i0 = 0; i0 < d.length; i0 += step) { for (let i = i0, e = Math.min(d.length, i0 + step); i < e; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } if (step !== Infinity) await pause(); } }
+  if (m > 0) { const g = peak / m; for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
+    for (let i0 = 0; i0 < d.length; i0 += step) { for (let i = i0, e = Math.min(d.length, i0 + step); i < e; i++) d[i] *= g; if (step !== Infinity) await pause(); } } }
   return buf;
 }
 

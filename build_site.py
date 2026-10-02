@@ -1,4 +1,4 @@
-"""Ocean Murmur — сборка статического сайта (v19: GitHub Pages и APK).
+"""Abyssonata — сборка статического сайта (v19: GitHub Pages и APK).
 
 1. Если рядом есть samples/ (WAV, только на ПК) — сжимает их в samples_mp3/ (MP3, пересжимает только новые и
    изменённые, копирует CREDITS.txt, убирает сжатые копии удалённых записей). Нужен Python-пакет soundfile.
@@ -57,6 +57,12 @@ def build():
     with open(os.path.join(SITE, "samples.json"), "w", encoding="utf-8") as f:
         json.dump(cats, f, ensure_ascii=False)
     open(os.path.join(SITE, ".nojekyll"), "w").close()   # GitHub Pages: не пропускать файлы и папки с «_»
+    # v22: метка статической сборки (GitHub Pages, APK) — страница не просит место у домашнего сервера (/api/join:
+    # на Pages его нет, POST давал красную ошибку в консоли). Локальный serve.py отдаёт web/ без метки — как раньше
+    page = os.path.join(SITE, "index.html")
+    html = open(page, encoding="utf-8").read()
+    with open(page, "w", encoding="utf-8") as f:
+        f.write(html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<meta name="om-site" content="static">', 1))
     size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(SITE) for f in fs)
     print(f"_site: {sum(len(v) for v in cats.values())} записей, {size / 1e6:.1f} МБ")
 

@@ -217,7 +217,7 @@ export class OceanSimulation {
     }
 
     if (this.useAgents) {
-      if (!this.eco) this.eco = new Ecosystem(s);
+      if (!this.eco) this.eco = new Ecosystem(s, this.seed);   // v23: номер мира — для своего генератора вылупления черепашат
       for (const d of this.eco.update(dt, s)) {
         events.push({ kind: 'event', timestamp: s.t, time: s.time, type: d.type, text: d.text,
           intensity: clamp01(d.intensity), duration: d.duration, panorama: clamp01((d.x + 1) / 2),

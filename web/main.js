@@ -276,7 +276,8 @@ if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
 const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, strain = 0, badW = 0;
 const applyQ = () => { if (autoQ) visual.setQuality(qMode === 'auto' ? AUTO[qLevel] : Q[qMode]); };
 const setQMode = m => {
-  qMode = m; qLevel = 0; fpsT = -3; fpsN = fpsSum = badW = 0; applyQ();
+  // смена выбора — 3 с не считаем кадры; при запуске остаётся −5 (первые 5 с после входа, как в v21)
+  qMode = m; qLevel = 0; fpsT = Math.min(fpsT, -3); fpsN = fpsSum = badW = 0; applyQ();
   try { localStorage.setItem('abyssonata.quality', m); } catch { /* приватное окно */ }
   document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
 };

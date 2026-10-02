@@ -106,6 +106,24 @@ const fsUpd = () => fsBtn.classList.toggle('show', phone && !!(document.fullscre
 fsBtn.addEventListener('click', goFull);
 for (const ev of ['resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange']) (ev.includes('full') ? document : window).addEventListener(ev, fsUpd);
 fsUpd();
+// v23: высота страницы (--app-h, index.html) — то, что реально видно, а не 100dvh. Edge на Huawei Pura 70 Ultra после
+// «Войти» (полный экран и поворот разом) считал окно выше экрана на высоту своей панели (~52 px): нижний ряд кнопок,
+// журнал и низ «Обитателей» уезжали за край. Берём меньшее из окна, видимой области и — в полном экране на сенсорном —
+// самого экрана. Пересчёт на каждое событие размера и ещё раз через 0.3 и 1 с после смены полного экрана и поворота:
+// размер приходит с опозданием, иногда без события
+let appH = 0;
+const fitH = () => {
+  const vv = window.visualViewport;
+  let h = Math.min(innerHeight, vv ? vv.height * vv.scale : Infinity);
+  if (phone && fsOn()) h = Math.min(h, innerWidth > innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height));
+  if (!(h > 0) || Math.abs(h - appH) < .5) return;
+  appH = h; document.documentElement.style.setProperty('--app-h', h + 'px'); visual.resize();
+};
+const fitLater = () => { fitH(); setTimeout(fitH, 300); setTimeout(fitH, 1000); };
+addEventListener('resize', fitH); window.visualViewport?.addEventListener('resize', fitH);
+addEventListener('orientationchange', fitLater);
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, fitLater);
+fitH();
 
 // v23: ?debug=1 — поверх экрана: размеры окна и экрана, полный экран, safe-area, сработавшие медиа-условия раскладки, где
 // каждый блок интерфейса (виден ли) и последние события размера. Для снимка с телефона (Huawei + Edge: после «Войти»

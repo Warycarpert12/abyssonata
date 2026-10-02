@@ -10,12 +10,12 @@ let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 214748364
 const mk = (n, ch) => { const d = Array.from({ length: ch }, () => new Float32Array(n)); for (const x of d) for (let i = 0; i < n; i++) x[i] = (rnd() * 2 - 1) * (i % 9000 < 3000 ? .05 : .7) * Math.sin(i / 300);
   return { numberOfChannels: ch, sampleRate: 44100, length: n, getChannelData: c => d[c], d }; };
 let same = 0, all = 0;
-for (const [n, ch] of [[1_200_000, 2], [3_438_000, 1], [30_000, 2], [777_777, 1]]) {
+for (const [n, ch, step] of [[1_200_000, 2], [3_438_000, 1], [30_000, 2], [777_777, 1], [1_200_000, 2, Infinity], [3_438_000, 1, Infinity]]) {   // step Infinity — стартовые записи «сразу целиком»
   seed = 1 + all; const X = mk(n, ch); seed = 1 + all; const Y = mk(n, ch);   // одинаковые данные
-  await a.normalize(X, .8); await b.normalize(Y, .8);
-  const ra = await a.analyse(X), rb = await b.analyse(Y);
+  await a.normalize(X, .8); await b.normalize(Y, .8, step);
+  const ra = await a.analyse(X), rb = await b.analyse(Y, step);
   const eq = X.d.every((c, k) => Buffer.compare(Buffer.from(c.buffer), Buffer.from(Y.d[k].buffer)) === 0) && ra.rms === rb.rms && JSON.stringify(ra.on) === JSON.stringify(rb.on);
-  console.log(`запись ${n} отсчётов × ${ch}: нормализация и разбор ${eq ? 'совпадают побитово' : 'РАЗОШЛИСЬ'} (rms ${ra.rms.toFixed(6)}, вступлений ${ra.on.length})`);
+  console.log(`запись ${n} отсчётов × ${ch}${step ? ' (сразу целиком)' : ''}: нормализация и разбор ${eq ? 'совпадают побитово' : 'РАЗОШЛИСЬ'} (rms ${ra.rms.toFixed(6)}, вступлений ${ra.on.length})`);
   same += eq; all++;
 }
 console.log(`итог: ${same}/${all}`); process.exit(same === all ? 0 : 1);

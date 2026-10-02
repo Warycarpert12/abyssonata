@@ -1,7 +1,7 @@
 // QA v22, iPhone (эмуляция в Chromium — WebKit в облаке недоступен): вход касанием, звук создаётся прямо в нажатии,
 // тихий <audio> и audioSession, «старый Safari» (только webkitAudioContext, распаковка без Promise, без
 // StereoPanner), «старый браузер» (нет модулей) — понятное сообщение.
-//   node qa/ios_check.mjs <адрес страницы>
+//   node qa/ios_check.mjs <адрес страницы с ?qa>
 import { chromium, devices } from 'playwright';
 const url = process.argv[2];
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });

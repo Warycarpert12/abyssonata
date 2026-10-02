@@ -31,6 +31,13 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t *
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
 const mix3 = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
 const rnd = (a, b) => a + Math.random() * (b - a);
+// v23: на время fn Math.random — свой повторяемый генератор: новые украшения не сдвигают случайные числа мира (с ?rseed
+// мир и звери те же, что в main, — честное сравнение кадров и снимки «было / стало»)
+const seededRandom = (seed, fn) => {
+  const mr = Math.random; let s = seed >>> 0;
+  Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let x = Math.imul(s ^ (s >>> 15), 1 | s); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+  try { return fn(); } finally { Math.random = mr; }
+};
 const V3 = THREE.Vector3;
 
 // небо и вода по времени суток: zen — зенит, hor — горизонт (и туман), sh/deep — мелководье/глубина
@@ -736,7 +743,7 @@ export class Visual {
     this._buildFoam();
     this._buildNightLife();
     this._buildAmbient();
-    this._buildSeaFlora();
+    seededRandom(20261002, () => this._buildSeaFlora());   // и three.js берёт Math.random — на идентификаторы объектов
   }
 
   // v23 (этап 2, только картинка): подводные леса и луга по всему дну — между островками и вдали от главного острова,
@@ -1178,11 +1185,11 @@ export class Visual {
     // v12: 2600 → 700 и мельче — пользователь: «уменьшить количество частиц вдали» (скриншот «частицы»)
     this.farPlankton = this._glowField(700, () => { const a = Math.random() * 6.2832, r = 150 + Math.pow(Math.random(), .7) * 500; return [Math.cos(a) * r, .12, Math.sin(a) * r]; },
       [[.3, .85, 1], [.25, .65, 1], [.45, 1, .85], [.7, .55, 1]], 2.1, 3);
-    // v23: светлячков больше (220 → 480) и чуть крупнее — над травой главного острова и островков
-    this.fireflies = this._glowField(480, () => { const p = grass[(Math.random() * grass.length) | 0] || new V3(); return [p.x + rnd(-2, 2), p.y + rnd(.5, 3.5), p.z + rnd(-2, 2)]; },
-      [[.85, 1, .4], [1, .9, .35]], .6, 2.5);
+    const fly = () => { const p = grass[(Math.random() * grass.length) | 0] || new V3(); return [p.x + rnd(-2, 2), p.y + rnd(.5, 3.5), p.z + rnd(-2, 2)]; };
+    this.fireflies = this._glowField(220, fly, [[.85, 1, .4], [1, .9, .35]], .5, 2.5);
     void sea;
-    this._buildMoths();
+    // v23: ещё 260 светлячков, чуть крупнее (над травой главного острова и островков; яркость — общая с первыми), и мотыльки
+    seededRandom(2310, () => { this._glowField(260, fly, [[.85, 1, .4], [1, .9, .35]], .62, 2.5).uniforms.uK = this.fireflies.uniforms.uK; this._buildMoths(); });
   }
   // v23: ночные мотыльки у воды — порхают петлями над кромкой берегов (главный остров и островки), машут крыльями.
   // Один InstancedMesh, весь полёт — в вершинном шейдере (процессор каждый кадр ничего не считает); светлые, едва

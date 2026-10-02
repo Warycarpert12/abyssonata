@@ -107,6 +107,56 @@ fsBtn.addEventListener('click', goFull);
 for (const ev of ['resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange']) (ev.includes('full') ? document : window).addEventListener(ev, fsUpd);
 fsUpd();
 
+// v23: ?debug=1 — поверх экрана: размеры окна и экрана, полный экран, safe-area, сработавшие медиа-условия раскладки, где
+// каждый блок интерфейса (виден ли) и последние события размера. Для снимка с телефона (Huawei + Edge: после «Войти»
+// в полном экране пропадали нижний ряд и журнал). Окно не ловит нажатий — «Войти» под ним нажимается как обычно
+if (qs.get('debug') === '1') {
+  const pre = document.createElement('pre'), probe = document.createElement('div'), t0 = performance.now(), evs = [], n = Math.round;
+  pre.style.cssText = 'position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:99;margin:0;padding:3px 6px;max-height:100%;overflow:hidden;' +
+    'font:9px/1.22 ui-monospace,Consolas,monospace;letter-spacing:0;text-transform:none;color:#fff;background:rgba(0,0,0,.6);pointer-events:none';
+  probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;' +
+    'padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+  const units = ['vh', 'dvh', 'svh', 'lvh'].map(u => { const d = document.createElement('div'); d.style.cssText = `position:fixed;left:0;top:0;width:0;height:100${u};visibility:hidden;pointer-events:none`; return [u, d]; });
+  document.body.append(pre, probe, ...units.map(u => u[1]));
+  const MQ = { 'h≤560': '(max-height: 560px)', 'w≤899': '(max-width: 899px)', 'w≤995&>4:3': '(max-width: 995px) and (min-aspect-ratio: 1001/750)',
+    'w≤640&h≤560': '(max-width: 640px) and (max-height: 560px)', '≤4:3&big': '(max-aspect-ratio: 4/3) and (min-height: 561px) and (min-width: 900px)',
+    landscape: '(orientation: landscape)', coarse: '(pointer: coarse)', hover: '(hover: hover)', 'display-mode:fullscreen': '(display-mode: fullscreen)' };
+  const draw = () => {
+    // «виден» — внутри окна и, в полном экране, внутри самого экрана (окно может оказаться выше экрана)
+    const vv = window.visualViewport, sa = getComputedStyle(probe), de = document.documentElement, scr = innerWidth > innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+    const W = vv ? vv.width : innerWidth, H = Math.min(vv ? vv.height : innerHeight, fsOn() ? scr : Infinity);
+    const L = [
+      `${((performance.now() - t0) / 1000).toFixed(0)}s  inner ${innerWidth}×${innerHeight}  client ${de.clientWidth}×${de.clientHeight}  dpr ${devicePixelRatio}`,
+      vv ? `visualViewport ${vv.width.toFixed(1)}×${vv.height.toFixed(1)} off ${vv.offsetLeft.toFixed(1)},${vv.offsetTop.toFixed(1)} scale ${vv.scale.toFixed(3)}` : 'visualViewport нет',
+      `screen ${screen.width}×${screen.height} avail ${screen.availWidth}×${screen.availHeight}  scroll ${scrollX},${scrollY}`,
+      `orient ${screen.orientation?.type || '—'} ${screen.orientation?.angle ?? window.orientation ?? ''}  fullscreen ${fsOn() ? 'ДА' : 'нет'}  gate-open ${document.body.classList.contains('gate-open')}`,
+      `safe-area t${sa.paddingTop} r${sa.paddingRight} b${sa.paddingBottom} l${sa.paddingLeft}`,
+      units.map(([u, d]) => `100${u}=${d.getBoundingClientRect().height.toFixed(1)}`).join(' ') + `  body ${n(document.body.getBoundingClientRect().height)}`,
+      'media: ' + Object.entries(MQ).filter(([, q]) => matchMedia(q).matches).map(([k]) => k).join(', '),
+      (navigator.userAgent.match(/(EdgA|Edg|Chrome|Firefox|SamsungBrowser|YaBrowser|HuaweiBrowser|Version)\/[\d.]+/g) || [navigator.userAgent]).join(' '),
+    ];
+    for (const id of ['hud', 'census', 'vol', 'log', 'tod', 'follow', 'fs', 'gate', 'rotate', 'gl']) {
+      const el = document.getElementById(id); if (!el) { L.push(`${id.padEnd(6)} нет`); continue; }
+      const r = el.getBoundingClientRect(), cs = getComputedStyle(el), shown = cs.display !== 'none' && cs.visibility !== 'hidden' && +cs.opacity > .05 && r.width > 0;
+      const where = !shown ? 'скрыт' : r.left >= -1 && r.top >= -1 && r.right <= W + 1 && r.bottom <= H + 1 ? 'виден'
+        : r.right <= 0 || r.bottom <= 0 || r.left >= W || r.top >= H ? 'ЗА КРАЕМ' : 'ЧАСТЬ ЗА КРАЕМ';
+      L.push(`${id.padEnd(6)} ${where.padEnd(14)} ${n(r.left)},${n(r.top)} ${n(r.width)}×${n(r.height)}` + (shown ? '' : `  (${cs.display} ${cs.visibility} ${(+cs.opacity).toFixed(2)})`));
+    }
+    pre.textContent = L.concat(evs).join('\n');
+  };
+  const note = ev => {
+    evs.push(`${((performance.now() - t0) / 1000).toFixed(2)}s ${ev} → ${innerWidth}×${innerHeight}` + (window.visualViewport ? ` vv ${visualViewport.height.toFixed(0)}` : '') + (fsOn() ? ' FS' : ''));
+    if (evs.length > 8) evs.shift(); draw();
+  };
+  for (const ev of ['resize', 'orientationchange']) addEventListener(ev, () => note(ev));
+  for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => note(ev));
+  window.visualViewport?.addEventListener('resize', () => note('vv.resize'));
+  screen.orientation?.addEventListener?.('change', () => note('orientation'));
+  document.getElementById('gate-btn').addEventListener('click', () => note('ВОЙТИ'));
+  fsBtn.addEventListener('click', () => note('НА ВЕСЬ ЭКРАН'));
+  setInterval(draw, 500); draw();
+}
+
 // --- уход экрана входа (v22): вуаль тает, размытие снимается — мир становится чётким; карточка «рассыпается»: её стирает
 // слева направо, край дробится шумом (SVG-фильтр #dust), из стирающегося края разлетаются частицы. На телефоне, при
 // «Низком» качестве и при «меньше движения» в системе — просто плавно растворяется (simple — сразу так)

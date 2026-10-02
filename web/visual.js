@@ -2630,8 +2630,9 @@ export class Visual {
 
   // качество картинки (v21 — только понижение по частоте кадров; v22 — и выбор в настройках, см. main.js): k — доля
   // разрешения от basePR, msaa — сглаживание буфера (в программном рендере его нет вовсе)
-  setQuality({ k = 1, msaa = true } = {}) {
+  setQuality({ k = 1, msaa = true, flora = 1 } = {}) {
     const pr = this.basePR * k, samples = msaa && !this.soft ? 4 : 0;
+    for (const m of this.flora || []) m.count = Math.round(m.userData.n * flora);   // v23: на слабом — растений меньше (раскладка случайная — редеет равномерно)
     if (Math.abs(pr - this.renderer.getPixelRatio()) > 1e-3) { this.renderer.setPixelRatio(pr); this.resize(); }
     if (samples !== this.rt.samples) { this.rt.samples = samples; this.rt.dispose(); }
   }

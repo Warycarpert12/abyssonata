@@ -4,6 +4,7 @@
 import { World } from './world.js';
 import { Visual } from './visual.js';
 import { OceanAudio } from './audio.js';
+import { initBestiary } from './bestiary.js';
 
 // v21 QA: &rseed=N — повторяемые случайные числа (одинаковые сцены для снимков «было/стало»); без параметра — как всегда
 { const rs = new URLSearchParams(location.search).get('rseed');
@@ -255,12 +256,15 @@ const setPaused = p => {
   pauseBtn.classList.toggle('on', p); pauseBtn.textContent = p ? 'Дальше' : 'Пауза'; pauseBtn.title = (p ? 'Продолжить' : 'Пауза') + ' (пробел)';
 };
 pauseBtn.addEventListener('click', () => setPaused(!paused));
+// v23: бестиарий (bestiary.js) — открытый ставит мир на паузу; вид найден — когда навёлся, выбрал или следил (visual.onDiscover)
+const bestiary = initBestiary({ pause: on => { const was = paused; setPaused(on); return was; } });
+visual.onDiscover = sp => bestiary.discover(sp);
 // v22: слежение за зверем — камера крутится вокруг него и приближается; отпустить — «✕» на плашке или Esc
 document.querySelector('#follow button').addEventListener('click', () => visual.unfollow());
 addEventListener('keydown', e => { if (e.key === 'Escape') visual.unfollow(); });
 addEventListener('keydown', e => {
   if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  if (document.querySelector('#gate:not(.clear)')) return;   // до входа пробел — как раньше (нажимает «Войти»), не пауза
+  if (document.querySelector('#gate:not(.clear)') || bestiary.open) return;   // до входа пробел — как раньше (нажимает «Войти»), не пауза; в бестиарии мир стоит
   e.preventDefault(); setPaused(!paused);   // и не «нажимаем» кнопку, на которой фокус
 });
 

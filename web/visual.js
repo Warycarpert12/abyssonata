@@ -2191,6 +2191,7 @@ export class Visual {
   // пока пользователь сам не возьмётся за камеру. Повторное нажатие на тот же вид — следующая особь
   focusSpecies(sp) {
     const list = [...this.agents.values()].filter(o => o.sp === sp && !o.gone).sort((a, b) => a.id - b.id); if (!list.length) return;
+    this.onDiscover?.(sp);   // v23: выбрал в «Обитателях» — вид найден (бестиарий)
     const i = this._follow?.sp === sp ? (list.findIndex(o => o.id === this._follow.id) + 1) % list.length : 0;
     this._follow = { id: list[i].id, sp, t: 0, dist: FOLLOW_D[sp] || 12 }; this._fly = null; this._freeCam = false; this._censusHTML = null;
   }
@@ -2396,7 +2397,7 @@ export class Visual {
   focusEvent(r) {
     if (!r) return;
     const o = r.agent != null && this.agents.get(r.agent);
-    if (o && !o.gone) { this._fly = null; this._follow = { id: o.id, sp: o.sp, t: 0, dist: FOLLOW_D[o.sp] || 12 }; this._freeCam = false; this._censusHTML = null; return; }
+    if (o && !o.gone) { this._fly = null; this._follow = { id: o.id, sp: o.sp, t: 0, dist: FOLLOW_D[o.sp] || 12 }; this._freeCam = false; this._censusHTML = null; this.onDiscover?.(o.sp); return; }   // v23: следит — найден
     const p = r.pos.clone(), hr = Math.hypot(p.x, p.z); if (hr > 150) { p.x *= 150 / hr; p.z *= 150 / hr; }
     p.y = clamp(p.y, Math.max(0, islandH(p.x, p.z) + .5), 30);
     this._follow = null; this._fly = { p, t: 0 }; this._idle = 0;
@@ -2447,7 +2448,7 @@ export class Visual {
     const o = this._hov;
     if (o) {
       const txt = o.sp === 'fish_school' ? NAMES.fish_school : `${NAMES[o.sp] || o.sp} №${o.n}`;
-      if (this.tipEl.textContent !== txt) this.tipEl.textContent = txt;
+      if (this.tipEl.textContent !== txt) { this.tipEl.textContent = txt; this.onDiscover?.(o.sp); }   // v23: навёлся — вид найден (бестиарий)
       const r = this.stage.getBoundingClientRect(), [px, py, rad] = this._hovP;
       this.tipEl.style.left = (r.left + px) + 'px'; this.tipEl.style.top = (r.top + py - Math.min(rad, 60) * .5) + 'px';
       this.tipEl.classList.add('show');

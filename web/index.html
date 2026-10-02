@@ -167,7 +167,10 @@ html, body { height: 100dvh; overscroll-behavior: none; }
 .panel.min > :not(h2) { display: none !important; }   /* !important: у строк «Состояния» свой display: grid по id */
 .panel.min h2 { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }
 #hud, #census { margin-left: env(safe-area-inset-left); } #vol, #log { margin-right: env(safe-area-inset-right); }
-@media (max-height: 560px), (max-width: 760px) {
+/* компактная раскладка — телефоны и маленькие окна ПК. v22: и окна, где между «Обитателями» и журналом не помещаются
+   хотя бы по 2 кнопки в ряд (уже 900 px; при соотношении шире 4:3 — уже 996 px): иначе ряд кнопок внизу вставал
+   столбиком посреди картинки (800×600 — 6 кнопок друг над другом) */
+@media (max-height: 560px), (max-width: 899px), (max-width: 995px) and (min-aspect-ratio: 1001/750) {
   .panel { padding: 8px 11px; font-size: 10.5px; border-radius: 12px; }
   .panel h2 { font-size: 10px; margin-bottom: 5px; padding-bottom: 4px; }
   #hud { left: 10px; top: 10px; width: 212px; } #hud .row { grid-template-columns: 70px 1fr 46px; gap: 6px; margin: 3px 0; }
@@ -193,7 +196,7 @@ html, body { height: 100dvh; overscroll-behavior: none; }
   #tod { left: calc(185px + env(safe-area-inset-left)); right: calc(210px + env(safe-area-inset-right)); }
   #tod button { padding: 6px 6px; font-size: 8.5px; letter-spacing: .04em; } #tod .sep { display: none; }   /* 4 времени суток — в строку, «Пауза» над ними */
 }
-@media (max-aspect-ratio: 4/3) and (min-height: 561px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 250px; } #tod { max-width: calc(100% - 720px); } #tod .sep { display: none; } }
+@media (max-aspect-ratio: 4/3) and (min-height: 561px) and (min-width: 900px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 250px; } #tod { max-width: calc(100% - 720px); } #tod .sep { display: none; } }
 /* телефон вертикально — просим повернуть (океан задуман широким) */
 #rotate { display: none; }
 @media (orientation: portrait) and (max-width: 900px) {

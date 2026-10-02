@@ -199,7 +199,10 @@ html, body { height: 100dvh; overscroll-behavior: none; }
 @media (max-aspect-ratio: 4/3) and (min-height: 561px) and (min-width: 900px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 250px; } #tod { max-width: calc(100% - 720px); } #tod .sep { display: none; } }
 /* телефон вертикально — просим повернуть (океан задуман широким) */
 #rotate { display: none; }
-@media (orientation: portrait) and (max-width: 900px) {
+/* v22: просьба повернуть — только на сенсорных; окну ПК уже 600 px (панели не помещаются) — «растяните окно шире» */
+#rotate .pc { display: none; }
+@media (max-width: 599px) and (pointer: fine) { #rotate .tel, #rotate .phone { display: none; } #rotate .pc { display: block; } }
+@media (orientation: portrait) and (max-width: 900px) and (pointer: coarse), (max-width: 599px) and (pointer: fine) {
   #rotate { display: grid; position: fixed; inset: 0; z-index: 60; place-items: center; text-align: center; padding: 24px;
     background: radial-gradient(circle at 50% 42%, #2a3f3a 0%, #0e1715 78%); color: var(--p4); }
   #rotate p { margin: 22px auto 6px; max-width: 86vw; font-size: 12px; letter-spacing: .08em; line-height: 1.5; text-shadow: var(--ca); }
@@ -291,7 +294,7 @@ body.gate-open #fs { opacity: 0; visibility: hidden; pointer-events: none; trans
 </main>
 
 <button id="fs">⛶ На весь экран</button>
-<div id="rotate"><div><div class="phone"></div><p>Поверните телефон горизонтально</p><small>океан задуман для широкого экрана</small></div></div>
+<div id="rotate"><div><div class="phone"></div><p class="tel">Поверните телефон горизонтально</p><p class="pc">Растяните окно шире</p><small>океан задуман для широкого экрана</small></div></div>
 
 <div id="gate">
   <div id="gate-card">

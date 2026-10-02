@@ -2010,7 +2010,10 @@ export class Visual {
       const step = (groundAt(ob.position.x, ob.position.z, 1.2) > -.3 ? 1.4 : 3) * dt;
       if (dist > step) ob.position.addScaledVector(dv2, step / dist); else { ob.position.x = base.x; ob.position.z = base.z; }
       if (!onLand && dist < 1 && o.st !== 'raft') { ob.position.x += Math.cos(o.t * .5 + o.seed) * dt * 1.2; ob.position.z += Math.sin(o.t * .5 + o.seed) * dt * 1.2; }   // купается — кружит
-      const gh = groundAt(ob.position.x, ob.position.z, 1.2), wet = smooth(.1, -.9, gh), H = this.assets?.sea_lion?.h ?? 3, moving = dist > .3 ? 1 : 0;
+      // v23: «движется» — и когда догнал свою точку, а она ещё плывёт к берегу (скорость тела за кадр): раньше считался
+      // лежащим, разворачивался мордой к морю и плыл к пляжу задом до минуты (qa heading_check: 12.8% кадров движения)
+      const mv = Math.hypot(ob.position.x - prev.x, ob.position.z - prev.z) / Math.max(dt, 1e-3);
+      const gh = groundAt(ob.position.x, ob.position.z, 1.2), wet = smooth(.1, -.9, gh), H = this.assets?.sea_lion?.h ?? 3, moving = dist > .3 || mv > .3 ? 1 : 0;
       const ty = lerp(Math.max(.15, gh), -H * .45 + Math.sin(o.t * 1.2) * .06, wet);
       o.ly = o.ly === undefined ? ty : lerp(o.ly, ty, 1 - Math.exp(-dt * 3));
       ob.position.y = o.ly + (1 - wet) * moving * Math.abs(Math.sin(o.t * 5)) * .12;
@@ -2026,7 +2029,7 @@ export class Visual {
       o.raftK = lerp(o.raftK ?? 0, o.st === 'raft' && !o.gone ? 1 : 0, 1 - Math.exp(-dt * 1.5));   // v19: «плотик» — на боку, ласт над водой
       roll = o.raftK * 1.25; pitch *= 1 - o.raftK;
       if (o.wig) { o.wig.t.value += dt * lerp(.8, 3.2, o.pose); o.wig.a.value = o.pose; o.wig.b.value = o.t * .3; }
-      if (onLand && dist < .3) {   // лежит на месте — поворачивается к морю, дышит
+      if (onLand && !moving) {   // лежит на месте — поворачивается к морю, дышит
         const sc = siteOf(o.site), h = Math.atan2(base.x - sc.cx, base.z - sc.cz);
         o.heading += Math.atan2(Math.sin(h - o.heading), Math.cos(h - o.heading)) * (1 - Math.exp(-dt * 2));
         ob.rotation.set(0, 0, 0); ob.rotateY(o.heading); ob.rotateX(pitch); if (o.model) o.model.scale.y = 1 + Math.sin(o.t * 1.3 + o.seed) * .03; return;

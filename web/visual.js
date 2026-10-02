@@ -31,6 +31,13 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t *
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
 const mix3 = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
 const rnd = (a, b) => a + Math.random() * (b - a);
+// v23: на время fn Math.random — свой повторяемый генератор: новые украшения не сдвигают случайные числа мира (с ?rseed
+// мир и звери те же, что в main, — честное сравнение кадров и снимки «было / стало»)
+const seededRandom = (seed, fn) => {
+  const mr = Math.random; let s = seed >>> 0;
+  Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let x = Math.imul(s ^ (s >>> 15), 1 | s); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+  try { return fn(); } finally { Math.random = mr; }
+};
 const V3 = THREE.Vector3;
 
 // небо и вода по времени суток: zen — зенит, hor — горизонт (и туман), sh/deep — мелководье/глубина
@@ -43,7 +50,7 @@ const PAL = {
 };
 const BIRDS = new Set(['seagull', 'tern', 'cormorant', 'pelican', 'albatross']);
 const BIRD_ALT = { seagull: 13, tern: 10, cormorant: 5, pelican: 0, albatross: 22 };
-const NAMES = { seagull: 'Чайка', tern: 'Крачка', cormorant: 'Баклан', pelican: 'Пеликан', albatross: 'Альбатрос',
+const NAMES = { hatchling: 'Черепашата', seagull: 'Чайка', tern: 'Крачка', cormorant: 'Баклан', pelican: 'Пеликан', albatross: 'Альбатрос',
   dolphin: 'Дельфин', whale: 'Кит', sea_lion: 'Морской лев', fish_school: 'Косяк рыб', shark: 'Акула', orca: 'Косатка',
   jellyfish: 'Медуза', shrimp_swarm: 'Рой креветок', octopus: 'Осьминог', stingray: 'Скат', sea_turtle: 'Морская черепаха', starfish: 'Морская звезда', crab: 'Краб',
   ship: 'Пароход' };
@@ -240,7 +247,7 @@ const FLAP = { seagull: [3.2, .5, .08], tern: [4.5, .55, .12], cormorant: [5, .4
 const WIG = { orca: ['orca', 'tail'], sea_lion: ['sea_lion', 'lion'], sea_turtle: ['turtle', 'flip'], pelican: ['pelican', 'head'], jellyfish: ['jellyfish', 'jelly'],
   crab: ['crab', 'crab'], starfish: ['starfish', 'star'], octopus: ['octopus', 'octo'] };   // v13: и мелким (креветкам — в _attachModel)
 // «показать обитателя» (v13): на каком расстоянии камера держится от зверя этого вида
-const FOLLOW_D = { whale: 38, orca: 22, shark: 16, dolphin: 14, fish_school: 16, sea_lion: 9, pelican: 10, sea_turtle: 9, stingray: 10, jellyfish: 8,
+const FOLLOW_D = { hatchling: 8, whale: 38, orca: 22, shark: 16, dolphin: 14, fish_school: 16, sea_lion: 9, pelican: 10, sea_turtle: 9, stingray: 10, jellyfish: 8,
   crab: 4.5, starfish: 4.5, shrimp_swarm: 6, octopus: 6, albatross: 18, seagull: 14, tern: 12, cormorant: 12, ship: 260 };
 // живут на месте (берег, риф): уходя — прячутся (в песок, в расщелину), а не уплывают за горизонт
 const STATIC = new Set(['crab', 'starfish', 'octopus', 'shrimp_swarm']);
@@ -249,7 +256,7 @@ const CRITTER_SP = new Set(['jellyfish', 'shrimp_swarm', 'octopus', 'stingray', 
 // звук при приближении камеры (папка samples/): бульки у медузы, осьминога и черепахи, треск креветок, щёлканье краба
 const NEAR_SND = { jellyfish: 'bubbles', octopus: 'bubbles', sea_turtle: 'bubbles', shrimp_swarm: 'shrimp', crab: 'crab' };
 // v22: «радиус тела» для наведения мыши (м): полдлины/полразмаха модели (косяк — круг, по которому ходят рыбы)
-const BODY_R = { seagull: 1.7, tern: 1.3, cormorant: 1.6, albatross: 3.2, pelican: 1.8, dolphin: 2.5, whale: 10, sea_lion: 1.9, fish_school: 6,
+const BODY_R = { hatchling: 3, seagull: 1.7, tern: 1.3, cormorant: 1.6, albatross: 3.2, pelican: 1.8, dolphin: 2.5, whale: 10, sea_lion: 1.9, fish_school: 6,
   shark: 3.5, orca: 4.5, jellyfish: 1.2, shrimp_swarm: 1.6, octopus: 1.4, stingray: 2.3, sea_turtle: 1.4, starfish: .8, crab: .7, ship: 50 };
 const SPEED = { seagull: 9, tern: 10, cormorant: 8, albatross: 7, pelican: 7, dolphin: 7, whale: 3, sea_lion: 3, fish_school: 3, shark: 6, orca: 6,
   jellyfish: 1.2, sea_turtle: 2, stingray: 3, crab: 1.5, starfish: .3, octopus: .8, shrimp_swarm: 2, ship: 15 };
@@ -1399,6 +1406,7 @@ export class Visual {
     warm.add(new THREE.Points(pts, new THREE.PointsMaterial({ color: 0xc8e86a, size: .14, sizeAttenuation: true, transparent: true })));
     warm.add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, .5), new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true, opacity: .75, side: THREE.DoubleSide })));
     const fish = this._clone('fish'); if (fish) warm.add(fish.obj);
+    seededRandom(2311, () => { const k = this._hatchKit(), m = new THREE.InstancedMesh(k.geo, k.mat, 1); m.setColorAt(0, new THREE.Color(1, 1, 1)); warm.add(m); });   // v23: черепашата (и three.js берёт Math.random на id объектов)
     warm.traverse(n => { n.frustumCulled = false; });
     warm.position.copy(at); warm.updateMatrixWorld(true);
     const t0 = performance.now(), rt = this.renderer.getRenderTarget();
@@ -1522,7 +1530,7 @@ export class Visual {
     for (const a of list) {
       seen.add(a.id); let o = this.agents.get(a.id);
       if (!o) { o = this._makeAgent(a, far); this.agents.set(a.id, o); }
-      o.tx = a.x; o.td = a.dist; o.st = a.st; o.site = a.site ?? -1; o.rel = a.rel || 0; o.rk = a.rk || '';
+      o.tx = a.x; o.td = a.dist; o.st = a.st; o.site = a.site ?? -1; o.rel = a.rel || 0; o.rk = a.rk || ''; if (a.cnt) o.cnt = a.cnt;
     }
     // ушедшие из симуляции — не исчезают, а уплывают/улетают в дымку и только там удаляются
     for (const o of this.agents.values()) if (!seen.has(o.id) && !o.gone) {
@@ -1531,7 +1539,7 @@ export class Visual {
       if (STATIC.has(o.sp) || o.flat) o.away = o.anchor.clone().setY(o.anchor.y - 2.5);   // прячется в песок/расщелину на месте (медузу на песке смывает)
       else { const h = o.anchor.clone().setY(0); o.away = h.multiplyScalar(240 / (h.length() || 1)).setY(o.anchor.y); }
     }
-    this.census = {}; for (const a of list) this.census[a.sp] = (this.census[a.sp] || 0) + 1;
+    this.census = {}; for (const a of list) this.census[a.sp] = (this.census[a.sp] || 0) + (a.cnt || 1);   // v23: выводок черепашат — по числу малышей
   }
 
   // ------------------------------------------------------------------ существа
@@ -1861,6 +1869,7 @@ export class Visual {
 
   _stepAgent(o, dt) {
     o.t += dt; o.x += (o.tx - o.x) * (1 - Math.exp(-dt * 1.5)); o.d += (o.td - o.d) * (1 - Math.exp(-dt * 1.5));
+    if (o.sp === 'hatchling') { this._stepHatch(o, dt); return; }
     o.jump = Math.max(0, o.jump - dt); o.dive = Math.max(0, o.dive - dt); o.fluke = Math.max(0, o.fluke - dt); o.slap = Math.max(0, (o.slap || 0) - dt);
     for (const m of o.mixers) m.update(dt * (o.sp === 'whale' ? .5 : 1) * (o.mixK ?? 1));
     if (o.act) o.act.t += dt;
@@ -2167,6 +2176,75 @@ export class Visual {
     ob.rotation.set(0, 0, 0); ob.rotateY(o.heading); ob.rotateX(pitch); ob.rotateZ(roll);
   }
 
+  // v23 (этап 3): черепашонок — крошечная модель (панцирь, голова, четыре ласта; голова +z), один InstancedMesh на выводок.
+  // Ласты гребут в шейдере (своя фаза у каждого малыша). Материал общий и прогревается на экране входа (_warmUp)
+  _hatchKit() {
+    if (this._hk) return this._hk;
+    const part = (g, fl) => { g.deleteAttribute('uv'); g.setAttribute('aFl', new THREE.Float32BufferAttribute(new Array(g.attributes.position.count).fill(fl), 1)); return g; };
+    const parts = [part(new THREE.SphereGeometry(1, 8, 5).scale(.15, .07, .19).translate(0, .06, 0), 0), part(new THREE.SphereGeometry(.05, 6, 4).translate(0, .07, .21), 0)];
+    for (const sg of [1, -1]) {
+      parts.push(part(new THREE.BoxGeometry(.17, .016, .06).rotateY(-sg * .45).translate(sg * .17, .045, .08), sg));        // передние ласты — длинные
+      parts.push(part(new THREE.BoxGeometry(.08, .016, .05).rotateY(sg * .5).translate(sg * .11, .035, -.14), sg * .6));   // задние
+    }
+    const geo = mergeGeometries(parts); geo.computeVertexNormals();
+    const mat = this._hook(this._stippled(new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x1d2a26, flatShading: true }), true, 40), sh => {
+      sh.uniforms.uT = this.uT;
+      sh.vertexShader = 'uniform float uT; attribute float aFl;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        float ph = uT * 8. + float(gl_InstanceID) * 1.7 + (aFl > 0. ? 0. : 3.14), r = max(0., abs(transformed.x) - .07);
+        transformed.y += sin(ph) * r * .9 * abs(aFl); transformed.z += cos(ph) * r * .45 * abs(aFl);`);
+    }, 'hatch');
+    return (this._hk = { geo, mat });
+  }
+  // v23: выводок — гнездо на сухом песке пляжа главного острова (место — из симуляции, o.x); малыши по одному
+  // выбираются из песка (песок «кипит»), ползут вниз по пляжу к воде веером, у кромки — крошечный всплеск, дальше
+  // уплывают под водой и тают. Свой ход времени (o.t): события симуляции — только журнал. Точка выводка (o.obj) —
+  // середина ещё видимых малышей: за ней летит камера и по ней звучат шорох песка и всплески рядом с камерой
+  _stepHatch(o, dt) {
+    if (!o.kids) {
+      if (!this.assets) return;
+      const e = shoreAt(0, o.x * Math.PI * .9 + .3);
+      let k = 5.5, x = e.x - e.dx * k, z = e.z - e.dz * k;
+      while (k > 2 && islandH(x, z) > 1.4) { k -= .25; x = e.x - e.dx * k; z = e.z - e.dz * k; }   // на песке, не в траве
+      o.nest = new V3(x, islandH(x, z), z); o.out = new V3(e.dx, 0, e.dz);
+      const kit = this._hatchKit(), n = o.cnt || 12, m = o.hatchMesh = new THREE.InstancedMesh(kit.geo, kit.mat, n), C = new THREE.Color();
+      const TONES = [[.42, .4, .34], [.36, .36, .33], [.46, .42, .36], [.38, .41, .37]];
+      for (let i = 0; i < n; i++) m.setColorAt(i, C.setRGB(...TONES[i % 4].map(v => v * rnd(.9, 1.1))));
+      m.frustumCulled = false; this.scene.add(m);
+      o.kids = Array.from({ length: n }, () => ({ born: rnd(1, 25), wait: rnd(3, 10), sp: rnd(.07, .13), a: rnd(-.55, .55), ph: Math.random() * 6.28,
+        p: o.nest.clone().add(new V3(rnd(-.7, .7), 0, rnd(-.7, .7))), h: Math.atan2(e.dx, e.dz), wet: false, swim: 0, k: 0 }));
+      o.sandT = 0; o.sndT = 0;
+    }
+    const M = this._hM ||= new THREE.Matrix4(), Q = this._hQ ||= new THREE.Quaternion(), Sc = this._hS ||= new V3(), Y = this._hY ||= new V3(0, 1, 0), c = new V3();
+    let live = 0, boil = false, crawling = false;
+    o.kids.forEach((q, i) => {
+      const age = o.t - q.born;
+      if (age >= 0) {
+        q.k = clamp(q.k + dt * (q.swim > 4 ? -.6 : 2));   // появился; отплыл — тает
+        if (age < 1.6) { boil = true; q.p.y = islandH(q.p.x, q.p.z) - .16 + age / 1.6 * .16; }   // выбирается из песка
+        else if (age > 1.6 + q.wait) {
+          const dir = o.out.clone().applyAxisAngle(Y, q.a + Math.sin(o.t * 1.3 + q.ph) * .35);   // веером вниз по пляжу, виляя
+          q.p.addScaledVector(dir, (q.wet ? .35 : q.sp) * dt); q.h = Math.atan2(dir.x, dir.z);
+          const g = islandH(q.p.x, q.p.z);
+          if (!q.wet && g < -.05) {   // кромка: крошечный всплеск
+            q.wet = true; const w = q.p.clone().setY(.04), d = w.distanceTo(this.camera.position); this._ripple(w, .7, 1.1);
+            if (d < 30) this.onLocalSound?.('splash', w, .3 * (1 - d / 30));
+          }
+          if (q.wet) { q.swim += dt; q.p.y = Math.max(g + .12, -Math.min(.6, q.swim * .15)); }
+          else { q.p.y = g + Math.abs(Math.sin(o.t * 9 + q.ph)) * .015; crawling = true; }
+        }
+      }
+      if (q.k > .01) { live++; c.add(q.p); }
+      Q.setFromAxisAngle(Y, q.h); M.compose(q.p, Q, Sc.setScalar(q.k)); o.hatchMesh.setMatrixAt(i, M);
+    });
+    o.hatchMesh.instanceMatrix.needsUpdate = true;
+    o.obj.position.copy(live ? c.divideScalar(live) : o.nest);
+    // песок «кипит» над гнездом, пока малыши выбираются; шорох песка рядом с камерой, пока выбираются и ползут
+    if (boil && (o.sandT -= dt) <= 0) { o.sandT = rnd(.4, .9); this._burst(o.nest.clone().add(new V3(rnd(-.5, .5), .05, rnd(-.5, .5))), 0xd8c7a0, 6, 1, true); }
+    const cd = o.obj.position.distanceTo(this.camera.position);
+    if ((boil || crawling) && cd < 30 && (o.sndT -= dt) <= 0) { o.sndT = rnd(.7, 1.6); this.onLocalSound?.('sand', o.obj.position, 1 - cd / 30); }
+    if (o.gone && (!live || o.t > 200)) this._removeAgent(o);
+  }
+
   // звук при приближении (v11): медуза/осьминог/черепаха — бульки, креветки — треск, краб — щёлканье; ближе — громче.
   // Каждый звучит сам по себе раз в несколько секунд, только если камера рядом (до 32 м)
   _nearSounds(dt) {
@@ -2286,7 +2364,7 @@ export class Visual {
   }
 
   _removeAgent(o) {
-    this.scene.remove(o.obj); for (const f of o.fish || []) this.scene.remove(f.obj);   // рыбки косяка — отдельные объекты сцены
+    this.scene.remove(o.obj); if (o.hatchMesh) this.scene.remove(o.hatchMesh);   // v23: выводок черепашат — свой объект сцены for (const f of o.fish || []) this.scene.remove(f.obj);   // рыбки косяка — отдельные объекты сцены
     this.agents.delete(o.id);
     // v22: свои кости копий модели и свои крылья пеликана освобождаем сразу (раньше висели до сборки мусора). Материалы
     // не трогаем: с ними ушли бы собранные шейдеры, и следующий такой же зверь собирал бы их заново — рывок
@@ -2609,7 +2687,7 @@ export class Visual {
     const now = performance.now(); while (this.recent.length && now - this.recent[0] > 30000) this.recent.shift();
     const act = clamp(this.recent.length / 30); setBar('act', act, (act * 100).toFixed(0) + '%');
     setBar('ten', this.cur.tension, this.cur.tension.toFixed(2));
-    const N = { seagull: 'Чайки', tern: 'Крачки', cormorant: 'Бакланы', pelican: 'Пеликаны', albatross: 'Альбатросы', dolphin: 'Дельфины', whale: 'Киты', orca: 'Косатки', shark: 'Акулы', sea_lion: 'Морские львы', fish_school: 'Косяки',
+    const N = { hatchling: 'Черепашата', seagull: 'Чайки', tern: 'Крачки', cormorant: 'Бакланы', pelican: 'Пеликаны', albatross: 'Альбатросы', dolphin: 'Дельфины', whale: 'Киты', orca: 'Косатки', shark: 'Акулы', sea_lion: 'Морские львы', fish_school: 'Косяки',
       sea_turtle: 'Черепахи', stingray: 'Скаты', jellyfish: 'Медузы', octopus: 'Осьминоги', shrimp_swarm: 'Рои креветок', crab: 'Крабы', starfish: 'Морские звёзды',
       ship: 'Пароходы' };
     const html = Object.entries(N).filter(([k]) => this.census[k])

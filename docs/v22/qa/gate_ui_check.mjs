@@ -14,7 +14,7 @@ async function run(name, opt, tap, stall = 0, slow = 0) {
   // slow — совсем медленное: после «Войти» каждый кадр — через slow мс (2 кадра/с при 500)
   if (stall || slow) await page.addInitScript(([ms, every]) => { const raf = window.requestAnimationFrame.bind(window); let done = false;
     window.requestAnimationFrame = cb => { if (!document.getElementById('gate-dust')) return raf(cb); window.__dust ??= performance.now();
-      if (every) { setTimeout(() => raf(cb), every); return 0; }
+      if (every) { setTimeout(() => raf(t => { (window.__frames ||= []).push(performance.now()); cb(t); }), every); return 0; }
       if (!done) { done = true; setTimeout(() => raf(cb), ms); return 0; } return raf(cb); }; }, [stall, slow]);
   page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   page.on('pageerror', e => errs.push('pageerror: ' + e.message));
@@ -45,7 +45,10 @@ async function run(name, opt, tap, stall = 0, slow = 0) {
   const u = await page.evaluate(() => window.__ui);
   if (u.mask !== null) ok(u.mask >= 124, `${name}: интерфейс начал проявляться, когда карточка стёрта (маска ${u.mask}%)`);
   else ok(u.fade, `${name}: интерфейс начал проявляться после растворения карточки (растворение запущено, прошло ${((u.t - t0) / 1000).toFixed(1)} с)`);
-  if (slow) { const d = await page.evaluate(() => (window.__ui.t - window.__dust) / 1000); ok(d <= 5, `${name}: интерфейс проявился через ${d.toFixed(1)} с после начала растворения (не дольше 4 с + кадр)`); }
+  // не позже первого кадра после 4 с (без видеокарты кадр бывает и через 1–2 с — ждать дольше этого кадра нельзя)
+  if (slow) { const r = await page.evaluate(() => { const lim = window.__dust + 4000, f = (window.__frames || []).find(t => t >= lim);
+      return { d: (window.__ui.t - window.__dust) / 1000, f: f ? (f - window.__dust) / 1000 : null }; });
+    ok(r.f !== null && r.d <= r.f + .1, `${name}: интерфейс проявился через ${r.d.toFixed(1)} с после начала растворения — на первом кадре после 4 с (${r.f?.toFixed(1)} с)`); }
   // переход 0.9 с; без видеокарты кадры редкие (а время анимаций идёт по кадрам) — ждём до 8 с, пока всё проявится
   let b = await vis(); for (let k = 0; k < 40 && !b.every(x => x.vis === 'visible' && x.op > .99); k++) { await page.waitForTimeout(200); b = await vis(); }
   ok(b.every(x => x.vis === 'visible' && x.op > .99), `${name}: после входа всё видно: ${b.filter(x => x.vis !== 'visible' || x.op <= .99).map(x => x.s + ' ' + x.op).join(', ') || 'всё'}`);

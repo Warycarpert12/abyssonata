@@ -1178,9 +1178,44 @@ export class Visual {
     // v12: 2600 → 700 и мельче — пользователь: «уменьшить количество частиц вдали» (скриншот «частицы»)
     this.farPlankton = this._glowField(700, () => { const a = Math.random() * 6.2832, r = 150 + Math.pow(Math.random(), .7) * 500; return [Math.cos(a) * r, .12, Math.sin(a) * r]; },
       [[.3, .85, 1], [.25, .65, 1], [.45, 1, .85], [.7, .55, 1]], 2.1, 3);
-    this.fireflies = this._glowField(220, () => { const p = grass[(Math.random() * grass.length) | 0] || new V3(); return [p.x + rnd(-2, 2), p.y + rnd(.5, 3.5), p.z + rnd(-2, 2)]; },
-      [[.85, 1, .4], [1, .9, .35]], .5, 2.5);
+    // v23: светлячков больше (220 → 480) и чуть крупнее — над травой главного острова и островков
+    this.fireflies = this._glowField(480, () => { const p = grass[(Math.random() * grass.length) | 0] || new V3(); return [p.x + rnd(-2, 2), p.y + rnd(.5, 3.5), p.z + rnd(-2, 2)]; },
+      [[.85, 1, .4], [1, .9, .35]], .6, 2.5);
     void sea;
+    this._buildMoths();
+  }
+  // v23: ночные мотыльки у воды — порхают петлями над кромкой берегов (главный остров и островки), машут крыльями.
+  // Один InstancedMesh, весь полёт — в вершинном шейдере (процессор каждый кадр ничего не считает); светлые, едва
+  // светятся. Днём их нет: uK как у светлячков — появляются и тают на закате и рассвете (frame)
+  _buildMoths() {
+    const n = 110, base = new THREE.BufferGeometry();
+    // крылья по бокам тела (голова — +z): с каждой стороны переднее и заднее; в шейдере машут вокруг оси тела
+    const R1 = [0, 0, .12, 0, 0, 0, .3, 0, .07,  0, 0, 0, .24, 0, -.03, .3, 0, .07,  0, 0, 0, 0, 0, -.12, .2, 0, -.07,  0, 0, -.12, .12, 0, -.17, .2, 0, -.07];
+    base.setAttribute('position', new THREE.Float32BufferAttribute(R1.concat(R1.map((v, i) => i % 3 ? v : -v)), 3));
+    const g = new THREE.InstancedBufferGeometry().copy(base); g.instanceCount = n;
+    const C = new Float32Array(n * 3), D = new Float32Array(n * 4), sh = this.shorePts;
+    for (let i = 0; i < n; i++) {
+      const p = sh[(Math.random() * sh.length) | 0] || new V3(R, 0, 0);
+      C.set([p.x + rnd(-1.5, 1.5), rnd(.5, 2.2), p.z + rnd(-1.5, 1.5)], i * 3);
+      D.set([rnd(.8, 2.6), rnd(.5, 1.1) * (Math.random() < .5 ? -1 : 1), Math.random() * 6.2832, Math.random()], i * 4);   // радиус петли, скорость, фаза, оттенок
+    }
+    g.setAttribute('aC', new THREE.InstancedBufferAttribute(C, 3)); g.setAttribute('aD', new THREE.InstancedBufferAttribute(D, 4));
+    this.mothMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { uT: this.uT, uK: { value: 0 } },
+      vertexShader: `uniform float uT, uK; attribute vec3 aC; attribute vec4 aD; varying float vT;
+        void main() {
+          float t = uT * aD.y + aD.z, R = aD.x;
+          vec3 c = aC + vec3(cos(t) * R + sin(t * 2.3) * .5, sin(t * 3.1) * .3 + sin(t * .7) * .25, sin(t) * R * .7 + cos(t * 1.9) * .5);
+          vec2 v = vec2(-sin(t) * R + cos(t * 2.3) * 1.15, cos(t) * R * .7 - sin(t * 1.9) * .95) * sign(aD.y);
+          float yaw = atan(v.x, v.y), fl = sin(uT * 24. + aD.z * 7.) * .95;
+          vec3 p = position; if (abs(p.x) > .001) p = vec3(p.x * cos(fl), abs(p.x) * sin(fl), p.z);   // взмах крыльев
+          p = vec3(p.x * cos(yaw) + p.z * sin(yaw), p.y, -p.x * sin(yaw) + p.z * cos(yaw)) * step(.01, uK);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(c + p, 1.); vT = aD.w; }`,
+      fragmentShader: `uniform float uK; varying float vT;
+        void main() { gl_FragColor = vec4(mix(vec3(.95, .9, .78), vec3(.84, .8, 1.), vT), .75 * uK); }`,
+    });
+    const m = new THREE.Mesh(g, this.mothMat); m.frustumCulled = false; this.scene.add(m);
   }
 
   // светящиеся частицы в воздухе и над водой — слой «как у образца»; днём еле заметны, ночью мерцают
@@ -2664,6 +2699,7 @@ export class Visual {
     this.uT.value = t; this.uWind.value = .04 + this.cur.wind * .22; this.uRimK.value = lerp(1.5, .65, day);   // светящийся контур животных (v11: ярче)
     if (this.moteMat) this.moteMat.uniforms.uK.value = lerp(1, .3, day);
     if (this.plankton) { this.plankton.uniforms.uK.value = smooth(.6, .1, day) * 1.3; this.fireflies.uniforms.uK.value = smooth(.5, .05, day) * (1 - this.cur.rain); }
+    if (this.mothMat) this.mothMat.uniforms.uK.value = smooth(.5, .05, day) * (1 - this.cur.rain);   // v23: мотыльки — как светлячки
     if (this.farPlankton) this.farPlankton.uniforms.uK.value = (lerp(.18, 1.2, smooth(.75, .1, day)) + dusk * .4) * (1 - this.cur.fog * .7);
     if (this.foamMat) this.foamMat.uniforms.uWave.value = this.cur.wave;
 

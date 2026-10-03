@@ -386,11 +386,13 @@ let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время
 // сглаживание, потом разрешение не ниже ×0.8 и не ниже одной точки на пиксель экрана (в v21 доходило до ×0.55 — «мыло»
 // на Honor 30); только понижает — туда-обратно не переключается. Звук разгружается (audio.weak) как в v21: после двух
 // «плохих» ступеней подряд — при любом выборе. В QA-снимках (&lowres) — без изменений
-// v23: life — доля растений, светлячков и мотыльков (на «Низком» и на последней ступени «Авто» — 0.4, в 2.5 раза меньше)
-// v24: «Лёгкое» — для устройств с малой памятью: ×0.6 от точки на пиксель, без сглаживания, растений и огоньков в 4 раза
-// меньше, текстуры моделей до 256 точек, звук облегчённый с выгрузкой давно не звучавших записей
-const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false, life: .4 },
-  lite: { k: Math.min(1, 1 / visual.basePR) * .6, msaa: false, life: .25, lite: true } };
+// v23: life — доля растений, светлячков и мотыльков (раскладка случайная — редеют равномерно)
+// v24: «Лёгкое» — для устройств с малой памятью: текстуры моделей до 256 точек, звук облегчённый с выгрузкой давно не
+// звучавших записей. Разрешение «Низкого» и «Лёгкого» — не ниже ×1.15 / ×1.0 точки на пиксель экрана (было ×0.75 / ×0.6:
+// на телефоне 2844×1260 рисовалось 600×279 / 480×223 — «несмотрибельно», автор), растений 60% / 40% (было 40% / 25%)
+const kAt = pr => Math.min(1, pr / visual.basePR);
+const Q = { high: { k: 1, msaa: true }, low: { k: kAt(1.15), msaa: false, life: .6 },
+  lite: { k: kAt(1), msaa: false, life: .4, lite: true } };
 // v24: «Авто» — 6 ступеней: разрешение (k от basePR, но не ниже одной точки на пиксель экрана — «мыло» на Honor 30 в v21),
 // сглаживание только на первой, доля растений и огоньков (life). Уровень — по настоящему времени кадра, решение раз в 1.5 с:
 // цель — 60 к/с; медиана кадра хуже цели на 25% или каждый 10-й кадр вдвое дольше — ступень ниже сразу. Ступень ниже не
@@ -399,7 +401,7 @@ const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR)
 // ~24 к/с 6 с подряд — сильный телефон с 30–40 к/с и рывками так и оставался на «Высоком». Звук разгружается (audio.weak)
 // с 4-й ступени «Авто» или после двух плохих окон подряд на ручном качестве
 const kMin = Math.min(1, 1 / visual.basePR);
-const AUTO = [[1, 1], [1, 1], [.85, 1], [.72, .7], [.6, .5], [.5, .3]].map(([k, life], i) => ({ k: Math.max(kMin, k), msaa: i === 0, life }));
+const AUTO = [[1, 1], [1, 1], [.85, 1], [.75, .8], [.67, .6], [.67, .4]].map(([k, life], i) => ({ k: Math.max(kMin, k), msaa: i === 0, life }));
 let qMode = 'auto'; try { qMode = localStorage.getItem('abyssonata.quality') || 'auto'; } catch { /* приватное окно */ }
 if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
 if (startLite) qMode = 'lite';   // v24: само — не запоминаем (выбор человека в настройках важнее, см. boot.js)
@@ -413,8 +415,9 @@ const setQMode = (m, user = false) => {
   if (user) try { localStorage.setItem('abyssonata.quality', m); localStorage.setItem('abyssonata.quality.user', '1'); } catch { /* приватное окно */ }
   document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
 };
+let benchHold = false;   // v24: ?bench=1 — на время замера «Авто» не трогает качество
 const watchFps = raw => {
-  if (!autoQ || document.hidden || paused || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
+  if (!autoQ || benchHold || document.hidden || paused || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
   aClock += raw; aT += raw; if (aT < 0) return;   // первые 5 с после входа и 2 с после смены ступени — не считаем
   aWin.push(raw); if (aT < 1.5) return;
   const b = aWin.sort((x, y) => x - y), q = p => b[Math.min(b.length - 1, Math.floor(p * b.length))];
@@ -435,6 +438,12 @@ const watchFps = raw => {
 };
 document.querySelectorAll('#quality button').forEach(b => b.addEventListener('click', () => setQMode(b.dataset.q, true)));
 setQMode(qMode);
+// v24: ?bench=1 — замер «что сколько стоит» на самом устройстве (bench.js): сам, через 4 с после входа в мир
+if (qs.get('bench') === '1') (async () => {
+  while (document.querySelector('#gate:not(.clear)') || !visual.assets) await new Promise(r => setTimeout(r, 500));
+  await new Promise(r => setTimeout(r, 4000));
+  (await import('./bench.js')).runBench({ visual, world, setPaused, high: Q.high, hold: on => { benchHold = on; } });
+})();
 // v24: потеря контекста WebGL (не хватило видеопамяти): надпись поверх мира; браузер вернул контекст — картинка снова
 // рисуется, качество на ступень ниже («Авто» — следующая ступень, иначе «Лёгкое»); не вернул за 6 с — кнопка перезапуска
 // страницы в «Лёгком»

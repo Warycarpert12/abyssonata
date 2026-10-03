@@ -1591,7 +1591,9 @@ export class Visual {
     const k = cap / Math.max(im.width, im.height), c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
     c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); im.close?.();
-    t.image = c; t.needsUpdate = true;
+    // v24: dispose — у уже загруженной в видеокарту текстуры место выделено под прежний размер; новая маленькая картинка
+    // ложилась в его угол, и модель брала цвет не из того места (белые пальмы после переключения на «Лёгкое» на ходу)
+    t.image = c; t.dispose(); t.needsUpdate = true;
   }
   _restyle(root, tint, rim, keep = .25) {
     const uTint = { value: new THREE.Color(tint) }, uRim = { value: new THREE.Color(rim) }, uKeep = { value: keep }, uRimK = this.uRimK;

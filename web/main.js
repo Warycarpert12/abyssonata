@@ -391,9 +391,11 @@ let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время
 // звучавших записей. Разрешение «Низкого» и «Лёгкого» — не ниже ×1.15 / ×1.0 точки на пиксель экрана (было ×0.75 / ×0.6:
 // на телефоне 2844×1260 рисовалось 600×279 / 480×223 — «несмотрибельно», автор), растений 60% / 40% (было 40% / 25%)
 const kAt = pr => Math.min(1, pr / visual.basePR);
-// ?aa=2 / ?aa=0 — сглаживание «Высокого» 2× / без (сравнить на глаз на своём телефоне; по умолчанию 4×)
-const AA = qs.get('aa'), MSAA = AA === null ? true : (+AA || false);
-const Q = { high: { k: 1, msaa: MSAA }, low: { k: kAt(1.15), msaa: false, life: .6 },
+// v24 (решение автора 03.10): на телефоне (сенсорный экран) «Высокое» — сглаживание 2× вместо 4× (на снимке 1:1 разницы
+// нет) и 65% растений — запас к 60 к/с при нагреве (?bench=2 на HUAWEI Pura 70 Ultra: с 4× и всеми растениями ~60 к/с
+// впритык). На ПК — как было. ?aa=4 / 2 / 0 — сглаживание вручную (сравнить на глаз)
+const AA = qs.get('aa'), MSAA = AA !== null ? (+AA || false) : device.touch ? 2 : true, LIFE = device.touch ? .65 : 1;
+const Q = { high: { k: 1, msaa: MSAA, life: LIFE }, low: { k: kAt(1.15), msaa: false, life: .6 },
   lite: { k: kAt(1), msaa: false, life: .4, lite: true } };
 // v24: «Авто» — 6 ступеней: разрешение (k от basePR, но не ниже одной точки на пиксель экрана — «мыло» на Honor 30 в v21),
 // сглаживание только на первой, доля растений и огоньков (life). Уровень — по настоящему времени кадра, решение раз в 1.5 с:
@@ -403,7 +405,7 @@ const Q = { high: { k: 1, msaa: MSAA }, low: { k: kAt(1.15), msaa: false, life: 
 // ~24 к/с 6 с подряд — сильный телефон с 30–40 к/с и рывками так и оставался на «Высоком». Звук разгружается (audio.weak)
 // с 4-й ступени «Авто» или после двух плохих окон подряд на ручном качестве
 const kMin = Math.min(1, 1 / visual.basePR);
-const AUTO = [[1, 1], [1, 1], [.85, 1], [.75, .8], [.67, .6], [.67, .4]].map(([k, life], i) => ({ k: Math.max(kMin, k), msaa: i === 0 && MSAA, life }));
+const AUTO = [[1, 1], [1, 1], [.85, 1], [.75, .8], [.67, .6], [.67, .4]].map(([k, life], i) => ({ k: Math.max(kMin, k), msaa: i === 0 && MSAA, life: Math.min(life, LIFE) }));
 let qMode = 'auto'; try { qMode = localStorage.getItem('abyssonata.quality') || 'auto'; } catch { /* приватное окно */ }
 if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
 if (startLite) qMode = 'lite';   // v24: само — не запоминаем (выбор человека в настройках важнее, см. boot.js)

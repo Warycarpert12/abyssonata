@@ -2862,12 +2862,18 @@ export class Visual {
       // рифа (дуга в 55–82 м к +z), центр кадра плавно смещается к рифу — он отчётливо виден внизу кадра; с других
       // сторон взгляд снова на центре (в v15 центр был всё время у рифа — «крутится только вокруг коралла») — риф виден сквозь воду, что на нём происходит
       this._spinQA ??= new URLSearchParams(location.search).has('spinqa');   // QA: сразу в кадр облёта
+      // v24 (просмотр, по умолчанию выключено): ?orbit=0..1 — «насколько ближе к видео автора»: 0 — облёт как был (~105 м,
+      // 46° от вертикали, оборот ~3 мин, центр смещается к рифу); 1 — как на видео: низко (12° над водой — горизонт и небо
+      // в кадре), ~100 м и «дышит» ±35% (подлетает к острову и отходит), оборот ~30 с, центр — главный остров
+      this._orbitK ??= clamp(+(new URLSearchParams(location.search).get('orbit')) || 0);
+      const ob = this._orbitK;
+      this.controls.autoRotateSpeed = .35 * Math.pow(2 / .35, ob);
       const tg0 = this.controls.target, k = this._spinQA ? 1 : 1 - Math.exp(-dt * .15);
-      const th = Math.atan2(this.camera.position.x - tg0.x, this.camera.position.z - tg0.z), reefK = Math.max(0, Math.cos(th)) ** 2;
-      const d0 = new V3(0, 0, 50 * reefK).sub(tg0).multiplyScalar(this._spinQA ? 1 : 1 - Math.exp(-dt * .4));
+      const th = Math.atan2(this.camera.position.x - tg0.x, this.camera.position.z - tg0.z), reefK = Math.max(0, Math.cos(th)) ** 2 * (1 - ob);
+      const d0 = new V3(0, 6 * ob, 50 * reefK).sub(tg0).multiplyScalar(this._spinQA ? 1 : 1 - Math.exp(-dt * .4));
       tg0.add(d0); this.camera.position.add(d0);
       const sp = new THREE.Spherical().setFromVector3(this.camera.position.clone().sub(tg0));
-      sp.radius = lerp(sp.radius, 105, k); sp.phi = lerp(sp.phi, .8, k);
+      sp.radius = lerp(sp.radius, lerp(105, 100, ob) * (1 + .35 * ob * Math.sin(this.clock * .16)), k); sp.phi = lerp(sp.phi, lerp(.8, 1.36, ob), k);
       this.camera.position.copy(tg0).add(new V3().setFromSpherical(sp));
     }
     this.controls.update(dtc);

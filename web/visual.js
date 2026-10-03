@@ -1489,7 +1489,7 @@ export class Visual {
   // v24: текстуры моделей — не больше 1024 точек («Лёгкое» — 256). У звезды, осьминога, пеликана и льва были по 2048: одна
   // такая — ~21 МБ видеопамяти, а цвет текстуры у нас всё равно приглушён тоном вида и рисуется гранями (flatShading)
   _fitTex(t) {
-    const im = t.image, cap = this.lite ? 256 : Infinity;
+    const im = t.image, cap = this.lite ? 256 : 1024;
     if (!im || !(Math.max(im.width, im.height) > cap)) return;
     const k = cap / Math.max(im.width, im.height), c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));

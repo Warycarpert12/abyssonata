@@ -160,7 +160,7 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 /* v14: телефоны и любые экраны (16:9, 21:9, 4:3). Сцена всегда на весь экран (раньше на узком экране панели уезжали
    под сцену в прокрутку). Панель сворачивается нажатием на заголовок; на низком экране (телефон горизонтально) панели
    компактные, «Состояние» и «Журнал» сразу свёрнуты (main.js). Отступы учитывают вырез экрана (safe-area) */
-html, body { height: 100dvh; overscroll-behavior: none; }
+html, body { height: var(--app-h, 100dvh); overscroll-behavior: none; }   /* v23: --app-h — видимая высота (main.js) */
 .panel h2 { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .panel h2::after { content: '–'; float: right; color: var(--p5); margin-left: 10px; }
 .panel.min h2::after { content: '+'; }
@@ -177,9 +177,9 @@ html, body { height: 100dvh; overscroll-behavior: none; }
   #hud .row.txt { grid-template-columns: 70px 1fr; }
   #vol { right: 10px; top: 10px; width: 204px; } #vol .row { grid-template-columns: 56px 1fr 26px; gap: 6px; margin: 3px 0; }
   .seg button { font-size: 8px; letter-spacing: .01em; padding: 4px 3px; }
-  #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: 48dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
+  #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: calc(var(--app-h, 100dvh) * .48); overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
   #log { right: 10px; bottom: 10px; width: 250px; } #log li { font-size: 10px; grid-template-columns: 38px 1fr; }
-  #log ul { max-height: 30dvh; overflow-y: auto; }
+  #log ul { max-height: calc(var(--app-h, 100dvh) * .3); overflow-y: auto; }
   #hint { max-width: 230px; font-size: 10px; padding: 7px 10px; }
   #follow { bottom: 46px; font-size: 9.5px; } #follow button { width: 22px; height: 22px; }
   /* v22: нижний ряд — между «Обитателями» и журналом, а не по центру экрана: с «Паузой» он налезал на журнал (iPhone 13,

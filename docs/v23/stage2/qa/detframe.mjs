@@ -1,11 +1,12 @@
 // QA v23: кадр за кадром на одном и том же мире и с одинаковым шагом (1/60): world.step + visual.frame с отрисовкой на
 // видеокарте ПК (ANGLE D3D11), CPU ×4. Без случайностей живого прогона — одинаковые кадры main и ветки сравнимы напрямую.
-//   node detframe.mjs <адрес собранного сайта> <имя> [секунд=150]
+//   node detframe.mjs <адрес собранного сайта> <имя> [секунд=150] [качество: auto|high|low]
 import { launch, sleep } from './cdp.mjs';
-const [url, name, secs = '150'] = process.argv.slice(2);
+const [url, name, secs = '150', q] = process.argv.slice(2);
 const s = await launch({ gpu: true });
 await s.send('Emulation.setDeviceMetricsOverride', { width: 960, height: 540, deviceScaleFactor: 1, mobile: false });
 await s.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.requestAnimationFrame = () => 0' });
+if (q) await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.setItem('abyssonata.quality', '${q}') } catch {}` });
 await s.goto(`${url}?noaudio=1&qa&seed=7&rseed=7&tod=.5`);
 await s.until('window.__om?.visual?.assets && !document.body.classList.contains("gate-open")', 180000);
 await sleep(2000);

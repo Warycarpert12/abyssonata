@@ -271,9 +271,9 @@ let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время
 // сглаживание, потом разрешение не ниже ×0.8 и не ниже одной точки на пиксель экрана (в v21 доходило до ×0.55 — «мыло»
 // на Honor 30); только понижает — туда-обратно не переключается. Звук разгружается (audio.weak) как в v21: после двух
 // «плохих» ступеней подряд — при любом выборе. В QA-снимках (&lowres) — без изменений
-// v23: flora — доля подводных растений (на «Низком» и на последней ступени «Авто» — половина)
-const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false, flora: .5 } };
-const AUTO = [Q.high, { k: 1, msaa: false }, { k: Math.max(.8, Math.min(1, 1 / visual.basePR)), msaa: false, flora: .5 }];
+// v23: life — доля растений, светлячков и мотыльков (на «Низком» и на последней ступени «Авто» — 0.4, в 2.5 раза меньше)
+const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false, life: .4 } };
+const AUTO = [Q.high, { k: 1, msaa: false }, { k: Math.max(.8, Math.min(1, 1 / visual.basePR)), msaa: false, life: .4 }];
 let qMode = 'auto'; try { qMode = localStorage.getItem('abyssonata.quality') || 'auto'; } catch { /* приватное окно */ }
 if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
 const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, strain = 0, badW = 0;

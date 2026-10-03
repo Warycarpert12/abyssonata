@@ -1174,7 +1174,7 @@ export class Visual {
       fragmentShader: `uniform float uK; varying vec3 vCol; varying float vA;
         void main() { float d = length(gl_PointCoord - .5); if (d > .5) discard; gl_FragColor = vec4(vCol, smoothstep(.5, .0, d) * vA * uK); }`,
     });
-    const pts = new THREE.Points(g, m); pts.frustumCulled = false; pts.renderOrder = order; this.scene.add(pts); return m;
+    const pts = new THREE.Points(g, m); pts.frustumCulled = false; pts.renderOrder = order; this.scene.add(pts); m.userData.g = g; return m;
   }
   _buildNightLife() {
     const sea = this.shallowPts, grass = this.grassPts;
@@ -1189,7 +1189,7 @@ export class Visual {
     this.fireflies = this._glowField(220, fly, [[.85, 1, .4], [1, .9, .35]], .5, 2.5);
     void sea;
     // v23: ещё 260 светлячков, чуть крупнее (над травой главного острова и островков; яркость — общая с первыми), и мотыльки
-    seededRandom(2310, () => { this._glowField(260, fly, [[.85, 1, .4], [1, .9, .35]], .62, 2.5).uniforms.uK = this.fireflies.uniforms.uK; this._buildMoths(); });
+    seededRandom(2310, () => { const more = this._glowField(260, fly, [[.85, 1, .4], [1, .9, .35]], .62, 2.5); more.uniforms.uK = this.fireflies.uniforms.uK; this.flies = [this.fireflies.userData.g, more.userData.g]; this._buildMoths(); });
   }
   // v23: ночные мотыльки у воды — порхают петлями над кромкой берегов (главный остров и островки), машут крыльями.
   // Один InstancedMesh, весь полёт — в вершинном шейдере (процессор каждый кадр ничего не считает); светлые, едва
@@ -1222,7 +1222,7 @@ export class Visual {
       fragmentShader: `uniform float uK; varying float vT;
         void main() { gl_FragColor = vec4(mix(vec3(.95, .9, .78), vec3(.84, .8, 1.), vT), .75 * uK); }`,
     });
-    const m = new THREE.Mesh(g, this.mothMat); m.frustumCulled = false; this.scene.add(m);
+    const m = new THREE.Mesh(g, this.mothMat); m.frustumCulled = false; this.scene.add(m); this.mothGeo = g; g.userData.n = n;
   }
 
   // светящиеся частицы в воздухе и над водой — слой «как у образца»; днём еле заметны, ночью мерцают
@@ -2637,9 +2637,12 @@ export class Visual {
 
   // качество картинки (v21 — только понижение по частоте кадров; v22 — и выбор в настройках, см. main.js): k — доля
   // разрешения от basePR, msaa — сглаживание буфера (в программном рендере его нет вовсе)
-  setQuality({ k = 1, msaa = true, flora = 1 } = {}) {
+  // v23: life — доля растений, светлячков и мотыльков (раскладка случайная — редеют равномерно)
+  setQuality({ k = 1, msaa = true, life = 1 } = {}) {
     const pr = this.basePR * k, samples = msaa && !this.soft ? 4 : 0;
-    for (const m of this.flora || []) m.count = Math.round(m.userData.n * flora);   // v23: на слабом — растений меньше (раскладка случайная — редеет равномерно)
+    for (const m of this.flora || []) m.count = Math.round(m.userData.n * life);
+    for (const g of this.flies || []) g.setDrawRange(0, Math.round(g.attributes.position.count * life));
+    if (this.mothGeo) this.mothGeo.instanceCount = Math.round(this.mothGeo.userData.n * life);
     if (Math.abs(pr - this.renderer.getPixelRatio()) > 1e-3) { this.renderer.setPixelRatio(pr); this.resize(); }
     if (samples !== this.rt.samples) { this.rt.samples = samples; this.rt.dispose(); }
   }

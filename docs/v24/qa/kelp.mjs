@@ -14,7 +14,7 @@ for (const [tag, url] of [['a', A], ['b', B]]) for (const whale of [0, 1]) {
     v._floraAvoid = () => {};
     for (const id of ['hud', 'census', 'vol', 'log', 'tod', 'credits']) { const e = document.getElementById(id); if (e) e.style.visibility = 'hidden'; }
     const a = v.uAvoid.value[0]; for (const x of v.uAvoid.value) x.set(0, -9999, 0, 1); if (v.uAvoidV) for (const x of v.uAvoidV.value) x.set(0, 0, 0, 0);
-    if (v.uAvN) v.uAvN.value = ${whale};   // v24: сколько зверей в цикле; uAvoidV.y — квадрат досягаемости (тело ×1.3 + след)
+    if (v.uAvN) v.uAvN.value = ${whale}; const nr = m.userData.near; if (nr) { nr.array.fill(${whale}); nr.needsUpdate = true; }   // v24: флаг «рядом зверь»   // v24: сколько зверей в цикле; uAvoidV.y — квадрат досягаемости (тело ×1.3 + след)
     if (${whale}) { a.set(p.x, p.y + bh * .4, p.z - 3, 10); if (v.uAvoidV) v.uAvoidV.value[0].set(0, (10 * 1.3 + 3 * 1.5 + .01) ** 2, 3, 1); }
   })()`);
   await sleep(1500); await s.shot(`kelp_${tag}${whale}.png`); s.close();

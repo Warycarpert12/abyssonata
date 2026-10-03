@@ -122,6 +122,8 @@ function hq(x, z) {
   return (HM[k] * (1 - u) + HM[k + 1] * u) * (1 - v) + (HM[k + TS] * (1 - u) + HM[k + TS + 1] * u) * v;
 }
 // высота земли под «лапами»: максимум по пятну радиуса rad — на склоне зверь не уходит брюхом в песок
+// v24: сетка флоры для поиска растений рядом со зверем (_floraAvoid): клетки 8 м на ±176 м
+const FNG = 44, fCell = v => Math.min(FNG - 1, Math.max(0, Math.floor((v + 176) / 8)));
 const groundAt = (x, z, rad) => Math.max(hq(x, z), hq(x + rad, z), hq(x - rad, z), hq(x, z + rad), hq(x, z - rad));
 // v12: крупные звери заплывали в острова. deepSpot двигает точку p туда, где под всем «пятном» радиуса rad глубже need:
 // прочь от самого мелкого места пятна (центр и 12 точек на двух кольцах — островок меньше пятна кита не проскочит),
@@ -845,7 +847,7 @@ export class Visual {
     this.uAvoidV = { value: Array.from({ length: AV }, () => new THREE.Vector4()) };   // v24: скорость зверя (xz) и сила (w)
     const mat = (F, E, side, B) => this._hook(this._stippled(new THREE.MeshLambertMaterial({ vertexColors: true, side }), true, 14), sh => {
       Object.assign(sh.uniforms, { uT: this.uT, uGlowK: this.uGlowK, uAvoid: this.uAvoid, uAvoidV: this.uAvoidV, uFloraAnim: this.uFloraAnim, uAvN: this.uAvN });
-      sh.vertexShader = `uniform float uT, uFloraAnim; uniform int uAvN; uniform vec4 uAvoid[${AV}], uAvoidV[${AV}]; attribute float aTip; varying float vTip;\n` + sh.vertexShader.replace('#include <project_vertex>', `
+      sh.vertexShader = `uniform float uT, uFloraAnim; uniform int uAvN; uniform vec4 uAvoid[${AV}], uAvoidV[${AV}]; attribute float aTip, aNear; varying float vTip;\n` + sh.vertexShader.replace('#include <project_vertex>', `
         vTip = aTip;
         vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.);
         vec3 ip = (modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.)).xyz;
@@ -856,6 +858,8 @@ export class Visual {
         // с высоты 1.2 м — ламинария ложилась почти горизонтально и разлеталась (видео автора). Теперь: сдвиг вбок не
         // больше 1.6 м от всех зверей вместе, изгиб плавный по высоте (корни на месте), верх при наклоне чуть опускается
         // (длина стебля сохраняется), позади зверя — затухающий след на ~1.5 с хода: стебли возвращаются постепенно
+        // v24: aNear — зверь может дотянуться до этого растения (_floraAvoid); остальным расчёт не нужен — вклад нулевой
+        if (aNear > .5) {
         vec2 push = vec2(0.);
         for (int i = 0; i < ${AV}; i++) {
           if (i >= uAvN) break;
@@ -872,6 +876,7 @@ export class Visual {
         float pl = length(push); if (pl > 1.6) push *= 1.6 / pl;
         float bend = smoothstep(0., 4., hm); push *= bend * bend;
         wp.xz += push; wp.y -= dot(push, push) / (2. * max(hm, .5));
+        }
         }` : ''}
         vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
       // B — своё мягкое свечение: остальная флора острова нарисована без освещения, и освещённая под водой рядом с ней темнее
@@ -913,6 +918,12 @@ export class Visual {
         m.setColorAt(i, C.setRGB(...c)); i++;
       }
       m.count = i; m.frustumCulled = false; m.userData.n = i;
+      // v24: у качающихся видов — флаг «рядом зверь» на каждое растение и сетка 8 м для его поиска (см. _floraAvoid)
+      if (K.F) {
+        const near = new THREE.InstancedBufferAttribute(new Float32Array(K.n), 1); near.setUsage(THREE.DynamicDrawUsage); K.geo.setAttribute('aNear', near); m.userData.near = near;
+        const G = this._fGrid ||= [];
+        for (let j = 0; j < i; j++) { m.getMatrixAt(j, M); P.setFromMatrixPosition(M); const c = fCell(P.x) * FNG + fCell(P.z); (G[c] ||= []).push(this.flora.length, j, P.x, P.z); }
+      }
       this.scene.add(m); this.flora.push(m);
     }
   }
@@ -941,6 +952,24 @@ export class Visual {
     this.uAvoid.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.x, t.y, t.z, t.r); else v.set(0, -9999, 0, 1); });
     this.uAvoidV.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.vx, (t.r * 1.3 + Math.hypot(t.vx, t.vz) * 1.5 + .01) ** 2, t.vz, t.s); else v.set(0, 0, 0, 0); });
     this.uAvN.value = act.length;
+    // v24: растения, до которых может дотянуться зверь (тело ×1.3 + след + 2.5 м на качание и ширину куста), — флаг aNear:
+    // только у них вершинный шейдер считает расступание. Было: цикл по 10 зверям для всех ~860 тыс. вершин флоры —
+    // на телефоне ~7 мс кадра (?bench=2). Остальным вклад и так нулевой — вид тот же
+    const G = this._fGrid; if (!G) return;
+    const was = this._nearOn ||= [], dirty = new Set();
+    for (let q = 0; q < was.length; q += 2) { const a = this.flora[was[q]].userData.near; a.array[was[q + 1]] = 0; dirty.add(a); }
+    was.length = 0;
+    for (const t of act) {
+      const Rr = t.r * 1.3 + Math.hypot(t.vx, t.vz) * 1.5 + 2.5;
+      for (let cx = fCell(t.x - Rr); cx <= fCell(t.x + Rr); cx++) for (let cz = fCell(t.z - Rr); cz <= fCell(t.z + Rr); cz++) {
+        const L = G[cx * FNG + cz]; if (!L) continue;
+        for (let q = 0; q < L.length; q += 4) {
+          const dx = L[q + 2] - t.x, dz = L[q + 3] - t.z; if (dx * dx + dz * dz > Rr * Rr) continue;
+          const a = this.flora[L[q]].userData.near; if (!a.array[L[q + 1]]) { a.array[L[q + 1]] = 1; was.push(L[q], L[q + 1]); dirty.add(a); }
+        }
+      }
+    }
+    for (const a of dirty) a.needsUpdate = true;
   }
 
   // пена-крошка у кромки: каждая крупинка набегает от берега и откатывается с волной, растёт и тает

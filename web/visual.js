@@ -1546,6 +1546,16 @@ export class Visual {
     }).then(() => { for (const o of this.agents.values()) if (!o.attached) this._attachModel(o); })
       .catch(e => { console.warn('модель', n, e?.message || e); delete this._lazy[n]; });
   }
+  // v24: креветка — 34 куска с одинаковым материалом → один: рой из 12 креветок рисовался 408 вызовами отрисовки (два роя —
+  // 816 из ~920 на кадр: больше всего времени и процессора, и видеокарты). Вид тот же
+  _mergeModel(root) {
+    root.updateMatrixWorld(true); const gs = [], ms = [];
+    root.traverse(m => { if (!m.isMesh) return; const g = m.geometry.clone().applyMatrix4(m.matrixWorld);
+      for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k); gs.push(g); ms.push(m); });
+    if (gs.length < 2) return;
+    const mesh = new THREE.Mesh(mergeGeometries(gs.every(g => g.index) ? gs : gs.map(g => g.index ? g.toNonIndexed() : g)), ms[0].material);
+    for (const m of ms) m.removeFromParent(); root.add(mesh);
+  }
   _prepModel(n, g) {
     const A = this.assets;
     // size — длина по самой длинной горизонтальной оси; yaw — поворот, чтобы голова смотрела в +z; base — низ на 0 (стоящие)
@@ -1563,7 +1573,9 @@ export class Visual {
       jellyfish: ['#ff8ad8', '#ffc6f2', .7], octopus: ['#e58a7c', '#ffc9b5', .5], starfish: ['#f0a27e', '#ffd7bd', .55], crab: ['#e5805f', '#ffc8a8', .5],
       turtle: ['#a6c48f', '#e4ffcf', .45], shrimp: ['#ffb9aa', '#ffe6de', .45], stingray: ['#8ea4bc', '#cfe7ff', .3] };
     {
-      const root = g.scene; this._restyle(root, ...TONE[n]);
+      const root = g.scene;
+      if (n === 'shrimp') this._mergeModel(root);
+      this._restyle(root, ...TONE[n]);
       // медуза — неоновая: светится сама своим цветом и полупрозрачна; рисуется до воды (renderOrder), вода её подкрашивает
       // креветки роя — тоже с неоновым свечением (иначе мелкие бледные фигурки у дна не разглядеть)
       if (n === 'shrimp') root.traverse(m => { if (m.isMesh) for (const mt of [m.material].flat()) mt.emissive.set(0xff7a6a).multiplyScalar(.55); });

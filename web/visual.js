@@ -331,6 +331,22 @@ export class Visual {
       this._mouseOver = true;
     });
     renderer.domElement.addEventListener('pointerleave', () => { this._mouseOver = false; });
+    // v24: двойной клик (ПК) или двойное касание (телефон) по зверю — слежение за ним, как из «Обитателей»/журнала.
+    // Касание — короткое (до 0.3 с) и почти без движения (до 10 px), второе — не позже 0.35 с и не дальше 30 px от
+    // первого: вращение камеры (перетаскивание) и приближение двумя пальцами двойным касанием не считаются
+    const followAt = (cx, cy) => { const r = this.stage.getBoundingClientRect(), o = this._pickAt(cx - r.left, cy - r.top, 1.3); if (o) this.followAgent(o); };
+    renderer.domElement.addEventListener('dblclick', e => followAt(e.clientX, e.clientY));
+    let td = null, tLast = null; const fingers = new Set();
+    renderer.domElement.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; fingers.add(e.pointerId);
+      td = fingers.size === 1 ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() } : null; });
+    renderer.domElement.addEventListener('pointermove', e => { if (td && e.pointerId === td.id && Math.hypot(e.clientX - td.x, e.clientY - td.y) > 10) td = null; });
+    for (const ev of ['pointercancel', 'pointerup']) renderer.domElement.addEventListener(ev, e => {
+      if (e.pointerType === 'mouse') return; fingers.delete(e.pointerId);
+      const now = performance.now(), tap = ev === 'pointerup' && td && e.pointerId === td.id && now - td.t < 300 && Math.hypot(e.clientX - td.x, e.clientY - td.y) <= 10; td = null;
+      if (!tap) { tLast = null; return; }
+      if (tLast && now - tLast.t < 350 && Math.hypot(e.clientX - tLast.x, e.clientY - tLast.y) <= 30) { tLast = null; followAt(e.clientX, e.clientY); }
+      else tLast = { x: e.clientX, y: e.clientY, t: now };
+    });
 
     this.uPix = { value: 1 }; this.uBright = { value: 1 }; this.uT = { value: 0 }; this.uWind = { value: .1 }; this.uRimK = { value: .5 }; this.uGlowK = { value: 0 };
     this.glowTex = this._glowTexture();
@@ -2671,11 +2687,13 @@ export class Visual {
   focusEvent(r) {
     if (!r) return;
     const o = r.agent != null && this.agents.get(r.agent);
-    if (o && !o.gone) { this._fly = null; this._follow = { id: o.id, sp: o.sp, t: 0, dist: FOLLOW_D[o.sp] || 12 }; this._freeCam = false; this._censusHTML = null; this.onDiscover?.(o.sp); return; }   // v23: следит — найден
+    if (o && !o.gone) { this.followAgent(o); return; }
     const p = r.pos.clone(), hr = Math.hypot(p.x, p.z); if (hr > 150) { p.x *= 150 / hr; p.z *= 150 / hr; }
     p.y = clamp(p.y, Math.max(0, islandH(p.x, p.z) + .5), 30);
     this._follow = null; this._fly = { p, t: 0 }; this._idle = 0;
   }
+  // слежение за этим зверем (журнал, двойное нажатие по зверю); v23: следит — вид найден (бестиарий)
+  followAgent(o) { this._fly = null; this._follow = { id: o.id, sp: o.sp, t: 0, dist: FOLLOW_D[o.sp] || 12 }; this._freeCam = false; this._censusHTML = null; this.onDiscover?.(o.sp); }
   _stepFly(dt) {
     const f = this._fly; if (!f) return;
     const tg = this.controls.target, cam = this.camera.position, k = 1 - Math.exp(-dt * 2.2), before = tg.clone();
@@ -2703,21 +2721,27 @@ export class Visual {
   // зверь ловился, только если курсор ближе 34 px к центру модели — у кита и у косяка (центр — пустота между рыбами)
   // это малая часть тела, а у плывущего зверя центр то входил в круг, то выходил. Теперь зона — по размеру зверя на
   // экране, у уже выбранного она в 1.6 раза шире; подпись стоит над зверем и держится 0.35 с, если курсор соскочил
-  _updateHover(dt = 0) {
-    if (!this._mouseOver) { this._hov = null; this.tipEl.classList.remove('show'); return; }
-    const w = this.w, h = this.h, mx = this._mouse.x, my = this._mouse.y, v = this._hv ??= new V3(), cam = this.camera.position;
+  // зверь под точкой экрана (mx, my — от угла сцены): ближайший по размеру тела на экране; у уже выбранного (подпись)
+  // зона в 1.6 раза шире; wide — для двойного нажатия пальцем (палец толще курсора)
+  _pickAt(mx, my, wide = 1) {
+    const w = this.w, h = this.h, v = this._hv ??= new V3(), cam = this.camera.position;
     const pxPerM = h / (2 * Math.tan(this.camera.fov * Math.PI / 360));   // пикселей экрана на метр на расстоянии 1 м
-    let best = null, bestK = 1, bx = 0, by = 0, br = 0;
+    let best = null, bestK = 1;
     for (const o of this.agents.values()) {
       if (o.gone) continue;
       v.copy(o.obj.position).project(this.camera);
       if (v.z > 1 || v.z < -1) continue;
       const px = (v.x * .5 + .5) * w, py = (-v.y * .5 + .5) * h, d = Math.hypot(px - mx, py - my);
       const rad = clamp((BODY_R[o.sp] ?? 1.5) * pxPerM / Math.max(1, o.obj.position.distanceTo(cam)), 0, 260);
-      const k = d / (Math.max(30, rad) * (o === this._hov ? 1.6 : 1));
-      if (k < bestK) { bestK = k; best = o; bx = px; by = py; br = rad; }
+      const k = d / (Math.max(30, rad) * (o === this._hov ? 1.6 : 1) * wide);
+      if (k < bestK) { bestK = k; best = o; this._pickP = [px, py, rad]; }
     }
-    if (best) { this._hov = best; this._hovT = .35; this._hovP = [bx, by, br]; }
+    return best;
+  }
+  _updateHover(dt = 0) {
+    if (!this._mouseOver) { this._hov = null; this.tipEl.classList.remove('show'); return; }
+    const best = this._pickAt(this._mouse.x, this._mouse.y);
+    if (best) { this._hov = best; this._hovT = .35; this._hovP = this._pickP; }
     else if (this._hov && ((this._hovT -= dt) <= 0 || this._hov.gone)) this._hov = null;
     const o = this._hov;
     if (o) {

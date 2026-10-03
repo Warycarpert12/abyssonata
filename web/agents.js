@@ -719,9 +719,36 @@ class Ship extends Agent {
   }
 }
 
+// ---------------------------------------------------------------- вылупление черепашат (v23, этап 3)
+// Супер-редкое ночное событие: из песка на пляже главного острова выбирается выводок черепашат и ползёт к воде.
+// Единственное изменение симуляции. Чтобы весь остальной мир считался точно как раньше: свой генератор случайных
+// чисел (Ecosystem.hatchRng — от номера мира, Math.random не трогает) и вне списка агентов (никто другой его не видит —
+// ни перебор агентов, ни счётчики, ни номера-uid других зверей). Картинке — в снимке, журналу — события 'hatching*'.
+// Окно — глубокая ночь (time_of_day 0.85..0.15, ~9.6 мин из 32-минутных суток); раз за ночь бросаем жребий HATCH_P
+// (в среднем раз в 6 ночей ≈ раз в 3 часа просмотра — решение автора 02.10.2026), в шторм — не в эту ночь
+const HATCH = { crawl: 35, sea: 110, end: 150 };   // с какой секунды ползут к воде, добрались до моря, всё
+class Hatching {
+  constructor(eco, rng) {
+    this.species = 'hatchling'; this.num = eco.hatchN = (eco.hatchN || 0) + 1; this.uid = 1e6 + this.num;
+    this.site = 0; this.x = rng() * 1.6 - 0.8; this.dist = 0; this.cnt = 10 + Math.floor(rng() * 9);
+    this.state = 'emerge'; this.t = 0; this.done = false; this.rel = 0; this.rk = '';
+  }
+  ev(type_, text, act) { return { type: type_, text, intensity: 0.3, duration: 3.0, x: this.x, dist: this.dist, agent: this.uid, voice: 0, act }; }
+  step(dt) {
+    const t0 = this.t; this.t += dt; const at = k => t0 < k && this.t >= k, out = [];
+    if (!this.told) { this.told = true; out.push(this.ev('hatching', `на пляже из песка выбираются черепашата — ${this.cnt} малышей`, 'emerge')); }
+    if (at(HATCH.crawl)) { this.state = 'crawl'; out.push(this.ev('hatching_crawl', 'черепашата наперегонки ползут к воде', 'crawl')); }
+    if (at(HATCH.sea)) { this.state = 'sea'; out.push(this.ev('hatching_sea', 'черепашата добрались до моря и уплывают', 'sea')); }
+    if (this.t >= HATCH.end) this.done = true;
+    return out;
+  }
+}
+const mulberry = seed => { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let x = Math.imul(s ^ (s >>> 15), 1 | s); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; };
+
 // ---------------------------------------------------------------- экосистема
 export class Ecosystem {
-  constructor(s) {
+  constructor(s, seed = 0) {
+    this.hatchRng = mulberry((seed ^ 0x5EED7A11) >>> 0); this.hatch = null; this.hatchAt = null; this.hatchWin = false;
     this.agents = []; this.pods = []; this.orcaPods = []; this.school = null;
     this._uid = 0; this._nums = {}; this.tEval = 0.0; this._out = [];
     this.feed = null;   // v19: где сейчас кормёжка (охотник или косяк) — туда слетаются птицы: {a, t}
@@ -872,6 +899,19 @@ export class Ecosystem {
       for (let i = 0; i < n; i++) { const o = new Orca(this, pod); pod.members.push(o); this.agents.push(o); }
       this.orcaPods.push(pod);
     }
+    else if (kind === 'hatching' && !this.hatch) this.hatch = new Hatching(this, this.hatchRng);   // v23: ?spawn=hatching
+  }
+
+  // v23: вылупление черепашат — жребий раз за ночь, своим генератором (см. Hatching)
+  _hatchStep(dt, s) {
+    const tod = s.time_of_day, win = tod > 0.85 || tod < 0.15;
+    if (win && !this.hatchWin) this.hatchAt = this.hatchRng() < Ecosystem.HATCH_P ? s.t + this.hatchRng() * 200 : null;   // новая ночь (или перемотка в ночь)
+    this.hatchWin = win;
+    if (this.hatchAt !== null && s.t >= this.hatchAt && !this.hatch) { this.hatchAt = null; if (win && !s.storm_active) this.hatch = new Hatching(this, this.hatchRng); }
+    if (!this.hatch) return [];
+    const out = this.hatch.step(dt);
+    if (this.hatch.done) this.hatch = null;
+    return out;
   }
 
   // снимок для картинки: [{id, sp, n, x, dist, st, site}] (site — берег/риф у львов и мелких обитателей, иначе -1)
@@ -881,7 +921,7 @@ export class Ecosystem {
       if (a instanceof Dolphin) st = a.pod.mode;
       else if (a instanceof SeaLion && a.away > 0 && st !== 'leave') st = a.raft ? 'raft' : 'away';
       return { id: a.uid, sp: a.species, n: a.num, x: +a.x.toFixed(3), dist: +a.dist.toFixed(3), st, site: a.site ?? -1, rel: a.rel, rk: a.rk };
-    });
+    }).concat(this.hatch ? [{ id: this.hatch.uid, sp: 'hatchling', n: this.hatch.num, x: +this.hatch.x.toFixed(3), dist: 0, st: this.hatch.state, site: 0, rel: 0, rk: '', cnt: this.hatch.cnt }] : []);
   }
 
   update(dt, s) {
@@ -899,6 +939,7 @@ export class Ecosystem {
     if (this.feed && ((this.feed.t -= dt) <= 0 || this.feed.a.done || this.feed.a.state === 'leave')) this.feed = null;
     this.pods = this.pods.filter(p => !p.done); this.orcaPods = this.orcaPods.filter(p => !p.done);
     if (this.school && this.school.done) this.school = null;
-    return events;
+    return events.concat(this._hatchStep(dt, s));   // v23: последним — порядок остальных событий как раньше
   }
 }
+Ecosystem.HATCH_P = 1 / 6;   // v23: вероятность вылупления за ночь (QA может поднять до 1)

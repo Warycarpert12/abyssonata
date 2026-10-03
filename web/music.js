@@ -73,6 +73,8 @@ export class Music {
     else if ((e.type === 'seagull' || e.type === 'tern') && r < .2) this._bell(hi() + 24, t, 'pluck');
     else if (e.type === 'dolphin' && r < .35) [0, 2, 4].forEach((d, i) => this._bell(this._note(this.deg + d) + 24, t + i * .14, 'pluck'));
     else if (e.type === 'jump_splash' && r < .2) this._bell(hi() + 24, t, 'glass');
+    // v23: черепашата выбираются из песка — тихая восходящая россыпь «стеклянных» колокольчиков (только синтез)
+    else if (e.type === 'hatching') [0, 2, 4, 7, 9, 11].forEach((d, i) => this._bell(this._note(this.deg + d) + 24, t + .3 + i * .42, 'glass'));
   }
 
   _note(d) { const M = MOODS[this.mood], L = M.mode.length; return M.root + M.mode[((d % L) + L) % L] + 12 * Math.floor(d / L); }

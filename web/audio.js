@@ -42,7 +42,7 @@ const SPEC = {
 // v12: меньше повторов — из длинной записи (у чаек до 15 с) звучит не вся она, а кусок [от, до] секунд, начинающийся
 // с одного из «вступлений» записи (где звук резко нарастает — начало крика). Одна запись даёт десятки разных криков
 const WINDOW = { gull: [2.5, 5], tern: [2, 4], cormorant: [2, 4], seal: [2, 4.5], dolphin: [1.5, 3.5], orca: [2.5, 5], whale: [6, 10],
-  bubbles: [1.5, 3.5], shrimp: [1.5, 3], crab: [1, 2.5] };
+  bubbles: [1.5, 3.5], shrimp: [1.5, 3], crab: [1, 2.5], sand: [1, 2] };   // v23: sand — шорох песка у черепашат
 // у песен кита громкость записей различается до 8 дБ — подравниваем по средней громкости (иначе часть «песен» не слышна)
 // v14: и петли насекомых — записи разной громкости, а их слой сведён по эталону (см. _buildInsects)
 const LEVEL = new Set(['whale', 'insects_day', 'insects_night']);
@@ -53,7 +53,7 @@ const SPREAD = new Set(['dolphin', 'orca']);
 // ocean_sim.py), сравнение цифрами: web/_qa_audio.html → audio_stats.py. Не выставлять «на глаз».
 
 const CATEGORIES = ['surf', 'splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish',
-  'thunder', 'rain_light', 'rain_heavy', 'rain_water', 'insects_day', 'insects_night', 'grasshopper', 'bubbles', 'shrimp', 'crab'];
+  'thunder', 'rain_light', 'rain_heavy', 'rain_water', 'insects_day', 'insects_night', 'grasshopper', 'bubbles', 'shrimp', 'crab', 'sand'];
 
 // Смолёное «блуждающее» 0..1 (замена SuperCollider LFNoise1: несколько несоизмеримых синусов).
 function wander(seed) {

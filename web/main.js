@@ -54,7 +54,7 @@ world.onEvent(m => { if (audio.ready) audio.onEvent({ ...m, ...visual.spatial(m)
 // местные звуки от картинки: плеск (рифовая рыбка, прыжки из воды), стрекот кузнечика, звуки при приближении
 // (бульки, треск креветок, щёлканье краба) — из той точки, где это видно; k — насколько близко (1 — вплотную)
 // громкость и высота: креветки и краб звучат выше записи (запись — шипение/щелчки, на них похоже в ускорении)
-const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shrimp: [.05, 1.05], crab: [.07, 1.5] };   // v14: креветки — настоящая гидрофонная запись, почти без ускорения
+const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shrimp: [.05, 1.05], crab: [.07, 1.5], sand: [.025, 1.1] };   // v14: креветки — настоящая гидрофонная запись, почти без ускорения; v23: sand — шорох песка у черепашат, тихо (они маленькие)
 visual.onLocalSound = (cat, pos, k = 1) => {
   if (!audio.ready) return;
   const sp = visual.spatialAt(pos), [amp, rate] = LOCAL[cat] || [.05, 1];
@@ -64,7 +64,8 @@ visual.onLocalSound = (cat, pos, k = 1) => {
 const qs = new URLSearchParams(location.search);
 // старт всегда днём (раньше был случайный час — можно было попасть на тёмный/тусклый первый
 // экран, отсюда была часть жалоб «серый камень»); из URL можно переопределить для QA
-const startTod = qs.has('tod') ? parseFloat(qs.get('tod')) : .5;
+// v23: ?spawn=hatching — вылупление черепашат сразу; без tod в адресе — ночью (событие ночное)
+const startTod = qs.has('tod') ? parseFloat(qs.get('tod')) : /hatching/.test(qs.get('spawn') || '') ? .02 : .5;
 if (qs.has('qa')) window.__om = { world, visual, audio };   // v22 QA: доступ для автопроверок (только с ?qa в адресе)
 const seed = qs.has('seed') ? parseInt(qs.get('seed'), 10) : null;
 world.start({ startTod, seed });
@@ -72,6 +73,8 @@ world.start({ startTod, seed });
 // ?spawn=shark,orca,jellyfish,... — вызвать гостя сразу (программный рендер в QA успевает лишь пару первых кадров);
 // два нулевых шага: на первом симуляция только снимает начальное состояние, экосистема появляется на втором
 if (qs.has('spawn')) { world.step(0); world.step(0); qs.get('spawn').split(',').forEach(k => world.debugSpawn(k.trim())); visual.synced = false; }   // гости — сразу на месте, не из дымки
+// v23: ?spawn=hatching — камера сама летит к выводку, как по нажатию на запись журнала
+if (/hatching/.test(qs.get('spawn') || '')) { const t = setInterval(() => { if ([...visual.agents.values()].some(o => o.sp === 'hatchling' && o.kids)) { visual.focusSpecies('hatchling'); clearInterval(t); } }, 500); }
 // v21 QA (только с параметрами в адресе, на обычный мир не влияет): &qa=dry — баклан сразу сушит крылья на камне;
 // &pre=N — прожить N секунд мира и движения зверей до первого кадра (в безголовом снимке мир живёт ~1 с)
 if (qs.get('qa') === 'dry') {

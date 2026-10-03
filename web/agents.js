@@ -1,8 +1,7 @@
-// Abyssonata — экосистема существ, порт agents.py в браузер (1:1, см. заголовок sim.js).
-// Эталон поведения — agents.py на диске (и на колонке, она теперь его не считает, но файл
-// остаётся справочником). Каждое существо — мини-агент со своим состоянием и правилами; Ecosystem
-// решает, кто прилетает/уплывает по погоде и времени суток, агенты влияют друг на друга
-// (перекличка, испуг косяка рыб, заразительные прыжки дельфинов).
+// Abyssonata — экосистема существ (см. заголовок sim.js). Каждое существо — мини-агент со своим состоянием и
+// правилами; Ecosystem решает, кто прилетает/уплывает по погоде и времени суток, агенты влияют друг на друга
+// (перекличка, испуг косяка рыб, заразительные прыжки дельфинов). Поведение сверено с открытыми источниками
+// (Википедия: названия статей — в комментариях у правил).
 const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -41,9 +40,8 @@ class Agent {
     this.voice = randint(1, 1e6);
     this.talk = rnd(0.7, 1.4);
     this.state = 'stay'; this.done = false; this.pending = []; this.fem = false;
-    // v19: с кем сейчас связан (uid) и как: 'to' — держится рядом (охота, кормёжка, стая), 'from' — уходит прочь.
-    // Картинка ставит зверя по этой связи (раньше у каждого свой угол вокруг острова — «рядом» в журнале, а на экране
-    // по разные стороны острова)
+    // с кем сейчас связан (uid) и как: 'to' — держится рядом (охота, кормёжка, стая), 'from' — уходит прочь.
+    // Картинка ставит зверя по этой связи — «рядом» в журнале значит рядом и на экране
     this.rel = 0; this.rk = ''; this.relT = 0;
   }
   relate(o, kind = '', t = 0) {
@@ -77,10 +75,10 @@ const BIRDS = {
     says: ['кричит над водой', 'перекликается с ветром', 'резко вскрикнула'] },
   tern: { name: 'крачка', fem: true, call: [30, 80], dive: [40, 100], speed: 0.16, dist: [0.3, 0.65], drift: 0.03,
     says: ['пронзительно кричит', 'стрекочет над волной', 'тонко вскрикнула'] },
-  // v14 (Википедия «Cormorant»): после ныряния баклан выходит на камень и сушит раскинутые крылья — dry: сколько сушит
+  // «Cormorant» (Википедия): после ныряния баклан выходит на камень и сушит раскинутые крылья — dry: сколько сушит
   cormorant: { name: 'баклан', fem: false, call: [50, 120], dive: [40, 110], speed: 0.12, dist: [0.35, 0.5], drift: 0.0, dry: [30, 70],
     says: ['хрипло каркает на камне', 'гортанно крикнул'] },
-  // v14 («Brown pelican»): ныряет с высоты камнем, клювом вперёд; вынырнув, сливает воду из мешка и глотает рыбу
+  // «Brown pelican»: ныряет с высоты камнем, клювом вперёд; вынырнув, сливает воду из мешка и глотает рыбу
   pelican: { name: 'пеликан', fem: false, call: null, dive: [50, 140], speed: 0.08, dist: [0.3, 0.6], drift: 0.01, plunge: true, says: [] },
   albatross: { name: 'альбатрос', fem: false, call: [60, 140], dive: null, speed: 0.04, dist: [0.7, 0.9], drift: 0.005,
     says: ['протяжно кричит вдали'] },
@@ -95,7 +93,7 @@ class Bird extends Agent {
     this.state = 'arrive'; this.tDry = 0; this.dryLeft = 0;
     this.tCall = this._gap(c.call); this.tDive = this._gap(c.dive);
     this.life = species === 'albatross' ? rnd(90, 200) : null;
-    // v19 («Brown pelican»): пеликаны летают группой цепочкой — ведомый держится за ведущим (картинка ставит в линию)
+    // «Brown pelican»: пеликаны летают группой цепочкой — ведомый держится за ведущим (картинка ставит в линию)
     if (lead) this.relate(lead, 'flock', 1e9);
     if (instant) { this.x = this.tx; this.dist = this.td; this.state = 'stay'; }
   }
@@ -109,7 +107,7 @@ class Bird extends Agent {
   _dive() {
     this.eco.disturb(this.x, 0.5);
     this.eco.startleShore(this.x);
-    // v19: крачка сначала зависает над водой, потом ныряет («Tern»); баклан уходит под воду с полупрыжком и выныривает
+    // крачка сначала зависает над водой, потом ныряет («Tern»); баклан уходит под воду с полупрыжком и выныривает
     // поодаль («Cormorant»)
     const text = this.c.plunge ? `${this.label} сложил крылья и камнем упал в воду за рыбой`
       : this.species === 'tern' ? `${this.label} зависла над волной и нырнула за рыбой`
@@ -144,7 +142,7 @@ class Bird extends Agent {
       this.dryLeft -= dt; this.tCall -= dt;
       if (this.tCall <= 0) { out = out.concat(this._call()); this.tCall = this._gap(c.call); }
       if (this.dryLeft <= 0) this.state = 'stay';
-    } else if (this.state === 'sit') {   // v19 («Albatross»): без ветра парить не может — сидит на воде, пока ветер не вернётся
+    } else if (this.state === 'sit') {   // «Albatross»: без ветра парить не может — сидит на воде, пока ветер не вернётся
       if (s.wind_speed > 0.3) { this.state = 'stay'; out.push(this.ev(`${this.species}_arrive`, `${this.label} поймал ветер и снова парит над волнами`, 0.2, 3.0, 'soar')); }
     } else if (this.state === 'stay') {
       if (this.tDry > 0 && (this.tDry -= dt) <= 0) {
@@ -160,7 +158,7 @@ class Bird extends Agent {
         if (this.eco.count('ship') && Math.random() < 0.004 * dt) return out.concat(this.leave(`${this.label} полетел вслед за пароходом`));
       }
       if (c.drift) this.x = Math.max(-0.9, Math.min(0.9, this.x + gauss(0, c.drift) * Math.sqrt(dt)));
-      // v19 («Gull», «Tern»): птицы слетаются туда, где охотятся дельфины, кит или косатки и рыба у поверхности
+      // «Gull», «Tern»: птицы слетаются туда, где охотятся дельфины, кит или косатки и рыба у поверхности
       const feed = this.eco.feed;
       if (c.dive && feed && this.rel !== feed.a.uid && Math.random() < 0.08 * dt) this.relate(feed.a, 'to', feed.t);
       const atFeed = feed && this.rel === feed.a.uid && this.relT > 0;
@@ -195,12 +193,12 @@ class Pod {
     this.tMode -= dt;
     const sch = this.eco.school;
     if (!this.leaving && this.tMode <= 0) {
-      // v14: ночью стая чаще отдыхает — медленно плывёт у поверхности, почти не прыгает (дельфины спят «половиной мозга»)
+      // ночью стая чаще отдыхает — медленно плывёт у поверхности, почти не прыгает (дельфины спят «половиной мозга»)
       this.mode = (s.daylight < 0.25 && Math.random() < 0.6) ? 'rest' : (sch && Math.random() < 0.7) ? 'hunt' : choice(['travel', 'play', 'play']);
       this.tMode = rnd(25, 60);
     }
     if (this.mode === 'hunt' && (!sch || this.leaving)) this.mode = 'travel';
-    // v19 («Common bottlenose dolphin»): акула рядом — стая сбивается плотнее и уходит от неё (нападает она на детёнышей)
+    // «Common bottlenose dolphin»: акула рядом — стая сбивается плотнее и уходит от неё (нападает она на детёнышей)
     const shark = this.eco.agents.find(a => a.species === 'shark' && !a.done && a.state !== 'leave' && Math.abs(a.x - this.x) < 0.4);
     if (shark && !this.leaving && this.guardOf !== shark.uid) {
       this.guardOf = shark.uid; this.mode = 'guard'; this.tMode = rnd(20, 35); this.vx = copysign(Math.abs(this.vx) || 0.012, this.x - shark.x || 1.0);
@@ -264,10 +262,10 @@ class Whale extends Agent {
     this.vx = rnd(-0.004, 0.004); this.cycles = randint(2, 4);
     this.state = 'surface'; this.tState = rnd(40, 90); this.tSong = rnd(8, 20);
     this.announced = instant;
-    // v14 (Википедия «Humpback whale»): поёт самец и под водой; на поверхности — серия выдохов-фонтанов, изредка прыжок
+    // «Humpback whale» (Википедия): поёт самец и под водой; на поверхности — серия выдохов-фонтанов, изредка прыжок
     // во весь рост или шлепок хвостом
     this.male = Math.random() < 0.6; this.tBlow = rnd(6, 14); this.tShow = rnd(60, 160);
-    // v19: охота «пузырьковой сетью» на косяк, отдых у поверхности, шлепок грудным плавником, отгоняет косаток
+    // охота «пузырьковой сетью» на косяк, отдых у поверхности, шлепок грудным плавником, отгоняет косаток
     this.tFeed = rnd(20, 60); this.tMob = 0; this.rested = false;
   }
   leave() {
@@ -335,15 +333,15 @@ class Whale extends Agent {
   }
 }
 
-// v11: морские львы лежат не колонией из трёх на главном острове, а по одному-двое на разных берегах
-// (site: 0 — главный остров, 1..7 — островки), приходят из моря и уходят; x — место вдоль берега
+// морские львы — по одному-двое на разных берегах (site: 0 — главный остров, 1..7 — островки), приходят из моря
+// и уходят; x — место вдоль берега
 class SeaLion extends Agent {
   constructor(eco, site, x, instant = false) {
     super(eco, 'sea_lion', 'морской лев', x, 0.5);
     this.site = site; this.announced = instant;
     this.tBark = rnd(40, 140) * this.talk; this.tSwim = rnd(120, 300); this.away = 0.0;
     this.raft = false; this.rafty = 0;
-    this.life = rnd(240, 600);   // v12: короче (было 400–1200) — пользователь: львов слишком много
+    this.life = rnd(240, 600);
   }
   leave() {
     if (this.state === 'leave') return [];
@@ -359,7 +357,7 @@ class SeaLion extends Agent {
     }
     this.life -= dt;
     if (this.life <= 0 && this.away <= 0) return out.concat(this.leave());
-    // косатки рядом (v12): лев в воде спешит на берег, лев на берегу купаться не идёт; v19 — и акула рядом
+    // косатки рядом: лев в воде спешит на берег, лев на берегу купаться не идёт; и акула рядом
     // («California sea lion»: боится косаток и белых акул)
     const orca = this.eco.agents.some(a => a.species === 'orca' && !a.done && a.state !== 'leave' && Math.abs(a.x - this.x) < 0.5);
     const shark = this.eco.agents.find(a => a.species === 'shark' && !a.done && a.state !== 'leave' && Math.abs(a.x - this.x) < 0.4);
@@ -401,14 +399,14 @@ class FishSchool extends Agent {
     super(eco, 'fish_school', 'косяк рыб', rnd(-0.6, 0.6), rnd(0.4, 0.7));
     this.fem = false; this.life = rnd(80, 200); this.alert = 0.0; this.vx = rnd(-0.006, 0.006); this.tJump = rnd(30, 70);
     this.fleeVx = 0.0;
-    this.ball = 0.0;   // v19: сбит охотниками в плотный шар у поверхности (с)
+    this.ball = 0.0;   // сбит охотниками в плотный шар у поверхности (с)
   }
   // хищник рядом: косяк шарахается в сторону от него (быстро, пока не пройдёт испуг)
   flee(fromX) { this.alert = Math.max(this.alert, 15.0); this.fleeVx = copysign(0.05, this.x - fromX || 1.0); }
   step(dt, s) {
     const out = [];
     this.alert = Math.max(0.0, this.alert - dt); this.ball = Math.max(0.0, this.ball - dt);
-    // v19 («Shoaling and schooling»): днём косяк держится стаей, ночью рассыпается и почти не шарахается;
+    // «Shoaling and schooling»: днём косяк держится стаей, ночью рассыпается и почти не шарахается;
     // в шаре не уходит — его держат охотники
     const night = s.daylight < 0.2;
     this.state = this.ball > 0 ? 'ball' : this.alert > 0 ? 'alert' : night ? 'shoal' : 'stay';
@@ -427,9 +425,8 @@ class FishSchool extends Agent {
   }
 }
 
-// ---------------------------------------------------------------- мелкие обитатели (v11)
-// Раньше были только строчками каталога sim.js («медуза дрейфует…») — в журнале писались, в мире их не было.
-// Теперь каждый — агент со своей жизнью: приходит, живёт, что-то делает, реагирует на соседей, уходит.
+// ---------------------------------------------------------------- мелкие обитатели
+// Каждый — агент со своей жизнью: приходит, живёт, что-то делает, реагирует на соседей, уходит.
 // zone — где живёт (картинка ставит по ней): water — вокруг острова, reef — риф/отмели островков, shallow —
 // отмель главного острова, shore — берег (site: 0 — главный остров, 1..7 — островки).
 // max(s) — сколько их сейчас уместно, life/act — сколько живёт и как часто что-то делает (с).
@@ -464,7 +461,7 @@ const CRITTERS = {
     arrive: 'выбрался из норки', gone: 'юркнул в норку' },
 };
 
-// v19: мелкие обитатели чаще действуют в своё время: креветки, звезда, осьминог, краб — ночью (суточная миграция, «Octopus»,
+// мелкие обитатели чаще действуют в своё время: креветки, звезда, осьминог, краб — ночью (суточная миграция, «Octopus»,
 // «Ghost crab»)
 const NIGHT_ACT = { shrimp_swarm: 0.6, starfish: 0.5, octopus: 0.6, crab: 0.5 };
 const alive = a => a && !a.done && a.state !== 'leave';
@@ -477,7 +474,7 @@ class Critter extends Agent {
     this.site = c.zone === 'shore' ? pickSite() : c.zone === 'reef' ? randint(0, SITES - 1) : 0;   // у рифовых 0 — сам риф
     this.life = rnd(c.life[0], c.life[1]); this.tAct = rnd(c.act[0], c.act[1]) * (instant ? rnd(0.2, 1) : 1);
     this.hide = 0.0; this.announced = instant;
-    // v19 («Jellyfish»): после шторма медуз выносит на берег — лежит на песке, пока не смоет волной; к ней идут крабы
+    // «Jellyfish»: после шторма медуз выносит на берег — лежит на песке, пока не смоет волной; к ней идут крабы
     this.stranded = stranded;
     if (stranded) { this.site = pickSite(); this.dist = 0.0; this.life = rnd(120, 240); this.state = 'stranded'; }
     this.tBreath = rnd(30, 80); this.mode = ''; this.modeT = 0.0;   // черепаха: всплытия; режим: sleep / bask
@@ -562,7 +559,7 @@ class Critter extends Agent {
     }
     return out;
   }
-  // черепаха (v19, «Green sea turtle»): всплывает подышать каждую минуту-полторы; ночью спит, забившись под уступ рифа;
+  // черепаха («Green sea turtle»): всплывает подышать каждую минуту-полторы; ночью спит, забившись под уступ рифа;
   // днём в тепло изредка выползает погреться на пляж; от акулы уходит
   _turtle(dt, s) {
     const out = [];
@@ -619,7 +616,7 @@ class Shark extends Agent {
     const big = this.eco.agents.find(a => !a.done && a.state !== 'leave' && ((a.species === 'whale' && a.state === 'surface') || a.species === 'orca') && Math.abs(a.x - this.x) < 0.6);
     if (big) return out.concat(this.leave(true));
     if (this.life <= 0) return out.concat(this.leave());
-    // v19 («Great white shark»): караулит у берега, где морской лев ушёл купаться, — лев замечает и выскакивает на берег
+    // «Great white shark»: караулит у берега, где морской лев ушёл купаться, — лев замечает и выскакивает на берег
     this.tStalk -= dt;
     const lion = this.tStalk <= 0 && this.eco.agents.find(a => a.species === 'sea_lion' && a.away > 0 && !a.done && Math.abs(a.x - this.x) < 0.7);
     if (lion) {
@@ -639,7 +636,7 @@ class Shark extends Agent {
   }
 }
 
-// v19 («Killer whale»): охотники на зверей подкрадываются молча — пока рядом морской лев в воде или дельфины, стая не
+// «Killer whale»: охотники на зверей подкрадываются молча — пока рядом морской лев в воде или дельфины, стая не
 // перекликается; потом (добыча ушла) шумно перекликается. Выглядывают из воды (spyhop); на косяк — «карусель»: сбивают
 // рыбу в шар и глушат ударами хвоста
 class OrcaPod {
@@ -695,7 +692,7 @@ class Orca extends Agent {
   }
 }
 
-// ---------------------------------------------------------------- пароход на горизонте (v13)
+// ---------------------------------------------------------------- пароход на горизонте
 // Очень редкое событие: в случайной точке горизонта показывается пароход, несколько минут идёт вдоль него, 1–3 раза
 // даёт далёкий гудок и скрывается. К острову не подходит: картинка ведёт его дугой ~1400 м, мимо дальнего острова
 class Ship extends Agent {
@@ -719,13 +716,13 @@ class Ship extends Agent {
   }
 }
 
-// ---------------------------------------------------------------- вылупление черепашат (v23, этап 3)
+// ---------------------------------------------------------------- вылупление черепашат
 // Супер-редкое ночное событие: из песка на пляже главного острова выбирается выводок черепашат и ползёт к воде.
-// Единственное изменение симуляции. Чтобы весь остальной мир считался точно как раньше: свой генератор случайных
-// чисел (Ecosystem.hatchRng — от номера мира, Math.random не трогает) и вне списка агентов (никто другой его не видит —
-// ни перебор агентов, ни счётчики, ни номера-uid других зверей). Картинке — в снимке, журналу — события 'hatching*'.
+// Чтобы весь остальной мир считался точно так же, как без него: свой генератор случайных чисел (Ecosystem.hatchRng —
+// от номера мира, Math.random не трогает) и вне списка агентов (никто другой его не видит — ни перебор агентов, ни
+// счётчики, ни номера-uid других зверей). Картинке — в снимке, журналу — события 'hatching*'.
 // Окно — глубокая ночь (time_of_day 0.85..0.15, ~9.6 мин из 32-минутных суток); раз за ночь бросаем жребий HATCH_P
-// (в среднем раз в 6 ночей ≈ раз в 3 часа просмотра — решение автора 02.10.2026), в шторм — не в эту ночь
+// (в среднем раз в 6 ночей ≈ раз в 3 часа просмотра), в шторм — не в эту ночь
 const HATCH = { crawl: 35, sea: 110, end: 150 };   // с какой секунды ползут к воде, добрались до моря, всё
 class Hatching {
   constructor(eco, rng) {
@@ -751,9 +748,9 @@ export class Ecosystem {
     this.hatchRng = mulberry((seed ^ 0x5EED7A11) >>> 0); this.hatch = null; this.hatchAt = null; this.hatchWin = false;
     this.agents = []; this.pods = []; this.orcaPods = []; this.school = null;
     this._uid = 0; this._nums = {}; this.tEval = 0.0; this._out = [];
-    this.feed = null;   // v19: где сейчас кормёжка (охотник или косяк) — туда слетаются птицы: {a, t}
+    this.feed = null;   // где сейчас кормёжка (охотник или косяк) — туда слетаются птицы: {a, t}
     this.wasStorm = false;
-    // морские львы на старте: 0–1 группа (v12: было 1–2 — пользователь: «львов меньше»)
+    // морские львы на старте: 0–1 группа
     for (let g = 0, ng = randint(0, 1); g < ng; g++) this._lionGroup(true);
     for (let i = 0; i < 4; i++) this._manage(s, true);
     this._out = [];
@@ -761,7 +758,7 @@ export class Ecosystem {
   nextUid() { this._uid += 1; return this._uid; }
   nextNum(species) { this._nums[species] = (this._nums[species] || 0) + 1; return this._nums[species]; }
   count(species) { return this.agents.filter(a => a.species === species && a.state !== 'leave' && !a.done && !a.stranded).length; }
-  // v19: охотник сбил рыбу к поверхности — здесь кормёжка на t секунд
+  // охотник сбил рыбу к поверхности — здесь кормёжка на t секунд
   feedAt(a, t) { this.feed = { a, t }; }
   // птица поймала рыбу — чайка рядом пытается её отнять («Gull», «Brown pelican»: клептопаразитизм)
   onCatch(bird, delay) {
@@ -851,20 +848,20 @@ export class Ecosystem {
     // акула: редко, чаще в сумерки/ночью и когда у острова есть косяк рыб
     const sw = (0.3 + (1 - day) * 0.6 + dk * 0.5) * (schoolOn ? 2.0 : 0.6);
     if (!instant && this.count('shark') === 0 && c > 0.3 && Math.random() < 0.0035 * sw) this.agents.push(new Shark(this));
-    // морские львы (v12: реже — было до 4 днём): днём до 2, ночью никого нового; приходят по одному-двое, уходят по одному
+    // морские львы: днём до 2, ночью никого нового; приходят по одному-двое, уходят по одному
     const lions = this.count('sea_lion'), lionTgt = Math.round(1.5 * day * c);
     if (!instant && lions < lionTgt && Math.random() < 0.01) this._lionGroup();
     if (!instant && lions > lionTgt && Math.random() < 0.05) {
       const cand = this.agents.filter(a => a.species === 'sea_lion' && a.state !== 'leave' && a.away <= 0);
       if (cand.length) this._out = this._out.concat(choice(cand).leave());
     }
-    // мелкие обитатели (v11): по одному, пока их меньше, чем уместно по погоде/времени суток
+    // мелкие обитатели: по одному, пока их меньше, чем уместно по погоде/времени суток
     for (const sp of Object.keys(CRITTERS)) {
       const tgt = Math.round(CRITTERS[sp].max(s));
       let n = this.count(sp);
       while (n < tgt && (instant || Math.random() < 0.08)) { this.agents.push(new Critter(this, sp, instant)); n += 1; if (!instant) break; }
     }
-    // косатки: очень редко (v11: пользователь — «косаток слишком много»), стаей 2–3; дельфины при них уходят
+    // косатки: очень редко, стаей 2–3; дельфины при них уходят
     if (!instant && !this.orcaPods.length && c > 0.35 && Math.random() < 0.0005) {
       const pod = new OrcaPod(this), n = randint(2, 3);
       for (let i = 0; i < n; i++) { const o = new Orca(this, pod); pod.members.push(o); this.agents.push(o); }
@@ -873,7 +870,7 @@ export class Ecosystem {
       this._out.push({ type: 'orca_arrive', text: `стая из ${n} косаток подошла к острову`, intensity: 0.5, duration: 4.0,
         x: pod.x, dist: pod.dist, agent: 0, voice: 0, act: 'arrive' });
     }
-    // v19: шторм кончился — на берег выброшено 1–2 медузы
+    // шторм кончился — на берег выброшено 1–2 медузы
     if (!instant && this.wasStorm && !s.storm_active) for (let i = 0, n = randint(1, 2); i < n; i++) this.agents.push(new Critter(this, 'jellyfish', false, true));
     this.wasStorm = s.storm_active;
     // пароход: очень редко (в среднем раз в ~35 мин), только один
@@ -899,10 +896,10 @@ export class Ecosystem {
       for (let i = 0; i < n; i++) { const o = new Orca(this, pod); pod.members.push(o); this.agents.push(o); }
       this.orcaPods.push(pod);
     }
-    else if (kind === 'hatching' && !this.hatch) this.hatch = new Hatching(this, this.hatchRng);   // v23: ?spawn=hatching
+    else if (kind === 'hatching' && !this.hatch) this.hatch = new Hatching(this, this.hatchRng);   // ?spawn=hatching
   }
 
-  // v23: вылупление черепашат — жребий раз за ночь, своим генератором (см. Hatching)
+  // вылупление черепашат — жребий раз за ночь, своим генератором (см. Hatching)
   _hatchStep(dt, s) {
     const tod = s.time_of_day, win = tod > 0.85 || tod < 0.15;
     if (win && !this.hatchWin) this.hatchAt = this.hatchRng() < Ecosystem.HATCH_P ? s.t + this.hatchRng() * 200 : null;   // новая ночь (или перемотка в ночь)
@@ -933,13 +930,13 @@ export class Ecosystem {
     for (const a of this.agents) events = events.concat(a.step(dt, s));
     if (this._out.length) { events = events.concat(this._out); this._out = []; }
     this.agents = this.agents.filter(a => !a.done);
-    // связи (v19): истекают по времени или когда партнёр ушёл
+    // связи: истекают по времени или когда партнёр ушёл
     const ids = new Set(this.agents.filter(a => a.state !== 'leave').map(a => a.uid));
     for (const a of this.agents) if (a.rel && ((a.relT -= dt) <= 0 || !ids.has(a.rel))) a.relate(null);
     if (this.feed && ((this.feed.t -= dt) <= 0 || this.feed.a.done || this.feed.a.state === 'leave')) this.feed = null;
     this.pods = this.pods.filter(p => !p.done); this.orcaPods = this.orcaPods.filter(p => !p.done);
     if (this.school && this.school.done) this.school = null;
-    return events.concat(this._hatchStep(dt, s));   // v23: последним — порядок остальных событий как раньше
+    return events.concat(this._hatchStep(dt, s));   // последним — порядок остальных событий не меняется
   }
 }
-Ecosystem.HATCH_P = 1 / 6;   // v23: вероятность вылупления за ночь (QA может поднять до 1)
+Ecosystem.HATCH_P = 1 / 6;   // вероятность вылупления за ночь (для проверок можно поднять до 1)

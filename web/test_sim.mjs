@@ -1,11 +1,11 @@
-// Самопроверка браузерной симуляции (node web/test_sim.mjs): частота событий в минуту при шаге как в
-// Python-эталоне (0.1 с) и как в браузере (по кадрам, 1/60 с). Если частоты расходятся — где-то вероятность
-// считается «за вызов», а не «за секунду», и звук в браузере превращается в кашу.
+// Самопроверка симуляции (node web/test_sim.mjs): частота событий в минуту при шаге 0.1 с и при шаге кадра
+// (1/60 с). Если частоты расходятся — где-то вероятность считается «за вызов», а не «за секунду», и звук
+// превращается в кашу.
 import { OceanSimulation } from './sim.js';
 
 const AUDIBLE = new Set(['splash', 'wave_break', 'surf_surge', 'dive_splash', 'jump_splash', 'seagull', 'tern', 'albatross',
   'cormorant', 'whale', 'dolphin', 'flying_fish', 'thunder', 'storm_start', 'sea_lion', 'orca', 'shark_hunt',
-  'whale_arrive', 'whale_surface', 'whale_blow', 'ship_horn', 'whale_lunge']);   // v12: выдох кита с фонтаном; v13: гудок парохода
+  'whale_arrive', 'whale_surface', 'whale_blow', 'ship_horn', 'whale_lunge']);   // выдох кита с фонтаном, гудок парохода
 
 export function run(dt, minutes = 96, seed = 1) {
   const sim = new OceanSimulation({ seed });

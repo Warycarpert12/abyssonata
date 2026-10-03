@@ -1,5 +1,5 @@
-bsb_1038.wav | Tongue clicks | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/tongue-clicks-s1038.html
-bsb_0839.wav | Feet on pebbles | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/feet-on-pebbles-s0839.html
+bsb_1038.wav | Tongue clicks | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/tongue-clicks-s1038.html
+bsb_0839.wav | Feet on pebbles | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/feet-on-pebbles-s0839.html
 Щёлканье клешнями и шорох по гальке у краба при приближении камеры (играется выше и тише). v11.
 761559.ogg (превью HQ ogg через API) → fs761559.wav | crab walking | stuniverso | CC0 | https://freesound.org/people/stuniverso/sounds/761559/
 770031.ogg (превью HQ ogg через API) → fs770031.wav | Crab - Legs | Vrymaa | CC0 | https://freesound.org/people/Vrymaa/sounds/770031/

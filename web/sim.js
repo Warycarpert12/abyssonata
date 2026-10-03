@@ -1,8 +1,5 @@
-// Abyssonata — симуляция мира (погода/волны/сутки + каталог явлений), порт ocean_sim.py
-// в браузер (22.09.2026). Решение пользователя: колонка (Raspberry Pi) больше не считает мир —
-// вся логика теперь здесь, чтобы время можно было по-настоящему перематывать мгновенно и без
-// сервера, а страница когда-нибудь заработала как офлайн-PWA. Эталон поведения — ocean_sim.py
-// и agents.py на диске (не автогенерация, при правках логики держать в синхроне руками).
+// Abyssonata — симуляция мира (погода/волны/сутки + каталог явлений среды). Считается в браузере: время можно
+// мгновенно перематывать, сервер не нужен. Перенесено из прототипа на Python — числа и правила те же.
 import { Noise2D } from './noise.js';
 import { Ecosystem } from './agents.js';
 
@@ -21,7 +18,7 @@ const TIER = {
 // Существа теперь ведут агенты (agents.js) — их каталожные события здесь отключены.
 const AGENT_TYPES = new Set(['fish_school', 'flying_fish', 'seagull', 'cormorant', 'tern', 'pelican',
   'albatross', 'whale', 'dolphin', 'sea_lion', 'shark',
-  'jellyfish', 'stingray', 'starfish', 'octopus', 'shrimp_swarm', 'sea_turtle']);   // v11: мелкие обитатели — тоже агенты
+  'jellyfish', 'stingray', 'starfish', 'octopus', 'shrimp_swarm', 'sea_turtle']);   // мелкие обитатели — тоже агенты
 const TENSION_IMPULSES = { shark: 0.28, shark_hunt: 0.12, orca_arrive: 0.2, whale_arrive: 0.16, storm_start: 0.30, wave_break: 0.02 };
 
 const _storm = s => smoothstep(0.60, 0.80, s.weather);
@@ -98,7 +95,7 @@ function buildCatalog() {
     ['вода вспыхнула бирюзовым светом — планктон', 'береговую линию окрасило мерцающим светом', 'капли светятся, как звёздная пыль, — биолюминесценция'],
     [5, 12], [0, 1], s => 0.4 + _night(s) * 0.3);
 
-  // v16: волны и брызги на 30% реже (пользователь: «шум волн слишком часто»)
+  // волны и брызги — реже (иначе шум волн слишком частый)
   add('wave_break', 'frequent', s => (0.3 + s.wave_height * 0.7) * 0.7,
     ['волна разбилась о берег', 'волна с грохотом обрушилась на камни', 'пенная шапка накрыла прибрежные камни', 'волна докатилась до песка и шипя отхлынула'],
     [1, 3], [0, 1], s => 0.3 + s.wave_height * 0.6);
@@ -136,7 +133,7 @@ export class OceanSimulation {
     this.catalog = buildCatalog();
   }
 
-  // стартовое время суток (аналог --start-tod)
+  // стартовое время суток
   setStartTod(frac) { this.state.t = frac * this.dayLength; }
   // настоящая перемотка: двигаем часы мира по кратчайшей дуге суток — погода/волна/ветер тоже
   // честно пересчитаются на новый момент (все они функции того же t), а уже живущие существа
@@ -145,8 +142,8 @@ export class OceanSimulation {
     const cur = ((this.state.t % this.dayLength) + this.dayLength) % this.dayLength, curFrac = cur / this.dayLength;
     let d = frac - curFrac; d -= Math.round(d);
     this.state.t += d * this.dayLength;
-    // метки «когда событие было в последний раз» сдвигаем вместе с часами: при перемотке назад они оказывались
-    // в будущем, и волны/брызги/гром молчали до нескольких минут (кулдаун считался от будущего момента)
+    // метки «когда событие было в последний раз» сдвигаем вместе с часами: при перемотке назад они оказались бы
+    // в будущем, и волны/брызги/гром молчали бы до нескольких минут (кулдаун считается от будущего момента)
     for (const [k, v] of this.lastFire) this.lastFire.set(k, v + d * this.dayLength);
   }
 
@@ -171,7 +168,7 @@ export class OceanSimulation {
     s.t += dt; const t = s.t;
 
     // кнопки времени суток двигают t по кратчайшей дуге и могут увести его в минус; % в JS тогда отрицательный
-    // (часы показывали «-13:-22»). В Python % всегда ≥ 0 — там этой ошибки нет
+    // (часы показали бы «-13:-22») — поэтому остаток приводится к 0..1
     s.time_of_day = ((t / this.dayLength) % 1.0 + 1.0) % 1.0;
     s.daylight = clamp01(Math.sin((s.time_of_day - 0.25) * 2 * Math.PI));
     s.time = OceanSimulation.timeLabel(s.time_of_day);
@@ -181,7 +178,7 @@ export class OceanSimulation {
     const waveN = this.noise.fbm(t * 0.020, 300.0, 2); s.wave_height = clamp01(0.08 + s.wind_speed * 0.75 + waveN * 0.10);
     const tempN = this.noise.fbm(t * 0.005, 400.0, 2); s.temperature = clamp01(0.50 + tempN * 0.18 + (s.daylight - 0.5) * 0.18);
     const rainN = this.noise.fbm(t * 0.008, 500.0, 2), rainGate = smoothstep(0.35, 0.55, (this.noise.fbm(t * 0.0011, 800.0, 2) + 1) * 0.5);
-    s.rain = clamp01(((rainN + 1) * 0.30 + s.weather * 0.50 - 0.20) * rainGate);   // дождь — редкость (решение пользователя 22.09)
+    s.rain = clamp01(((rainN + 1) * 0.30 + s.weather * 0.50 - 0.20) * rainGate);   // дождь — редкость
     const fogN = this.noise.fbm(t * 0.006, 600.0, 2); s.fog = clamp01((fogN + 1) * 0.40 - 0.15 + _night(s) * 0.15);
     const tideN = this.noise.fbm(t * 0.0008, 700.0, 2); s.tide = clamp01((tideN + 1) * 0.5);
 
@@ -217,7 +214,7 @@ export class OceanSimulation {
     }
 
     if (this.useAgents) {
-      if (!this.eco) this.eco = new Ecosystem(s, this.seed);   // v23: номер мира — для своего генератора вылупления черепашат
+      if (!this.eco) this.eco = new Ecosystem(s, this.seed);   // номер мира — для своего генератора вылупления черепашат
       for (const d of this.eco.update(dt, s)) {
         events.push({ kind: 'event', timestamp: s.t, time: s.time, type: d.type, text: d.text,
           intensity: clamp01(d.intensity), duration: d.duration, panorama: clamp01((d.x + 1) / 2),
@@ -281,6 +278,6 @@ export class OceanSimulation {
     return fired;
   }
 
-  // снимок обитателей для картинки (та же форма, что раньше слал сервер)
+  // снимок обитателей для картинки
   agentsSnapshot() { return this.eco ? this.eco.snapshot() : []; }
 }

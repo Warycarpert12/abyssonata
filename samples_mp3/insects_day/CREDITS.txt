@@ -1,10 +1,10 @@
 Дневные насекомые — петли (22.09.2026), loudnorm I=-24, ≤40 с, стерео 48 кГц
-bsb_2246.wav | Cicada #1 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/2246.mp3
-bsb_2247.wav | Cicada #2 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/2247.mp3
-bsb_3002.wav | Cicadas | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3002.mp3
-bsb_3089.wav | Singing insect #1 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3089.mp3
-bsb_3090.wav | Singing insect #2 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3090.mp3
-bsb_3452.wav | Singing insect #3 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3452.mp3
+bsb_2246.wav | Cicada #1 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/2246.mp3
+bsb_2247.wav | Cicada #2 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/2247.mp3
+bsb_3002.wav | Cicadas | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3002.mp3
+bsb_3089.wav | Singing insect #1 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3089.mp3
+bsb_3090.wav | Singing insect #2 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3090.mp3
+bsb_3452.wav | Singing insect #3 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/3452.mp3
 272169.ogg (превью HQ ogg через API) → fs272169.wav | Cicadas  | dethrok | CC0 | https://freesound.org/people/dethrok/sounds/272169/
 20064.ogg (превью HQ ogg через API) → fs20064.wav | Cicadas euroblues.wav | euroblues | CC0 | https://freesound.org/people/euroblues/sounds/20064/
 434675.ogg (превью HQ ogg через API) → fs434675.wav | cicadas.wav | fraska2 | CC0 | https://freesound.org/people/fraska2/sounds/434675/

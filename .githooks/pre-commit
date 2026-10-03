@@ -1,0 +1,3 @@
+#!/bin/sh
+# Перед коммитом: проверка подготовленных файлов (tools/check_publish.mjs)
+exec node tools/check_publish.mjs --staged

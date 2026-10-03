@@ -22,9 +22,9 @@
 737233.ogg | Small Water Splash | qubodup | CC0 | https://freesound.org/people/qubodup/sounds/737233/
 316744.ogg | Big Splash.wav | Bird_man | CC0 | https://freesound.org/people/Bird_man/sounds/316744/
 807962.ogg | splash 1b | Logicogonist | CC0 | https://freesound.org/people/Logicogonist/sounds/807962/
-bsb_1529.wav | Splash small #1 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1529.mp3
-bsb_1530.wav | Splash small #2 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1530.mp3
-bsb_1531.wav | Splash small #3 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1531.mp3
-bsb_1532.wav | Splash small #4 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1532.mp3
-bsb_1533.wav | Splash small #5 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1533.mp3
-bsb_1534.wav | Splash small #6 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1534.mp3
+bsb_1529.wav | Splash small #1 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1529.mp3
+bsb_1530.wav | Splash small #2 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1530.mp3
+bsb_1531.wav | Splash small #3 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1531.mp3
+bsb_1532.wav | Splash small #4 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1532.mp3
+bsb_1533.wav | Splash small #5 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1533.mp3
+bsb_1534.wav | Splash small #6 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1534.mp3

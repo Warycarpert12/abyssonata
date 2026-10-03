@@ -315,7 +315,7 @@ export class Visual {
     controls.minDistance = 3; controls.maxDistance = 120; controls.zoomToCursor = true;
     // медленное вращение вокруг всей локации, как в образце (~3 мин на оборот): сразу при входе и снова через 12 с после того,
     // как камеру отпустили; пока держишь камеру или следишь за зверем — стоит
-    controls.autoRotateSpeed = .35; this._idle = 99;
+    this._idle = 99;
     // взялся за камеру сам: v22 — при слежении за зверем камера крутится вокруг него и приближается (слежение остаётся,
     // выход — Esc или «✕» на плашке, см. main.js); без слежения — как раньше
     controls.addEventListener('start', () => { if (this._follow) this._follow.user = true; this._fly = null; this._drag = true; this._idle = 0; });
@@ -331,6 +331,22 @@ export class Visual {
       this._mouseOver = true;
     });
     renderer.domElement.addEventListener('pointerleave', () => { this._mouseOver = false; });
+    // v24: двойной клик (ПК) или двойное касание (телефон) по зверю — слежение за ним, как из «Обитателей»/журнала.
+    // Касание — короткое (до 0.3 с) и почти без движения (до 10 px), второе — не позже 0.35 с и не дальше 30 px от
+    // первого: вращение камеры (перетаскивание) и приближение двумя пальцами двойным касанием не считаются
+    const followAt = (cx, cy) => { const r = this.stage.getBoundingClientRect(), o = this._pickAt(cx - r.left, cy - r.top, 1.3); if (o) this.followAgent(o); };
+    renderer.domElement.addEventListener('dblclick', e => followAt(e.clientX, e.clientY));
+    let td = null, tLast = null; const fingers = new Set();
+    renderer.domElement.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; fingers.add(e.pointerId);
+      td = fingers.size === 1 ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() } : null; });
+    renderer.domElement.addEventListener('pointermove', e => { if (td && e.pointerId === td.id && Math.hypot(e.clientX - td.x, e.clientY - td.y) > 10) td = null; });
+    for (const ev of ['pointercancel', 'pointerup']) renderer.domElement.addEventListener(ev, e => {
+      if (e.pointerType === 'mouse') return; fingers.delete(e.pointerId);
+      const now = performance.now(), tap = ev === 'pointerup' && td && e.pointerId === td.id && now - td.t < 300 && Math.hypot(e.clientX - td.x, e.clientY - td.y) <= 10; td = null;
+      if (!tap) { tLast = null; return; }
+      if (tLast && now - tLast.t < 350 && Math.hypot(e.clientX - tLast.x, e.clientY - tLast.y) <= 30) { tLast = null; followAt(e.clientX, e.clientY); }
+      else tLast = { x: e.clientX, y: e.clientY, t: now };
+    });
 
     this.uPix = { value: 1 }; this.uBright = { value: 1 }; this.uT = { value: 0 }; this.uWind = { value: .1 }; this.uRimK = { value: .5 }; this.uGlowK = { value: 0 };
     this.glowTex = this._glowTexture();
@@ -807,19 +823,30 @@ export class Visual {
     // расступание), E — свечение кончиков ночью
     const AV = this.AVOID = 10;
     this.uAvoid = { value: Array.from({ length: AV }, () => new THREE.Vector4(0, -9999, 0, 1)) };
+    this.uAvoidV = { value: Array.from({ length: AV }, () => new THREE.Vector4()) };   // v24: скорость зверя (xz) и сила (w)
     const mat = (F, E, side, B) => this._hook(this._stippled(new THREE.MeshLambertMaterial({ vertexColors: true, side }), true, 14), sh => {
-      Object.assign(sh.uniforms, { uT: this.uT, uGlowK: this.uGlowK, uAvoid: this.uAvoid });
-      sh.vertexShader = `uniform float uT; uniform vec4 uAvoid[${AV}]; attribute float aTip; varying float vTip;\n` + sh.vertexShader.replace('#include <project_vertex>', `
+      Object.assign(sh.uniforms, { uT: this.uT, uGlowK: this.uGlowK, uAvoid: this.uAvoid, uAvoidV: this.uAvoidV });
+      sh.vertexShader = `uniform float uT; uniform vec4 uAvoid[${AV}], uAvoidV[${AV}]; attribute float aTip; varying float vTip;\n` + sh.vertexShader.replace('#include <project_vertex>', `
         vTip = aTip;
         vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.);
         vec3 ip = (modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.)).xyz;
         float hm = max(0., wp.y - ip.y);
         ${F ? `wp.xz += vec2(sin(uT * .8 + ip.x * .37 + hm * .5), cos(uT * .63 + ip.z * .29 + hm * .4)) * hm * hm / (hm + 1.) * ${(F * .09).toFixed(3)};
-        for (int i = 0; i < ${AV}; i++) {   // зверь рядом — стебли отклоняются от него и чуть пригибаются (корни на месте)
-          vec4 a = uAvoid[i]; vec2 d = wp.xz - a.xz; float L = length(d) + .001;
-          float k = (1. - smoothstep(a.w * .3, a.w * 1.3, L)) * (1. - smoothstep(a.w * .4, a.w * 1.6, abs(wp.y - a.y))) * smoothstep(0., 1.2, hm);
-          wp.xz += d / L * k * a.w * .8; wp.y -= k * hm * .2;
-        }` : ''}
+        // v24: зверь рядом — стебли мягко расходятся и слегка наклоняются. Было: сдвиг до 0.8 радиуса тела (кит — 8 м) уже
+        // с высоты 1.2 м — ламинария ложилась почти горизонтально и разлеталась (видео автора). Теперь: сдвиг вбок не
+        // больше 1.6 м от всех зверей вместе, изгиб плавный по высоте (корни на месте), верх при наклоне чуть опускается
+        // (длина стебля сохраняется), позади зверя — затухающий след на ~1.5 с хода: стебли возвращаются постепенно
+        vec2 push = vec2(0.);
+        for (int i = 0; i < ${AV}; i++) {
+          vec4 a = uAvoid[i], av = uAvoidV[i]; float sp = length(av.xz); vec2 dir = sp > .05 ? av.xz / sp : vec2(0.);
+          float back = clamp(-dot(wp.xz - a.xz, dir), 0., sp * 1.5);
+          vec2 d = wp.xz - (a.xz - dir * back); float L = length(d) + .001;
+          float k = (1. - smoothstep(a.w * .3, a.w * 1.3, L)) * (1. - smoothstep(a.w * .4, a.w * 1.6, abs(wp.y - a.y))) * (1. - back / (sp * 1.5 + .001)) * av.w;
+          push += d / L * k * min(a.w * .35, 1.6);
+        }
+        float pl = length(push); if (pl > 1.6) push *= 1.6 / pl;
+        float bend = smoothstep(0., 4., hm); push *= bend * bend;
+        wp.xz += push; wp.y -= dot(push, push) / (2. * max(hm, .5));` : ''}
         vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
       // B — своё мягкое свечение: остальная флора острова нарисована без освещения, и освещённая под водой рядом с ней темнее
       sh.fragmentShader = 'uniform float uGlowK; varying float vTip;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
@@ -864,18 +891,29 @@ export class Visual {
     }
   }
   // v23: точки, от которых расступается флора — ближайшие к камере звери в воде и стайки рыбок (центр и радиус тела)
-  _floraAvoid() {
+  // v24: у каждого зверя — сглаженная скорость (для следа) и сила: вошёл в число ближайших — сила плавно растёт, вышел —
+  // плавно гаснет (раньше растения рывком возвращались, когда зверь выпадал из десятки)
+  _floraAvoid(dt) {
     if (!this.uAvoid) return;
-    const cam = this.camera.position, L = this._avL ||= [];
+    const cam = this.camera.position, L = this._avL ||= [], T = this._avT ||= new Map(), AV = this.AVOID;
     L.length = 0;
     for (const o of this.agents.values()) {
       const fish = o.fish?.length, r = fish ? 5 : SWIM_R[o.sp] ? BODY_R[o.sp] || 2 : 0; if (!r) continue;
       const p = fish ? o.anchor : o.obj.position; if (p.y > .5) continue;   // над водой (птица, лев на берегу) — не задевает
-      L.push([p.distanceToSquared(cam), p.x, p.y, p.z, r]);
+      L.push([p.distanceToSquared(cam), p.x, p.y, p.z, r, o.id]);
     }
-    for (const s of this.shoals || []) { const x = s.c.x + Math.cos(s.a) * 5, z = s.c.z + Math.sin(s.a) * 5; L.push([(x - cam.x) ** 2 + (s.c.y - cam.y) ** 2 + (z - cam.z) ** 2, x, s.c.y, z, 2.5]); }
+    (this.shoals || []).forEach((s, i) => { const x = s.c.x + Math.cos(s.a) * 5, z = s.c.z + Math.sin(s.a) * 5; L.push([(x - cam.x) ** 2 + (s.c.y - cam.y) ** 2 + (z - cam.z) ** 2, x, s.c.y, z, 2.5, 's' + i]); });
     L.sort((a, b) => a[0] - b[0]);
-    this.uAvoid.value.forEach((v, i) => { const q = L[i]; if (q) v.set(q[1], q[2], q[3], q[4]); else v.set(0, -9999, 0, 1); });
+    const near = new Set(L.slice(0, AV).map(q => q[5])), kS = 1 - Math.exp(-dt / .5), kV = 1 - Math.exp(-dt / .4);
+    for (const q of L) {
+      let t = T.get(q[5]); if (!t) T.set(q[5], t = { x: q[1], z: q[3], vx: 0, vz: 0, s: 0 });
+      if (dt > 0) { t.vx += ((q[1] - t.x) / dt - t.vx) * kV; t.vz += ((q[3] - t.z) / dt - t.vz) * kV; }
+      t.x = q[1]; t.z = q[3]; t.y = q[2]; t.r = q[4]; t.seen = true;
+    }
+    for (const [id, t] of T) { t.s += ((near.has(id) && t.seen ? 1 : 0) - t.s) * kS; if (!t.seen && t.s < .01) T.delete(id); t.seen = false; }
+    const act = [...T.values()].filter(t => t.s > .01).sort((a, b) => b.s - a.s).slice(0, AV);
+    this.uAvoid.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.x, t.y, t.z, t.r); else v.set(0, -9999, 0, 1); });
+    this.uAvoidV.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.vx, 0, t.vz, t.s); else v.set(0, 0, 0, 0); });
   }
 
   // пена-крошка у кромки: каждая крупинка набегает от берега и откатывается с волной, растёт и тает
@@ -1314,7 +1352,10 @@ export class Visual {
           gl_FragColor = vec4(col, max(a, clamp(foam, 0., 1.)));
         }`,
     });
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(10000, 10000), this.waterMat);
+    // v24: сетка 256×256 (клетки ~39 м), а не два треугольника 10×10 км — на огромных треугольниках глубина и мировые
+    // координаты точки считаются с погрешностью, и у пологих пляжей граница «вода спереди / песок спереди» дрожала при
+    // каждом сдвиге камеры (мерцание кромки); за камерой вода сдвигается целыми клетками — сетка стоит в мире
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(10000, 10000, 256, 256), this.waterMat);
     water.rotation.x = -Math.PI / 2; this.scene.add(water); this.water = water;
     // v11: вода рисуется раньше всего прозрачного над ней (частицы, облака, брызги, светлячки). Раньше её план, будучи
     // «ближе всех» к камере, рисовался последним и закрашивал всё, за чем виднелась вода: стоило поднять камеру —
@@ -2646,11 +2687,13 @@ export class Visual {
   focusEvent(r) {
     if (!r) return;
     const o = r.agent != null && this.agents.get(r.agent);
-    if (o && !o.gone) { this._fly = null; this._follow = { id: o.id, sp: o.sp, t: 0, dist: FOLLOW_D[o.sp] || 12 }; this._freeCam = false; this._censusHTML = null; this.onDiscover?.(o.sp); return; }   // v23: следит — найден
+    if (o && !o.gone) { this.followAgent(o); return; }
     const p = r.pos.clone(), hr = Math.hypot(p.x, p.z); if (hr > 150) { p.x *= 150 / hr; p.z *= 150 / hr; }
     p.y = clamp(p.y, Math.max(0, islandH(p.x, p.z) + .5), 30);
     this._follow = null; this._fly = { p, t: 0 }; this._idle = 0;
   }
+  // слежение за этим зверем (журнал, двойное нажатие по зверю); v23: следит — вид найден (бестиарий)
+  followAgent(o) { this._fly = null; this._follow = { id: o.id, sp: o.sp, t: 0, dist: FOLLOW_D[o.sp] || 12 }; this._freeCam = false; this._censusHTML = null; this.onDiscover?.(o.sp); }
   _stepFly(dt) {
     const f = this._fly; if (!f) return;
     const tg = this.controls.target, cam = this.camera.position, k = 1 - Math.exp(-dt * 2.2), before = tg.clone();
@@ -2678,21 +2721,27 @@ export class Visual {
   // зверь ловился, только если курсор ближе 34 px к центру модели — у кита и у косяка (центр — пустота между рыбами)
   // это малая часть тела, а у плывущего зверя центр то входил в круг, то выходил. Теперь зона — по размеру зверя на
   // экране, у уже выбранного она в 1.6 раза шире; подпись стоит над зверем и держится 0.35 с, если курсор соскочил
-  _updateHover(dt = 0) {
-    if (!this._mouseOver) { this._hov = null; this.tipEl.classList.remove('show'); return; }
-    const w = this.w, h = this.h, mx = this._mouse.x, my = this._mouse.y, v = this._hv ??= new V3(), cam = this.camera.position;
+  // зверь под точкой экрана (mx, my — от угла сцены): ближайший по размеру тела на экране; у уже выбранного (подпись)
+  // зона в 1.6 раза шире; wide — для двойного нажатия пальцем (палец толще курсора)
+  _pickAt(mx, my, wide = 1) {
+    const w = this.w, h = this.h, v = this._hv ??= new V3(), cam = this.camera.position;
     const pxPerM = h / (2 * Math.tan(this.camera.fov * Math.PI / 360));   // пикселей экрана на метр на расстоянии 1 м
-    let best = null, bestK = 1, bx = 0, by = 0, br = 0;
+    let best = null, bestK = 1;
     for (const o of this.agents.values()) {
       if (o.gone) continue;
       v.copy(o.obj.position).project(this.camera);
       if (v.z > 1 || v.z < -1) continue;
       const px = (v.x * .5 + .5) * w, py = (-v.y * .5 + .5) * h, d = Math.hypot(px - mx, py - my);
       const rad = clamp((BODY_R[o.sp] ?? 1.5) * pxPerM / Math.max(1, o.obj.position.distanceTo(cam)), 0, 260);
-      const k = d / (Math.max(30, rad) * (o === this._hov ? 1.6 : 1));
-      if (k < bestK) { bestK = k; best = o; bx = px; by = py; br = rad; }
+      const k = d / (Math.max(30, rad) * (o === this._hov ? 1.6 : 1) * wide);
+      if (k < bestK) { bestK = k; best = o; this._pickP = [px, py, rad]; }
     }
-    if (best) { this._hov = best; this._hovT = .35; this._hovP = [bx, by, br]; }
+    return best;
+  }
+  _updateHover(dt = 0) {
+    if (!this._mouseOver) { this._hov = null; this.tipEl.classList.remove('show'); return; }
+    const best = this._pickAt(this._mouse.x, this._mouse.y);
+    if (best) { this._hov = best; this._hovT = .35; this._hovP = this._pickP; }
     else if (this._hov && ((this._hovT -= dt) <= 0 || this._hov.gone)) this._hov = null;
     const o = this._hov;
     if (o) {
@@ -2807,20 +2856,32 @@ export class Visual {
 
     this._stepFollow(dtc); this._stepFly(dtc); this._followChip();
     if (!this._drag) this._idle += dtc;
-    const spin = this.controls.autoRotate = !this._follow && !this._fly && !this.paused && !this._freeCam && this._idle > 12;   // v15: через 12 с (было 20)
+    // v24: облёт — через 20 с покоя (было 12); облётом ведёт кадр сам (азимут, высота, точка взгляда), не autoRotate
+    const spin = !this._follow && !this._fly && !this.paused && !this._freeCam && this._idle > 20;
+    this.controls.autoRotate = false;
     if (spin) {
-      // v16: облёт — вокруг всей локации (центр острова), камера на ~105 м под ~46°; когда она проходит над стороной
-      // рифа (дуга в 55–82 м к +z), центр кадра плавно смещается к рифу — он отчётливо виден внизу кадра; с других
-      // сторон взгляд снова на центре (в v15 центр был всё время у рифа — «крутится только вокруг коралла») — риф виден сквозь воду, что на нём происходит
-      this._spinQA ??= new URLSearchParams(location.search).has('spinqa');   // QA: сразу в кадр облёта
-      const tg0 = this.controls.target, k = this._spinQA ? 1 : 1 - Math.exp(-dt * .15);
-      const th = Math.atan2(this.camera.position.x - tg0.x, this.camera.position.z - tg0.z), reefK = Math.max(0, Math.cos(th)) ** 2;
-      const d0 = new V3(0, 0, 50 * reefK).sub(tg0).multiplyScalar(this._spinQA ? 1 : 1 - Math.exp(-dt * .4));
-      tg0.add(d0); this.camera.position.add(d0);
-      const sp = new THREE.Spherical().setFromVector3(this.camera.position.clone().sub(tg0));
-      sp.radius = lerp(sp.radius, 105, k); sp.phi = lerp(sp.phi, .8, k);
-      this.camera.position.copy(tg0).add(new V3().setFromSpherical(sp));
+      // v24 (по видео автора, середина между прежним облётом и видео): низко над водой (17°) — горизонт и небо в кадре, оборот
+      // 165 с вокруг главного острова, расстояние ~100 м мягко «дышит». Риф: когда камера проходит над его стороной
+      // (+z, дуга 82 м), точка взгляда плавно переходит на ближний к камере участок рифа, камера подходит к нему (~48 м) и
+      // смотрит круче — риф виден сквозь воду в середине кадра, остров у верхнего края; дальше так же плавно обратно.
+      // Подбор на глаз: ?h= — угол над водой (градусы), ?turn= — секунд на оборот
+      const qs = this._orbQ ??= new URLSearchParams(location.search), H = (+qs.get('h') || 17) * Math.PI / 180, TURN = +qs.get('turn') || 165;   // выбор автора 03.10: 17° и 165 с
+      this._spinQA ??= qs.has('spinqa');   // QA: сразу в кадр облёта
+      const tg0 = this.controls.target, cam0 = this.camera.position;
+      if (!this._spun) this._orbA = Math.atan2(cam0.x, cam0.z);   // облёт продолжается оттуда, где камеру отпустили
+      this._orbA -= dt * 2 * Math.PI / TURN; this._orbA = Math.atan2(Math.sin(this._orbA), Math.cos(this._orbA));   // в ту же сторону, что и прежний облёт
+      const a = this._orbA, w = smooth(.3, .92, Math.cos(a)), ar = clamp(a, -.75, .75);
+      // высота точки взгляда — плавно от середины острова к воде над рифом (границы точки обзора ниже на облёте не действуют:
+      // на склонах они дёргали её вверх-вниз — рывки камеры)
+      this._orbC ??= Math.max(4, islandH(0, 0) + .6);
+      const T = new V3(Math.sin(ar) * 82 * w, this._orbC * (1 - w), Math.cos(ar) * 82 * w);
+      const D = lerp(100 * (1 + .15 * Math.sin(this.clock * .09)), 48, w), e = lerp(H, .52, w);
+      const C = new V3(Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e)).multiplyScalar(D).add(T);
+      // вход в облёт и любые расхождения — плавно (~2.5 с), без рывка
+      const k = this._spinQA ? 1 : 1 - Math.exp(-dt * .4);
+      tg0.lerp(T, k); cam0.lerp(C, k);
     }
+    this._spun = spin;
     this.controls.update(dtc);
     this._qaLook();
     // границы (v13 свободнее): точка обзора — в пределах 150 м от острова (островки, риф, звери вокруг), по высоте — от
@@ -2828,7 +2889,7 @@ export class Visual {
     // а на вершинах выше 8 м «потолок» и «не ниже рельефа» спорили: точку тянуло вниз вместе с камерой, а вверх — одну,
     // и камера каждый кадр оседала к острову («сама зумит, потом не оторвать»)
     const tg = this.controls.target, cam = this.camera.position;
-    if (!this._freeCam && !this._follow) {
+    if (!this._freeCam && !this._follow && !spin) {
       const want = tg.clone(), hr = Math.hypot(tg.x, tg.z);
       if (hr > 150) { want.x *= 150 / hr; want.z *= 150 / hr; }
       want.y = clamp(want.y, Math.max(0, islandH(want.x, want.z) + .5), 30);
@@ -2839,7 +2900,7 @@ export class Visual {
     // небо, звёзды, солнце, луна — вокруг камеры: у мира нет края, куда можно «выехать»
     this.sky.position.copy(cam); this.stars.position.copy(cam);
     this.sunGlow.position.add(cam); this.sunDisc.position.add(cam); this.moon.position.add(cam);
-    this.water.position.x = cam.x; this.water.position.z = cam.z;
+    const WC = 10000 / 256; this.water.position.x = Math.round(cam.x / WC) * WC; this.water.position.z = Math.round(cam.z / WC) * WC;
     this._day = day;
     // общий такт стай (v14: дельфины на ночном отдыхе кружат втрое медленнее)
     const dRest = [...this.agents.values()].some(q => q.sp === 'dolphin' && q.st === 'rest');
@@ -2848,7 +2909,7 @@ export class Visual {
     this._separate(dt);
     this._nearSounds(dt);
     if (this.shoals) this._stepAmbient(dt, t);
-    this._floraAvoid();
+    this._floraAvoid(dt);
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
     this._updateHover(dtc); this._stepLog(dt);
     this.renderer.setRenderTarget(this.rt); this.renderer.render(this.scene, this.camera);

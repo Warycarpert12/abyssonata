@@ -5,6 +5,7 @@ import { World } from './world.js';
 import { Visual } from './visual.js';
 import { OceanAudio } from './audio.js';
 import { initBestiary } from './bestiary.js';
+import { boot, steps, step, within, device, autoLite, startLite, lastBootFailed, markBoot } from './boot.js';
 
 // v21 QA: &rseed=N — повторяемые случайные числа (одинаковые сцены для снимков «было/стало»); без параметра — как всегда
 { const rs = new URLSearchParams(location.search).get('rseed');
@@ -42,9 +43,10 @@ if (document.querySelector('meta[name="om-site"]')?.content !== 'static' && !loc
 }
 
 const stage = document.querySelector('#stage');
-const visual = new Visual(stage);
+// v24: «Лёгкое» качество — с самого начала (мало памяти, прошлый вход не дошёл до мира, выбрано в настройках), см. boot.js
+const visual = new Visual(stage, { lite: startLite });
 const world = new World();
-const audio = new OceanAudio('.');   // v19: пути от страницы — сайт может лежать в подпапке (GitHub Pages)
+const audio = new OceanAudio('.', { lite: startLite });   // v19: пути от страницы — сайт может лежать в подпапке (GitHub Pages)
 
 world.onState(m => visual.onState(m));
 world.onEvent(m => visual.onEvent(m));
@@ -134,7 +136,7 @@ fitH();
 // в полном экране пропадали нижний ряд и журнал). Окно не ловит нажатий — «Войти» под ним нажимается как обычно
 if (qs.get('debug') === '1') {
   const pre = document.createElement('pre'), probe = document.createElement('div'), t0 = performance.now(), evs = [], n = Math.round;
-  pre.style.cssText = 'position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:99;margin:0;padding:3px 6px;max-height:100%;overflow:hidden;' +
+  pre.style.cssText = 'position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:99;margin:0;padding:3px 6px;max-height:100%;max-width:100%;white-space:pre-wrap;overflow:hidden;' +
     'font:9px/1.22 ui-monospace,Consolas,monospace;letter-spacing:0;text-transform:none;color:#fff;background:rgba(0,0,0,.6);pointer-events:none';
   probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;' +
     'padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
@@ -156,6 +158,7 @@ if (qs.get('debug') === '1') {
       units.map(([u, d]) => `100${u}=${d.getBoundingClientRect().height.toFixed(1)}`).join(' ') + `  body ${n(document.body.getBoundingClientRect().height)}`,
       'media: ' + Object.entries(MQ).filter(([, q]) => matchMedia(q).matches).map(([k]) => k).join(', '),
       (navigator.userAgent.match(/(EdgA|Edg|Chrome|Firefox|SamsungBrowser|YaBrowser|HuaweiBrowser|Version)\/[\d.]+/g) || [navigator.userAgent]).join(' '),
+      ...dbgPerf(),
     ];
     for (const id of ['hud', 'census', 'vol', 'log', 'tod', 'follow', 'fs', 'gate', 'rotate', 'gl']) {
       const el = document.getElementById(id); if (!el) { L.push(`${id.padEnd(6)} нет`); continue; }
@@ -176,7 +179,23 @@ if (qs.get('debug') === '1') {
   screen.orientation?.addEventListener?.('change', () => note('orientation'));
   document.getElementById('gate-btn').addEventListener('click', () => note('ВОЙТИ'));
   fsBtn.addEventListener('click', () => note('НА ВЕСЬ ЭКРАН'));
-  setInterval(draw, 500); draw();
+  setInterval(draw, 500); setTimeout(draw, 0);   // v24: после разбора модуля — draw читает качество и кадры (объявлены ниже)
+}
+// v24: ?debug=1 — ещё ход загрузки (шаг, сколько длился, итог), память (оценка) и кадры: частота, время кадра, худшие 1%,
+// качество, разрешение отрисовки, вызовы отрисовки, треугольники
+let memT = 0, memS = '';
+function dbgPerf() {
+  const L = [], n = Math.min(ftI, ft.length), a = Array.from(ft.subarray(0, n)).sort((x, y) => x - y);
+  if (n) { const avg = a.reduce((x, y) => x + y, 0) / n, p99 = a[Math.min(n - 1, Math.floor(n * .99))];
+    const cv = visual.renderer.domElement, db = { x: cv.width, y: cv.height }, d = visual.drawn || {};   // размер холста = буфер отрисовки
+    L.push(`кадр ${(1000 / avg).toFixed(0)} к/с  ${avg.toFixed(1)} мс  худшие 1% ${p99.toFixed(0)} мс  качество ${qMode}${qMode === 'auto' ? ' ступень ' + qLevel : ''}`,
+      `отрисовка ${db.x}×${db.y} (×${visual.renderer.getPixelRatio().toFixed(2)}${visual.rt.samples ? ', MSAA ' + visual.rt.samples : ''})  вызовов ${d.calls ?? '—'}  треуг. ${d.tris ? (d.tris / 1000).toFixed(0) + 'k' : '—'}  шейдеров ${visual.renderer.info.programs?.length ?? '—'}`); }
+  if (performance.now() - memT > 2000) { memT = performance.now();
+    try { const m = visual.memEstimate(), heap = performance.memory?.usedJSHeapSize;
+      memS = `память ~ звук ${audio.memMB().toFixed(0)} МБ · текстуры ${m.tex.toFixed(0)} · геометрии ${m.geo.toFixed(0)} · буфер кадра ${m.rt.toFixed(0)}` + (heap ? ` · куча JS ${(heap / 1048576).toFixed(0)} МБ` : ''); } catch { memS = 'память — нет данных'; } }
+  L.push(memS, `deviceMemory ${device.mem ?? 'нет'}  лёгкое: ${qMode === 'lite' ? 'ДА' : 'нет'}${autoLite ? ' (авто)' : ''}${lastBootFailed ? '  прошлый вход не дошёл до мира' : ''}  звук облегч. ${audio.lite ? 'да' : 'нет'}  звук готов ${audio.ready ? 'да' : 'нет'}`);
+  L.push('загрузка: ' + steps.map(x => `${x.name} ${x.t1 ? ((x.t1 - x.t0) / 1000).toFixed(1) + ' с' : ((performance.now() - x.t0) / 1000).toFixed(0) + ' с…'}${x.st !== 'готово' && x.t1 ? ' ' + x.st.toUpperCase() : ''}${x.note ? ' (' + x.note + ')' : ''}`).join(' | '));
+  return L;
 }
 
 // --- уход экрана входа (v22): вуаль тает, размытие снимается — мир становится чётким; карточка «рассыпается»: её стирает
@@ -189,7 +208,7 @@ const leaveGate = simple => {
   if (!gate.isConnected || gate.classList.contains('clear')) return;
   const card = gate.querySelector('#gate-card');
   gate.classList.add('clear');
-  if (simple || phone || matchMedia('(prefers-reduced-motion: reduce)').matches || qMode === 'low') {
+  if (simple || phone || matchMedia('(prefers-reduced-motion: reduce)').matches || qMode === 'low' || qMode === 'lite') {
     card.classList.add('fade'); setTimeout(showUI, 800); setTimeout(() => gate.remove(), 1200); return;
   }
   const r = card.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), cv = Object.assign(document.createElement('canvas'), { id: 'gate-dust' });
@@ -223,27 +242,48 @@ const leaveGate = simple => {
   requestAnimationFrame(tick);
 };
 
+// v24: вход не ждёт дольше 8 с и не останавливается на ошибке. Раньше кнопка ждала весь стартовый звук без предела —
+// на слабых телефонах «Открываю иллюминатор…» висело вечно. Не успел звук — мир открывается без него, звук догоняет сам
+// (audio.ready); не вышло совсем — мир без звука, а любое следующее нажатие пробует включить звук снова
+let entering = false;
 const enter = async () => {
   audio.unlock();   // v22: звук — первым делом и до любого await (iPhone включает звук только так)
   if (phone) goFull();   // до первого await — пока браузер считает это нажатием
-  const btn = gate.querySelector('#gate-btn');
-  btn.textContent = 'Открываю иллюминатор…';
-  try {
-    await audio.start();
-    leaveGate();
-  } catch (e) {
-    if (e?.noAudio) { console.warn('океан без звука:', e.message); leaveGate(); return; }   // v21
-    console.error('audio start failed', e);
-    btn.textContent = 'Не вышло — нажми ещё раз';
-    const msg = gate.querySelector('#gate-err') || Object.assign(document.createElement('p'), { id: 'gate-err' });
-    msg.textContent = String(e?.message || e);
-    if (!msg.parentNode) gate.querySelector('#gate-card').appendChild(msg);
-  }
+  if (entering) return; entering = true;
+  markBoot(true);   // снимается, когда мир уже 8 с на экране — иначе следующая загрузка начнётся в «Лёгком»
+  gate.querySelector('#gate-btn').textContent = 'Открываю иллюминатор…';
+  const st = step('вход');
+  try { await within(audio.start(), 8000, 'звук'); st.done(); }
+  catch (e) { st.done(e?.timeout ? 'long' : false, e?.message); console.warn('океан пока без звука:', e?.message || e); }
+  leaveGate(); setTimeout(() => markBoot(false), 8000);
 };
 gate.querySelector('#gate-btn').addEventListener('click', enter);
 // v22: iPhone останавливает звук при блокировке экрана, звонке, уходе в другое приложение («interrupted») и снова
 // включить его разрешает только по нажатию — будим звук на любое касание/клавишу после входа
-for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => { if (audio.ready) audio.unlock(); }, { capture: true, passive: true });
+// v24: звук не включился при входе (ошибка, а не долгая загрузка) — пробуем снова на нажатие
+for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => {
+  if (audio.ready) audio.unlock(); else if (entering && !gate.isConnected && !audio._starting) audio.start().catch(() => {});
+}, { capture: true, passive: true });
+
+// v24: ход загрузки на экране входа — полоска и что сейчас грузится; шаг упал или идёт дольше 20 с — понятная надпись и
+// кнопка «Войти в облегчённом режиме» (сразу «Лёгкое» качество и вход)
+{
+  const box = document.getElementById('gate-load'), bar = box.querySelector('i'), txt = box.querySelector('span'), liteBtn = document.getElementById('gate-lite');
+  const last = n => { let r = null; for (const x of steps) if (x.name === n) r = x; return r; };
+  const part = x => !x ? 0 : x.t1 ? 1 : (m => m ? m[1] / m[2] : 0)(/(\d+) из (\d+)/.exec(x.note));
+  const show = () => {
+    if (!gate.isConnected) return;
+    const M = last('модели'), S = last('шейдеры'), A = last('звук: прибой');
+    bar.style.width = (100 * (entering ? part(M) * .5 + part(S) * .25 + part(A) * .25 : (part(M) * .5 + part(S) * .25) / .75)).toFixed(0) + '%';
+    const now = steps.filter(x => !x.t1).map(x => x.name + (x.note ? ' ' + x.note : ''));
+    const bad = steps.filter(x => x.st === 'ошибка' || (!x.t1 && performance.now() - x.t0 > 20000));
+    txt.textContent = bad.length ? 'Загрузка идёт с трудом: ' + bad.map(x => x.name).join(', ') + '. Можно войти в облегчённом режиме.'
+      : now.length ? 'Загружается: ' + now.join(' · ') : 'Океан готов';
+    liteBtn.hidden = !bad.length || qMode === 'lite';
+  };
+  boot.onChange = show; const tick = setInterval(() => gate.isConnected ? show() : clearInterval(tick), 1000); show();
+  liteBtn.addEventListener('click', () => { setQMode('lite', true); enter(); });
+}
 // v21: код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
 window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
 // &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)
@@ -347,16 +387,21 @@ let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время
 // на Honor 30); только понижает — туда-обратно не переключается. Звук разгружается (audio.weak) как в v21: после двух
 // «плохих» ступеней подряд — при любом выборе. В QA-снимках (&lowres) — без изменений
 // v23: life — доля растений, светлячков и мотыльков (на «Низком» и на последней ступени «Авто» — 0.4, в 2.5 раза меньше)
-const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false, life: .4 } };
+// v24: «Лёгкое» — для устройств с малой памятью: ×0.6 от точки на пиксель, без сглаживания, растений и огоньков в 4 раза
+// меньше, текстуры моделей до 256 точек, звук облегчённый с выгрузкой давно не звучавших записей
+const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false, life: .4 },
+  lite: { k: Math.min(1, 1 / visual.basePR) * .6, msaa: false, life: .25, lite: true } };
 const AUTO = [Q.high, { k: 1, msaa: false }, { k: Math.max(.8, Math.min(1, 1 / visual.basePR)), msaa: false, life: .4 }];
 let qMode = 'auto'; try { qMode = localStorage.getItem('abyssonata.quality') || 'auto'; } catch { /* приватное окно */ }
 if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
+if (startLite) qMode = 'lite';   // v24: само — не запоминаем (выбор человека в настройках важнее, см. boot.js)
 const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, strain = 0, badW = 0;
 const applyQ = () => { if (autoQ) visual.setQuality(qMode === 'auto' ? AUTO[qLevel] : Q[qMode]); };
-const setQMode = m => {
+const setQMode = (m, user = false) => {
   // смена выбора — 3 с не считаем кадры; при запуске остаётся −5 (первые 5 с после входа, как в v21)
   qMode = m; qLevel = 0; fpsT = Math.min(fpsT, -3); fpsN = fpsSum = badW = 0; applyQ();
-  try { localStorage.setItem('abyssonata.quality', m); } catch { /* приватное окно */ }
+  if (m === 'lite') { audio.lite = audio.tiny = true; }
+  if (user) try { localStorage.setItem('abyssonata.quality', m); localStorage.setItem('abyssonata.quality.user', '1'); } catch { /* приватное окно */ }
   document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
 };
 const watchFps = raw => {
@@ -374,14 +419,32 @@ const watchFps = raw => {
   else fpsT = 0;
   fpsN = 0; fpsSum = 0;
 };
-document.querySelectorAll('#quality button').forEach(b => b.addEventListener('click', () => setQMode(b.dataset.q)));
+document.querySelectorAll('#quality button').forEach(b => b.addEventListener('click', () => setQMode(b.dataset.q, true)));
 setQMode(qMode);
+// v24: потеря контекста WebGL (не хватило видеопамяти): надпись поверх мира; браузер вернул контекст — картинка снова
+// рисуется, качество на ступень ниже («Авто» — следующая ступень, иначе «Лёгкое»); не вернул за 6 с — кнопка перезапуска
+// страницы в «Лёгком»
+{
+  const box = document.getElementById('gl-lost'), msg = box.querySelector('p'), btn = box.querySelector('button'); let tmo = 0;
+  visual.onLost = () => {
+    const st = step('картинка: контекст потерян'); visual._lostStep = st;
+    msg.textContent = 'Устройству не хватило памяти для картинки — восстанавливаю…'; btn.hidden = true; box.hidden = false;
+    clearTimeout(tmo); tmo = setTimeout(() => { if (visual.lost) { msg.textContent = 'Картинка не восстановилась.'; btn.hidden = false; } }, 6000);
+  };
+  visual.onRestored = () => {
+    visual._lostStep?.done(); clearTimeout(tmo); box.hidden = true;
+    if (qMode === 'auto' && qLevel < AUTO.length - 1) { qLevel++; applyQ(); } else if (qMode !== 'lite') setQMode('lite');
+    else applyQ();
+  };
+  btn.addEventListener('click', () => { try { localStorage.setItem('abyssonata.quality', 'lite'); localStorage.setItem('abyssonata.quality.user', '1'); } catch { /* приватное окно */ } location.reload(); });
+}
+const ft = new Float32Array(300); let ftI = 0;   // v24: последние 300 кадров (мс) — для ?debug=1
 function frame(now) {
   requestAnimationFrame(frame);   // v21: первым делом — ошибка ниже не должна остановить цикл
   // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходил
   // отрицательным (в безголовом браузере −0.74 с), и мир с панелью «отматывались назад»
   const raw = (now - last) / 1000, dt = Math.max(0, Math.min(raw, .1)); last = now;
-  if (raw > 0 && raw < 1) watchFps(raw);
+  if (raw > 0 && raw < 1) { watchFps(raw); ft[ftI++ % ft.length] = raw * 1000; }
   // одна ошибка (в мире или в отрисовке) не должна насовсем остановить requestAnimationFrame-цикл
   const wdt = paused ? 0 : dt; wt += wdt;
   if (!paused) try { world.step(dt); } catch (e) { console.error('world step failed', e?.stack || e); }

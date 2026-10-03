@@ -13,6 +13,7 @@ import { GLTFLoader } from './three-addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from './three-addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from './three-addons/utils/BufferGeometryUtils.js';
 import { Noise2D } from './noise.js';
+import { step, within } from './boot.js';
 THREE.ColorManagement.enabled = false;
 
 const $ = s => document.querySelector(s);
@@ -33,6 +34,7 @@ const mix3 = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
 const rnd = (a, b) => a + Math.random() * (b - a);
 // v23: на время fn Math.random — свой повторяемый генератор: новые украшения не сдвигают случайные числа мира (с ?rseed
 // мир и звери те же, что в main, — честное сравнение кадров и снимки «было / стало»)
+const LAZY = new Set(['shark', 'orca']);   // v24: в «Лёгком» — модель при первом появлении
 const seededRandom = (seed, fn) => {
   const mr = Math.random; let s = seed >>> 0;
   Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let x = Math.imul(s ^ (s >>> 15), 1 | s); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
@@ -262,8 +264,10 @@ const SPEED = { seagull: 9, tern: 10, cormorant: 8, albatross: 7, pelican: 7, do
   jellyfish: 1.2, sea_turtle: 2, stingray: 3, crab: 1.5, starfish: .3, octopus: .8, shrimp_swarm: 2, ship: 15 };
 
 export class Visual {
-  constructor(stageEl) {
-    this.stage = stageEl;
+  // v24: lite — «Лёгкое» качество с самого начала: текстуры моделей до 256 точек (иначе до 1024), редкие гости (акула,
+  // косатка) грузятся при первом появлении
+  constructor(stageEl, { lite = false } = {}) {
+    this.stage = stageEl; this.lite = lite;
     this.canvas = $('#gl');
     this.logList = $('#log-list'); this.flashEl = $('#flash'); this.tipEl = $('#tip');
     this.cur = { tod: .5, daylight: 1, weather: .3, wind: .3, wave: .3, temp: .5, tension: .1, rain: 0, fog: 0 };
@@ -324,6 +328,11 @@ export class Visual {
     controls.maxPolarAngle = Math.PI * .47;   // можно опустить камеру почти к воде и посмотреть на небо
     controls.update();
 
+    // v24: потеря контекста WebGL (не хватило видеопамяти, драйвер перезапустился): браузеру — «восстанови» (preventDefault),
+    // main.js показывает сообщение и после восстановления снижает качество. three.js сам заново загружает всё в видеокарту
+    this.lost = false;
+    this.canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); this.lost = true; this.onLost?.(); });
+    this.canvas.addEventListener('webglcontextrestored', () => { this.lost = false; this.onRestored?.(); });
     renderer.domElement.style.touchAction = 'none';
     renderer.domElement.addEventListener('pointermove', ev => {
       const r = this.stage.getBoundingClientRect();
@@ -1477,6 +1486,16 @@ export class Visual {
   // обесцвечиваются и тонируются в один мягкий цвет вида, по краю — светящийся контур (ночью ярче).
   // Все материалы → Lambert, одна стилистика для CC0 и CC-BY моделей. GLTFLoader отдаёт линейные цвета,
   // а вывод у нас без sRGB — поэтому convertLinearToSRGB, иначе всё темнее задуманного.
+  // v24: текстуры моделей — не больше 1024 точек («Лёгкое» — 256). У звезды, осьминога, пеликана и льва были по 2048: одна
+  // такая — ~21 МБ видеопамяти, а цвет текстуры у нас всё равно приглушён тоном вида и рисуется гранями (flatShading)
+  _fitTex(t) {
+    const im = t.image, cap = this.lite ? 256 : Infinity;
+    if (!im || !(Math.max(im.width, im.height) > cap)) return;
+    const k = cap / Math.max(im.width, im.height), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); im.close?.();
+    t.image = c; t.needsUpdate = true;
+  }
   _restyle(root, tint, rim, keep = .25) {
     const uTint = { value: new THREE.Color(tint) }, uRim = { value: new THREE.Color(rim) }, uKeep = { value: keep }, uRimK = this.uRimK;
     root.traverse(n => {
@@ -1484,7 +1503,7 @@ export class Visual {
       const src = Array.isArray(n.material) ? n.material : [n.material];
       const out = src.map(m => {
         const c = (m.color || new THREE.Color(1, 1, 1)).clone().convertLinearToSRGB();
-        if (m.map) m.map.colorSpace = THREE.NoColorSpace;
+        if (m.map) { m.map.colorSpace = THREE.NoColorSpace; this._fitTex(m.map); }
         const mat = new THREE.MeshLambertMaterial({ color: c, map: m.map || null, vertexColors: !!n.geometry.attributes.color, flatShading: true });
         this._hook(mat, sh => {
           Object.assign(sh.uniforms, { uTint, uRim, uKeep, uRimK });
@@ -1500,13 +1519,35 @@ export class Visual {
       n.material = Array.isArray(n.material) ? out : out[0];
     });
   }
+  // v24: ход загрузки (экран входа и ?debug=1), у каждой модели — предел 30 с (не пришла — мир без неё, вход не ждёт);
+  // в «Лёгком» акула и косатка — при первом появлении (_lazyModel)
   async _loadAssets() {
-    const loader = new GLTFLoader();
-    const load = url => new Promise((res, rej) => loader.load(url, res, undefined, rej));
     const names = ['dolphin', 'whale', 'fish', 'shark', 'orca', 'gull', 'gull_dark', 'pelican', 'sea_lion', 'palm_1', 'palm_2', 'palm_3',
-      'jellyfish', 'octopus', 'starfish', 'crab', 'turtle', 'shrimp', 'stingray'];
-    const got = await Promise.all(names.map(n => load(`./models/${n}.glb`).catch(e => { console.error(n, e); return null; })));
-    const A = {};
+      'jellyfish', 'octopus', 'starfish', 'crab', 'turtle', 'shrimp', 'stingray'].filter(n => !(this.lite && LAZY.has(n)));
+    const ms = step('модели'); let n = 0, bad = 0;
+    const got = await Promise.all(names.map(nm => this._fetchModel(nm).then(g => { ms.note(`${++n} из ${names.length}`); return g; },
+      e => { bad++; console.error(nm, e); ms.note(`${++n} из ${names.length}`); return null; })));
+    ms.done(!bad, bad ? `не пришло: ${bad}` : '');
+    this.assets = {};
+    names.forEach((nm, i) => { if (got[i]) this._prepModel(nm, got[i]); });
+    this._plantPalms();
+    for (const o of this.agents.values()) this._attachModel(o);
+    this._warmUp();
+    // v19: сетки обхода мели (navGrid, ~30 мс каждая на ПК) — заранее, по одной за раз, а не рывком посреди просмотра
+    Object.keys(ORB).forEach((sp, i) => setTimeout(() => navGrid(SWIM_DEPTH[sp], ORB[sp]), 1500 + i * 400));
+  }
+  _fetchModel(n) { this._gltf ??= new GLTFLoader(); return within(new Promise((res, rej) => this._gltf.load(`./models/${n}.glb`, res, undefined, rej)), 30000, n); }
+  // v24: редкий гость в «Лёгком» — модель грузится при первом появлении, шейдер собирается до показа
+  _lazyModel(n) {
+    (this._lazy ??= {})[n] ??= this._fetchModel(n).then(g => {
+      this._prepModel(n, g);
+      const probe = this._clone(n); probe.obj.position.y = -500;
+      return this.renderer.compileAsync(probe.obj, this.camera, this.scene).catch(() => {});
+    }).then(() => { for (const o of this.agents.values()) if (!o.attached) this._attachModel(o); })
+      .catch(e => { console.warn('модель', n, e?.message || e); delete this._lazy[n]; });
+  }
+  _prepModel(n, g) {
+    const A = this.assets;
     // size — длина по самой длинной горизонтальной оси; yaw — поворот, чтобы голова смотрела в +z; base — низ на 0 (стоящие)
     // ponytail: животные крупнее реального (дельфин 5 м) — иначе рядом с 60-метровым островом их не разглядеть
     const spec = { dolphin: [5, 0], whale: [20, 0], fish: [1.2, 0], shark: [7, 0], orca: [9, 0], gull: [3.4, -Math.PI / 2], gull_dark: [3.2, -Math.PI / 2],
@@ -1521,8 +1562,7 @@ export class Visual {
       palm_1: ['#b4bf9c', '#dfe8cc', .45], palm_2: ['#b4bf9c', '#dfe8cc', .45], palm_3: ['#b4bf9c', '#dfe8cc', .45],
       jellyfish: ['#ff8ad8', '#ffc6f2', .7], octopus: ['#e58a7c', '#ffc9b5', .5], starfish: ['#f0a27e', '#ffd7bd', .55], crab: ['#e5805f', '#ffc8a8', .5],
       turtle: ['#a6c48f', '#e4ffcf', .45], shrimp: ['#ffb9aa', '#ffe6de', .45], stingray: ['#8ea4bc', '#cfe7ff', .3] };
-    names.forEach((n, i) => {
-      const g = got[i]; if (!g) return;
+    {
       const root = g.scene; this._restyle(root, ...TONE[n]);
       // медуза — неоновая: светится сама своим цветом и полупрозрачна; рисуется до воды (renderOrder), вода её подкрашивает
       // креветки роя — тоже с неоновым свечением (иначе мелкие бледные фигурки у дна не разглядеть)
@@ -1540,13 +1580,7 @@ export class Visual {
       const inner = new THREE.Group(); inner.add(root); inner.scale.setScalar(s); holder.add(inner);
       holder.updateMatrixWorld(true);   // box — рамка в системе модели (голова +z), нужна процедурной анимации
       A[n] = { obj: holder, clips: g.animations, span: size.z * s, h: size.y * s, box: new THREE.Box3().setFromObject(holder, true) };
-    });
-    this.assets = A;
-    this._plantPalms();
-    for (const o of this.agents.values()) this._attachModel(o);
-    this._warmUp();
-    // v19: сетки обхода мели (navGrid, ~30 мс каждая на ПК) — заранее, по одной за раз, а не рывком посреди просмотра
-    Object.keys(ORB).forEach((sp, i) => setTimeout(() => navGrid(SWIM_DEPTH[sp], ORB[sp]), 1500 + i * 400));
+    }
   }
   // v22: фризы раз в несколько секунд (замер: qa/perf_profile.mjs) — сборка шейдеров посреди игры. Каждый вид зверя
   // при первом появлении и каждый эффект (круги на воде, брызги, дым, прыжок кузнечика) собирали шейдер, и кадр ждал
@@ -1557,7 +1591,7 @@ export class Visual {
   _warmUp() {
     const warm = this.warm = new THREE.Group(), at = new V3(0, -500, 0);
     const SP = ['seagull', 'tern', 'albatross', 'cormorant', 'pelican', 'dolphin', 'whale', 'shark', 'orca', 'sea_lion', 'sea_turtle',
-      'shrimp_swarm', 'jellyfish', 'octopus', 'starfish', 'crab', 'stingray', 'fish_school'];
+      'shrimp_swarm', 'jellyfish', 'octopus', 'starfish', 'crab', 'stingray', 'fish_school'].filter(sp => !(this.lite && LAZY.has(sp)));
     SP.forEach((sp, i) => {
       const o = { id: -1 - i, sp, n: 0, seed: 1, t: 0, obj: new THREE.Group(), mixers: [], heading: 0 };
       this._attachModel(o);
@@ -1577,18 +1611,29 @@ export class Visual {
     seededRandom(2311, () => { const k = this._hatchKit(), m = new THREE.InstancedMesh(k.geo, k.mat, 1); m.setColorAt(0, new THREE.Color(1, 1, 1)); warm.add(m); });   // v23: черепашата (и three.js берёт Math.random на id объектов)
     warm.traverse(n => { n.frustumCulled = false; });
     warm.position.copy(at); warm.updateMatrixWorld(true);
-    const t0 = performance.now(), rt = this.renderer.getRenderTarget();
-    this.renderer.setRenderTarget(this.rt);   // как в кадре: сцена рисуется в буфер this.rt
-    const done = this.renderer.compileAsync(warm, this.camera, this.scene);
-    this.renderer.setRenderTarget(rt);
-    // без параллельной сборки (KHR_parallel_shader_compile) браузер доделывает шейдер при первой отрисовке — рисуем
-    // образцы один раз в буфер 1×1 вместе со сценой (тот же свет и туман, значит те же шейдеры), пока открыт вход
-    done.then(() => {
-      const tiny = new THREE.WebGLRenderTarget(1, 1), prev = this.renderer.getRenderTarget();
-      this.scene.add(warm); this.renderer.setRenderTarget(tiny); this.renderer.render(this.scene, this.camera);
-      this.renderer.setRenderTarget(prev); this.scene.remove(warm); tiny.dispose();
-      if (new URLSearchParams(location.search).has('debug')) console.info(`[warm] шейдеры собраны за ${(performance.now() - t0).toFixed(0)} мс`);
-    }).catch(e => console.warn('прогрев шейдеров:', e));
+    // v24: частями по 4 образца с паузой — на слабом телефоне сборка всех ~30 шейдеров разом стояла секундами одним куском
+    // (и вместе с распаковкой звука давала пик памяти). Сборка видит только видимое — части включаются по очереди
+    const t0 = performance.now(), kids = warm.children.slice(), N = 4, ws = step('шейдеры'); let i = 0;
+    const part = () => {
+      if (i >= kids.length || this.lost) {
+        for (const k of kids) k.visible = true; ws.done(i >= kids.length, this.lost ? 'контекст потерян' : '');
+        if (new URLSearchParams(location.search).has('debug')) console.info(`[warm] шейдеры собраны за ${(performance.now() - t0).toFixed(0)} мс`);
+        return;
+      }
+      kids.forEach((k, j) => { k.visible = j >= i && j < i + N; });
+      const rt = this.renderer.getRenderTarget();
+      this.renderer.setRenderTarget(this.rt);   // как в кадре: сцена рисуется в буфер this.rt
+      const done = this.renderer.compileAsync(warm, this.camera, this.scene);
+      this.renderer.setRenderTarget(rt);
+      // без параллельной сборки (KHR_parallel_shader_compile) браузер доделывает шейдер при первой отрисовке — рисуем
+      // образцы один раз в буфер 1×1 вместе со сценой (тот же свет и туман, значит те же шейдеры), пока открыт вход
+      done.then(() => {
+        const tiny = new THREE.WebGLRenderTarget(1, 1), prev = this.renderer.getRenderTarget();
+        this.scene.add(warm); this.renderer.setRenderTarget(tiny); this.renderer.render(this.scene, this.camera);
+        this.renderer.setRenderTarget(prev); this.scene.remove(warm); tiny.dispose();
+      }).catch(e => console.warn('прогрев шейдеров:', e)).then(() => { i += N; ws.note(`${Math.min(i, kids.length)} из ${kids.length}`); setTimeout(part, 16); });
+    };
+    part();
   }
   _clone(name) {
     const a = this.assets?.[name]; if (!a) return null;
@@ -1739,6 +1784,7 @@ export class Visual {
   }
   _attachModel(o) {
     if (!this.assets || o.attached) return;
+    if (LAZY.has(o.sp) && !this.assets[o.sp]) { if (this.lite && o.id >= 0) this._lazyModel(o.sp); return; }   // v24: «Лёгкое» — модель придёт при первом появлении
     const add = name => { const m = this._clone(name); if (!m) return null; o.obj.add(m.obj); if (m.mixer) o.mixers.push(m.mixer); return m.obj; };
     if (o.sp === 'fish_school') {
       o.fish = [];
@@ -2704,6 +2750,20 @@ export class Visual {
     } else this.tipEl.classList.remove('show');
   }
 
+  // v24: оценка памяти картинки для ?debug=1 (МБ): текстуры (с мип-уровнями), геометрии, буфер кадра
+  memEstimate() {
+    const tex = new Set(), geo = new Set();
+    const visit = o => o.traverse(n => { if (n.geometry) geo.add(n.geometry);
+      for (const m of [n.material].flat()) { if (!m) continue; for (const k in m) if (m[k]?.isTexture) tex.add(m[k]);
+        if (m.uniforms) for (const u of Object.values(m.uniforms)) if (u?.value?.isTexture) tex.add(u.value); } });
+    visit(this.scene); if (this.warm) visit(this.warm); for (const a of Object.values(this.assets || {})) visit(a.obj);
+    let t = 0, g = 0;
+    for (const x of tex) { const w = x.image?.width || 0, h = x.image?.height || 0; t += w * h * (x.type === THREE.HalfFloatType ? 8 : x.type === THREE.FloatType ? 16 : 4) * (x.generateMipmaps !== false && x.minFilter > THREE.LinearFilter ? 1.33 : 1); }
+    for (const x of geo) { for (const a of Object.values(x.attributes)) g += a.array?.byteLength || 0; if (x.index) g += x.index.array.byteLength; }
+    const W = this.rt.width, H = this.rt.height, S = this.rt.samples;
+    return { tex: t / 1048576, geo: g / 1048576, rt: W * H * 4 * (1.33 + (S ? 2 * S : 1) + 1) / 1048576 };
+  }
+
   // насколько камера близко к острову (0 далеко .. 1 вплотную) — для звука насекомых
   proximity() {
     const c = this.camera.position, d = Math.hypot(c.x, c.z);
@@ -2713,8 +2773,10 @@ export class Visual {
   // качество картинки (v21 — только понижение по частоте кадров; v22 — и выбор в настройках, см. main.js): k — доля
   // разрешения от basePR, msaa — сглаживание буфера (в программном рендере его нет вовсе)
   // v23: life — доля растений, светлячков и мотыльков (раскладка случайная — редеют равномерно)
-  setQuality({ k = 1, msaa = true, life = 1 } = {}) {
+  // v24: lite — «Лёгкое»: уже загруженные текстуры моделей ужимаются до 256 (обратно не растут — до перезагрузки)
+  setQuality({ k = 1, msaa = true, life = 1, lite = false } = {}) {
     const pr = this.basePR * k, samples = msaa && !this.soft ? 4 : 0;
+    if (lite && !this.lite) { this.lite = true; for (const a of Object.values(this.assets || {})) a.obj.traverse(n => { for (const m of [n.material].flat()) if (m?.map) this._fitTex(m.map); }); }
     for (const m of this.flora || []) m.count = Math.round(m.userData.n * life);
     for (const g of this.flies || []) g.setDrawRange(0, Math.round(g.attributes.position.count * life));
     if (this.mothGeo) this.mothGeo.instanceCount = Math.round(this.mothGeo.userData.n * life);
@@ -2852,6 +2914,7 @@ export class Visual {
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
     this._updateHover(dtc); this._stepLog(dt);
     this.renderer.setRenderTarget(this.rt); this.renderer.render(this.scene, this.camera);
+    const ri = this.renderer.info.render; this.drawn = { calls: ri.calls, tris: ri.triangles + ri.points + ri.lines };   // v24: для ?debug=1
     this.renderer.setRenderTarget(null); this.renderer.render(this.postScene, this.postCam);
     return P;
   }

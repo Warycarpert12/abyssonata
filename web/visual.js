@@ -807,19 +807,30 @@ export class Visual {
     // расступание), E — свечение кончиков ночью
     const AV = this.AVOID = 10;
     this.uAvoid = { value: Array.from({ length: AV }, () => new THREE.Vector4(0, -9999, 0, 1)) };
+    this.uAvoidV = { value: Array.from({ length: AV }, () => new THREE.Vector4()) };   // v24: скорость зверя (xz) и сила (w)
     const mat = (F, E, side, B) => this._hook(this._stippled(new THREE.MeshLambertMaterial({ vertexColors: true, side }), true, 14), sh => {
-      Object.assign(sh.uniforms, { uT: this.uT, uGlowK: this.uGlowK, uAvoid: this.uAvoid });
-      sh.vertexShader = `uniform float uT; uniform vec4 uAvoid[${AV}]; attribute float aTip; varying float vTip;\n` + sh.vertexShader.replace('#include <project_vertex>', `
+      Object.assign(sh.uniforms, { uT: this.uT, uGlowK: this.uGlowK, uAvoid: this.uAvoid, uAvoidV: this.uAvoidV });
+      sh.vertexShader = `uniform float uT; uniform vec4 uAvoid[${AV}], uAvoidV[${AV}]; attribute float aTip; varying float vTip;\n` + sh.vertexShader.replace('#include <project_vertex>', `
         vTip = aTip;
         vec4 wp = modelMatrix * instanceMatrix * vec4(transformed, 1.);
         vec3 ip = (modelMatrix * instanceMatrix * vec4(0., 0., 0., 1.)).xyz;
         float hm = max(0., wp.y - ip.y);
         ${F ? `wp.xz += vec2(sin(uT * .8 + ip.x * .37 + hm * .5), cos(uT * .63 + ip.z * .29 + hm * .4)) * hm * hm / (hm + 1.) * ${(F * .09).toFixed(3)};
-        for (int i = 0; i < ${AV}; i++) {   // зверь рядом — стебли отклоняются от него и чуть пригибаются (корни на месте)
-          vec4 a = uAvoid[i]; vec2 d = wp.xz - a.xz; float L = length(d) + .001;
-          float k = (1. - smoothstep(a.w * .3, a.w * 1.3, L)) * (1. - smoothstep(a.w * .4, a.w * 1.6, abs(wp.y - a.y))) * smoothstep(0., 1.2, hm);
-          wp.xz += d / L * k * a.w * .8; wp.y -= k * hm * .2;
-        }` : ''}
+        // v24: зверь рядом — стебли мягко расходятся и слегка наклоняются. Было: сдвиг до 0.8 радиуса тела (кит — 8 м) уже
+        // с высоты 1.2 м — ламинария ложилась почти горизонтально и разлеталась (видео автора). Теперь: сдвиг вбок не
+        // больше 1.6 м от всех зверей вместе, изгиб плавный по высоте (корни на месте), верх при наклоне чуть опускается
+        // (длина стебля сохраняется), позади зверя — затухающий след на ~1.5 с хода: стебли возвращаются постепенно
+        vec2 push = vec2(0.);
+        for (int i = 0; i < ${AV}; i++) {
+          vec4 a = uAvoid[i], av = uAvoidV[i]; float sp = length(av.xz); vec2 dir = sp > .05 ? av.xz / sp : vec2(0.);
+          float back = clamp(-dot(wp.xz - a.xz, dir), 0., sp * 1.5);
+          vec2 d = wp.xz - (a.xz - dir * back); float L = length(d) + .001;
+          float k = (1. - smoothstep(a.w * .3, a.w * 1.3, L)) * (1. - smoothstep(a.w * .4, a.w * 1.6, abs(wp.y - a.y))) * (1. - back / (sp * 1.5 + .001)) * av.w;
+          push += d / L * k * min(a.w * .35, 1.6);
+        }
+        float pl = length(push); if (pl > 1.6) push *= 1.6 / pl;
+        float bend = smoothstep(0., 4., hm); push *= bend * bend;
+        wp.xz += push; wp.y -= dot(push, push) / (2. * max(hm, .5));` : ''}
         vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;`);
       // B — своё мягкое свечение: остальная флора острова нарисована без освещения, и освещённая под водой рядом с ней темнее
       sh.fragmentShader = 'uniform float uGlowK; varying float vTip;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
@@ -864,18 +875,29 @@ export class Visual {
     }
   }
   // v23: точки, от которых расступается флора — ближайшие к камере звери в воде и стайки рыбок (центр и радиус тела)
-  _floraAvoid() {
+  // v24: у каждого зверя — сглаженная скорость (для следа) и сила: вошёл в число ближайших — сила плавно растёт, вышел —
+  // плавно гаснет (раньше растения рывком возвращались, когда зверь выпадал из десятки)
+  _floraAvoid(dt) {
     if (!this.uAvoid) return;
-    const cam = this.camera.position, L = this._avL ||= [];
+    const cam = this.camera.position, L = this._avL ||= [], T = this._avT ||= new Map(), AV = this.AVOID;
     L.length = 0;
     for (const o of this.agents.values()) {
       const fish = o.fish?.length, r = fish ? 5 : SWIM_R[o.sp] ? BODY_R[o.sp] || 2 : 0; if (!r) continue;
       const p = fish ? o.anchor : o.obj.position; if (p.y > .5) continue;   // над водой (птица, лев на берегу) — не задевает
-      L.push([p.distanceToSquared(cam), p.x, p.y, p.z, r]);
+      L.push([p.distanceToSquared(cam), p.x, p.y, p.z, r, o.id]);
     }
-    for (const s of this.shoals || []) { const x = s.c.x + Math.cos(s.a) * 5, z = s.c.z + Math.sin(s.a) * 5; L.push([(x - cam.x) ** 2 + (s.c.y - cam.y) ** 2 + (z - cam.z) ** 2, x, s.c.y, z, 2.5]); }
+    (this.shoals || []).forEach((s, i) => { const x = s.c.x + Math.cos(s.a) * 5, z = s.c.z + Math.sin(s.a) * 5; L.push([(x - cam.x) ** 2 + (s.c.y - cam.y) ** 2 + (z - cam.z) ** 2, x, s.c.y, z, 2.5, 's' + i]); });
     L.sort((a, b) => a[0] - b[0]);
-    this.uAvoid.value.forEach((v, i) => { const q = L[i]; if (q) v.set(q[1], q[2], q[3], q[4]); else v.set(0, -9999, 0, 1); });
+    const near = new Set(L.slice(0, AV).map(q => q[5])), kS = 1 - Math.exp(-dt / .5), kV = 1 - Math.exp(-dt / .4);
+    for (const q of L) {
+      let t = T.get(q[5]); if (!t) T.set(q[5], t = { x: q[1], z: q[3], vx: 0, vz: 0, s: 0 });
+      if (dt > 0) { t.vx += ((q[1] - t.x) / dt - t.vx) * kV; t.vz += ((q[3] - t.z) / dt - t.vz) * kV; }
+      t.x = q[1]; t.z = q[3]; t.y = q[2]; t.r = q[4]; t.seen = true;
+    }
+    for (const [id, t] of T) { t.s += ((near.has(id) && t.seen ? 1 : 0) - t.s) * kS; if (!t.seen && t.s < .01) T.delete(id); t.seen = false; }
+    const act = [...T.values()].filter(t => t.s > .01).sort((a, b) => b.s - a.s).slice(0, AV);
+    this.uAvoid.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.x, t.y, t.z, t.r); else v.set(0, -9999, 0, 1); });
+    this.uAvoidV.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.vx, 0, t.vz, t.s); else v.set(0, 0, 0, 0); });
   }
 
   // пена-крошка у кромки: каждая крупинка набегает от берега и откатывается с волной, растёт и тает
@@ -2851,7 +2873,7 @@ export class Visual {
     this._separate(dt);
     this._nearSounds(dt);
     if (this.shoals) this._stepAmbient(dt, t);
-    this._floraAvoid();
+    this._floraAvoid(dt);
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
     this._updateHover(dtc); this._stepLog(dt);
     this.renderer.setRenderTarget(this.rt); this.renderer.render(this.scene, this.camera);

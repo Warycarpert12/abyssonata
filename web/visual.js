@@ -859,7 +859,11 @@ export class Visual {
         vec2 push = vec2(0.);
         for (int i = 0; i < ${AV}; i++) {
           if (i >= uAvN) break;
-          vec4 a = uAvoid[i], av = uAvoidV[i]; float sp = length(av.xz); vec2 dir = sp > .05 ? av.xz / sp : vec2(0.);
+          vec4 a = uAvoid[i], av = uAvoidV[i];
+          // v24: дальше, чем достаёт зверь (тело + след), — сразу к следующему: на телефоне полный расчёт для всех
+          // ~860 тыс. вершин флоры стоил ~9 мс кадра (?bench=1). Результат тот же: там k = 0. av.y — квадрат досягаемости
+          vec2 e0 = wp.xz - a.xz; if (dot(e0, e0) > av.y || abs(wp.y - a.y) > a.w * 1.6) continue;
+          float sp = length(av.xz); vec2 dir = sp > .05 ? av.xz / sp : vec2(0.);
           float back = clamp(-dot(wp.xz - a.xz, dir), 0., sp * 1.5);
           vec2 d = wp.xz - (a.xz - dir * back); float L = length(d) + .001;
           float k = (1. - smoothstep(a.w * .3, a.w * 1.3, L)) * (1. - smoothstep(a.w * .4, a.w * 1.6, abs(wp.y - a.y))) * (1. - back / (sp * 1.5 + .001)) * av.w;
@@ -935,7 +939,7 @@ export class Visual {
     for (const [id, t] of T) { t.s += ((near.has(id) && t.seen ? 1 : 0) - t.s) * kS; if (!t.seen && t.s < .01) T.delete(id); t.seen = false; }
     const act = [...T.values()].filter(t => t.s > .01).sort((a, b) => b.s - a.s).slice(0, AV);
     this.uAvoid.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.x, t.y, t.z, t.r); else v.set(0, -9999, 0, 1); });
-    this.uAvoidV.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.vx, 0, t.vz, t.s); else v.set(0, 0, 0, 0); });
+    this.uAvoidV.value.forEach((v, i) => { const t = act[i]; if (t) v.set(t.vx, (t.r * 1.3 + Math.hypot(t.vx, t.vz) * 1.5 + .01) ** 2, t.vz, t.s); else v.set(0, 0, 0, 0); });
     this.uAvN.value = act.length;
   }
 

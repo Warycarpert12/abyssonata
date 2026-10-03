@@ -9,7 +9,7 @@ import * as THREE from './three.module.min.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-export async function runBench({ visual: v, world, setPaused, high, hold }) {
+export async function runBench({ visual: v, world, setPaused, high, hold, short = false }) {
   const gl = v.renderer.getContext(), px = new Uint8Array(4), root = document.documentElement;
   const label = document.createElement('div');
   label.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:99;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.7);color:#eef4ee;font:12px ui-monospace,monospace;text-transform:none;pointer-events:none';
@@ -65,6 +65,9 @@ export async function runBench({ visual: v, world, setPaused, high, hold }) {
     ['пустая сцена', () => { v.scene.visible = false; return () => { v.scene.visible = true; }; }],
     ['всё (повтор)', () => () => {}],
   ];
+  // короткий прогон (?bench=2) — меньше греется телефон: только то, что оказалось дорогим на телефоне автора
+  const SHORT = ['всё (Высокое)', 'без растений на дне', 'растения не качаются', 'без воды', 'сглаживание 2× вместо 4×', 'без сглаживания', 'разрешение 75%', 'пустая сцена', 'всё (повтор)'];
+  if (short) ROWS.splice(0, ROWS.length, ...ROWS.filter(r => SHORT.includes(r[0])));
   const TODS = [['день', .5], ['ночь', .02]];
 
   // одна точка камеры: облёт со стороны рифа, остров и горизонт в кадре

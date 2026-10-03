@@ -315,7 +315,7 @@ export class Visual {
     controls.minDistance = 3; controls.maxDistance = 120; controls.zoomToCursor = true;
     // медленное вращение вокруг всей локации, как в образце (~3 мин на оборот): сразу при входе и снова через 12 с после того,
     // как камеру отпустили; пока держишь камеру или следишь за зверем — стоит
-    controls.autoRotateSpeed = .35; this._idle = 99;
+    this._idle = 99;
     // взялся за камеру сам: v22 — при слежении за зверем камера крутится вокруг него и приближается (слежение остаётся,
     // выход — Esc или «✕» на плашке, см. main.js); без слежения — как раньше
     controls.addEventListener('start', () => { if (this._follow) this._follow.user = true; this._fly = null; this._drag = true; this._idle = 0; });
@@ -2856,26 +2856,32 @@ export class Visual {
 
     this._stepFollow(dtc); this._stepFly(dtc); this._followChip();
     if (!this._drag) this._idle += dtc;
-    const spin = this.controls.autoRotate = !this._follow && !this._fly && !this.paused && !this._freeCam && this._idle > 12;   // v15: через 12 с (было 20)
+    // v24: облёт — через 20 с покоя (было 12); облётом ведёт кадр сам (азимут, высота, точка взгляда), не autoRotate
+    const spin = !this._follow && !this._fly && !this.paused && !this._freeCam && this._idle > 20;
+    this.controls.autoRotate = false;
     if (spin) {
-      // v16: облёт — вокруг всей локации (центр острова), камера на ~105 м под ~46°; когда она проходит над стороной
-      // рифа (дуга в 55–82 м к +z), центр кадра плавно смещается к рифу — он отчётливо виден внизу кадра; с других
-      // сторон взгляд снова на центре (в v15 центр был всё время у рифа — «крутится только вокруг коралла») — риф виден сквозь воду, что на нём происходит
-      this._spinQA ??= new URLSearchParams(location.search).has('spinqa');   // QA: сразу в кадр облёта
-      // v24 (просмотр, по умолчанию выключено): ?orbit=0..1 — «насколько ближе к видео автора»: 0 — облёт как был (~105 м,
-      // 46° от вертикали, оборот ~3 мин, центр смещается к рифу); 1 — как на видео: низко (12° над водой — горизонт и небо
-      // в кадре), ~100 м и «дышит» ±35% (подлетает к острову и отходит), оборот ~30 с, центр — главный остров
-      this._orbitK ??= clamp(+(new URLSearchParams(location.search).get('orbit')) || 0);
-      const ob = this._orbitK;
-      this.controls.autoRotateSpeed = .35 * Math.pow(2 / .35, ob);
-      const tg0 = this.controls.target, k = this._spinQA ? 1 : 1 - Math.exp(-dt * .15);
-      const th = Math.atan2(this.camera.position.x - tg0.x, this.camera.position.z - tg0.z), reefK = Math.max(0, Math.cos(th)) ** 2 * (1 - ob);
-      const d0 = new V3(0, 6 * ob, 50 * reefK).sub(tg0).multiplyScalar(this._spinQA ? 1 : 1 - Math.exp(-dt * .4));
-      tg0.add(d0); this.camera.position.add(d0);
-      const sp = new THREE.Spherical().setFromVector3(this.camera.position.clone().sub(tg0));
-      sp.radius = lerp(sp.radius, lerp(105, 100, ob) * (1 + .35 * ob * Math.sin(this.clock * .16)), k); sp.phi = lerp(sp.phi, lerp(.8, 1.36, ob), k);
-      this.camera.position.copy(tg0).add(new V3().setFromSpherical(sp));
+      // v24 (по видео автора, середина между прежним облётом и видео): низко над водой — горизонт и небо в кадре, оборот
+      // ~2.5–3 мин вокруг главного острова, расстояние ~100 м мягко «дышит». Риф: когда камера проходит над его стороной
+      // (+z, дуга 82 м), точка взгляда плавно переходит на ближний к камере участок рифа, камера подходит к нему (~48 м) и
+      // смотрит круче — риф виден сквозь воду в середине кадра, остров у верхнего края; дальше так же плавно обратно.
+      // Подбор на глаз: ?h= — угол над водой (градусы), ?turn= — секунд на оборот
+      const qs = this._orbQ ??= new URLSearchParams(location.search), H = (+qs.get('h') || 18) * Math.PI / 180, TURN = +qs.get('turn') || 160;
+      this._spinQA ??= qs.has('spinqa');   // QA: сразу в кадр облёта
+      const tg0 = this.controls.target, cam0 = this.camera.position;
+      if (!this._spun) this._orbA = Math.atan2(cam0.x, cam0.z);   // облёт продолжается оттуда, где камеру отпустили
+      this._orbA -= dt * 2 * Math.PI / TURN; this._orbA = Math.atan2(Math.sin(this._orbA), Math.cos(this._orbA));   // в ту же сторону, что и прежний облёт
+      const a = this._orbA, w = smooth(.3, .92, Math.cos(a)), ar = clamp(a, -.75, .75);
+      // высота точки взгляда — плавно от середины острова к воде над рифом (границы точки обзора ниже на облёте не действуют:
+      // на склонах они дёргали её вверх-вниз — рывки камеры)
+      this._orbC ??= Math.max(4, islandH(0, 0) + .6);
+      const T = new V3(Math.sin(ar) * 82 * w, this._orbC * (1 - w), Math.cos(ar) * 82 * w);
+      const D = lerp(100 * (1 + .15 * Math.sin(this.clock * .09)), 48, w), e = lerp(H, .52, w);
+      const C = new V3(Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e)).multiplyScalar(D).add(T);
+      // вход в облёт и любые расхождения — плавно (~2.5 с), без рывка
+      const k = this._spinQA ? 1 : 1 - Math.exp(-dt * .4);
+      tg0.lerp(T, k); cam0.lerp(C, k);
     }
+    this._spun = spin;
     this.controls.update(dtc);
     this._qaLook();
     // границы (v13 свободнее): точка обзора — в пределах 150 м от острова (островки, риф, звери вокруг), по высоте — от
@@ -2883,7 +2889,7 @@ export class Visual {
     // а на вершинах выше 8 м «потолок» и «не ниже рельефа» спорили: точку тянуло вниз вместе с камерой, а вверх — одну,
     // и камера каждый кадр оседала к острову («сама зумит, потом не оторвать»)
     const tg = this.controls.target, cam = this.camera.position;
-    if (!this._freeCam && !this._follow) {
+    if (!this._freeCam && !this._follow && !spin) {
       const want = tg.clone(), hr = Math.hypot(tg.x, tg.z);
       if (hr > 150) { want.x *= 150 / hr; want.z *= 150 / hr; }
       want.y = clamp(want.y, Math.max(0, islandH(want.x, want.z) + .5), 30);

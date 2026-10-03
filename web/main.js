@@ -391,33 +391,47 @@ let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время
 // меньше, текстуры моделей до 256 точек, звук облегчённый с выгрузкой давно не звучавших записей
 const Q = { high: { k: 1, msaa: true }, low: { k: Math.min(1, 1 / visual.basePR) * .75, msaa: false, life: .4 },
   lite: { k: Math.min(1, 1 / visual.basePR) * .6, msaa: false, life: .25, lite: true } };
-const AUTO = [Q.high, { k: 1, msaa: false }, { k: Math.max(.8, Math.min(1, 1 / visual.basePR)), msaa: false, life: .4 }];
+// v24: «Авто» — 6 ступеней: разрешение (k от basePR, но не ниже одной точки на пиксель экрана — «мыло» на Honor 30 в v21),
+// сглаживание только на первой, доля растений и огоньков (life). Уровень — по настоящему времени кадра, решение раз в 1.5 с:
+// цель — 60 к/с; медиана кадра хуже цели на 25% или каждый 10-й кадр вдвое дольше — ступень ниже сразу. Ступень ниже не
+// дала хотя бы 10% — упираемся не в картинку (процессор, предел 30 к/с в режиме экономии): шаг назад и дальше не снижаем.
+// Выше — после 8 с ровной работы и не раньше 20 с после понижения; ступень, где дважды не справились, больше не пробуем. Раньше: 3 ступени и только если ниже
+// ~24 к/с 6 с подряд — сильный телефон с 30–40 к/с и рывками так и оставался на «Высоком». Звук разгружается (audio.weak)
+// с 4-й ступени «Авто» или после двух плохих окон подряд на ручном качестве
+const kMin = Math.min(1, 1 / visual.basePR);
+const AUTO = [[1, 1], [1, 1], [.85, 1], [.72, .7], [.6, .5], [.5, .3]].map(([k, life], i) => ({ k: Math.max(kMin, k), msaa: i === 0, life }));
 let qMode = 'auto'; try { qMode = localStorage.getItem('abyssonata.quality') || 'auto'; } catch { /* приватное окно */ }
 if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
 if (startLite) qMode = 'lite';   // v24: само — не запоминаем (выбор человека в настройках важнее, см. boot.js)
-const autoQ = !qs.has('lowres'); let fpsT = -5, fpsN = 0, fpsSum = 0, qLevel = 0, strain = 0, badW = 0;
+const autoQ = !qs.has('lowres'); let qLevel = 0, aT = -5, aWin = [], aGood = 0, aDownT = -1e9, aClock = 0, aBad = 0, aPrev = 0, aLock = false;
+const aFail = AUTO.map(() => 0);
 const applyQ = () => { if (autoQ) visual.setQuality(qMode === 'auto' ? AUTO[qLevel] : Q[qMode]); };
 const setQMode = (m, user = false) => {
   // смена выбора — 3 с не считаем кадры; при запуске остаётся −5 (первые 5 с после входа, как в v21)
-  qMode = m; qLevel = 0; fpsT = Math.min(fpsT, -3); fpsN = fpsSum = badW = 0; applyQ();
+  qMode = m; qLevel = 0; aT = Math.min(aT, -3); aWin = []; aGood = aBad = aPrev = 0; aLock = false; aFail.fill(0); applyQ();
   if (m === 'lite') { audio.lite = audio.tiny = true; }
   if (user) try { localStorage.setItem('abyssonata.quality', m); localStorage.setItem('abyssonata.quality.user', '1'); } catch { /* приватное окно */ }
   document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
 };
 const watchFps = raw => {
-  if (!autoQ || document.hidden || paused || strain >= 2 || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
-  fpsT += raw; if (fpsT < 0) return;   // первые 5 с после входа — догрузка и распаковка, не считаем
-  fpsN++; fpsSum += raw;
-  if (fpsT < 3) return;
-  badW = fpsSum / fpsN > 1 / 24 ? badW + 1 : 0;   // две плохие трёхсекундные полосы подряд — не разовая заминка
-  if (badW >= 2) {
-    badW = 0; strain++;
-    if (qMode === 'auto' && qLevel < AUTO.length - 1) { qLevel++; applyQ(); }
-    if (strain >= 2) audio.weak = true;
-    console.info('[quality] слабое устройство — ступень', strain, qMode === 'auto' ? `(картинка: ${qLevel})` : `(картинка: ${qMode}, не меняется)`); fpsT = -2;
-  }
-  else fpsT = 0;
-  fpsN = 0; fpsSum = 0;
+  if (!autoQ || document.hidden || paused || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
+  aClock += raw; aT += raw; if (aT < 0) return;   // первые 5 с после входа и 2 с после смены ступени — не считаем
+  aWin.push(raw); if (aT < 1.5) return;
+  const b = aWin.sort((x, y) => x - y), q = p => b[Math.min(b.length - 1, Math.floor(p * b.length))];
+  const tgt = 1 / 60, sc = q(.75), bad = q(.5) > tgt * 1.25 || q(.9) > tgt * 2, good = q(.5) < tgt * 1.08 && q(.9) < tgt * 1.5;
+  aT = 0; aWin = [];
+  if (qMode !== 'auto') { aBad = bad ? aBad + 1 : 0; if (aBad >= 2) audio.weak = true; return; }
+  if (!bad) aPrev = 0;
+  if (bad && aPrev && sc > aPrev * .9) {   // прошлая ступень вниз не помогла — вернуть и больше не снижать
+    aLock = true; aPrev = 0; aFail[--qLevel] = 0; aT = -2; applyQ(); console.info(`[quality] ниже — не легче (кадр ${(q(.5) * 1000).toFixed(0)} мс): ступень ${qLevel}, дальше не снижаю`);
+  } else if (bad && !aLock && qLevel < AUTO.length - 1) {
+    aPrev = sc; aFail[qLevel]++; qLevel++; aDownT = aClock; aGood = 0; aT = -2; applyQ();
+    if (qLevel >= 3) audio.weak = true;
+    console.info(`[quality] кадр ${(q(.5) * 1000).toFixed(0)} мс (цель ${(tgt * 1000).toFixed(0)}) — ступень ${qLevel}`);
+  } else if (good) {
+    aGood += 1.5;
+    if (aGood >= 8 && qLevel > 0 && aClock - aDownT > 20 && aFail[qLevel - 1] < 2) { qLevel--; aGood = 0; aT = -2; applyQ(); console.info(`[quality] запас есть — ступень ${qLevel}`); }
+  } else aGood = 0;
 };
 document.querySelectorAll('#quality button').forEach(b => b.addEventListener('click', () => setQMode(b.dataset.q, true)));
 setQMode(qMode);

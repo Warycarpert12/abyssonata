@@ -1314,7 +1314,10 @@ export class Visual {
           gl_FragColor = vec4(col, max(a, clamp(foam, 0., 1.)));
         }`,
     });
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(10000, 10000), this.waterMat);
+    // v24: сетка 256×256 (клетки ~39 м), а не два треугольника 10×10 км — на огромных треугольниках глубина и мировые
+    // координаты точки считаются с погрешностью, и у пологих пляжей граница «вода спереди / песок спереди» дрожала при
+    // каждом сдвиге камеры (мерцание кромки); за камерой вода сдвигается целыми клетками — сетка стоит в мире
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(10000, 10000, 256, 256), this.waterMat);
     water.rotation.x = -Math.PI / 2; this.scene.add(water); this.water = water;
     // v11: вода рисуется раньше всего прозрачного над ней (частицы, облака, брызги, светлячки). Раньше её план, будучи
     // «ближе всех» к камере, рисовался последним и закрашивал всё, за чем виднелась вода: стоило поднять камеру —
@@ -2839,7 +2842,7 @@ export class Visual {
     // небо, звёзды, солнце, луна — вокруг камеры: у мира нет края, куда можно «выехать»
     this.sky.position.copy(cam); this.stars.position.copy(cam);
     this.sunGlow.position.add(cam); this.sunDisc.position.add(cam); this.moon.position.add(cam);
-    this.water.position.x = cam.x; this.water.position.z = cam.z;
+    const WC = 10000 / 256; this.water.position.x = Math.round(cam.x / WC) * WC; this.water.position.z = Math.round(cam.z / WC) * WC;
     this._day = day;
     // общий такт стай (v14: дельфины на ночном отдыхе кружат втрое медленнее)
     const dRest = [...this.agents.values()].some(q => q.sp === 'dolphin' && q.st === 'rest');

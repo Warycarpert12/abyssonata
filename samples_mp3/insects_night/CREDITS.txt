@@ -1,9 +1,9 @@
 Ночные насекомые — петли (22.09.2026), loudnorm I=-24, ≤40 с, стерео 48 кГц
-bsb_1020.wav | Field cricket | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1020.mp3
-bsb_1470.wav | Nocturnal Insects #4 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1470.mp3
-bsb_0425.wav | Nocturnal insect #2 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/0425.mp3
-bsb_0426.wav | Nocturnal insect #3 | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/0426.mp3
-1880.mp3 → bsb_1880.wav | Campaign at night (field crickets, rare frogs) | BigSoundBank (Joseph Sardin) | CC0 (разрешён пользователем) | https://bigsoundbank.com/UPLOAD/mp3/1880.mp3
+bsb_1020.wav | Field cricket | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1020.mp3
+bsb_1470.wav | Nocturnal Insects #4 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/1470.mp3
+bsb_0425.wav | Nocturnal insect #2 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/0425.mp3
+bsb_0426.wav | Nocturnal insect #3 | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/ | https://bigsoundbank.com/UPLOAD/mp3/0426.mp3
+1880.mp3 → bsb_1880.wav | Campaign at night (field crickets, rare frogs) | BigSoundBank (Joseph Sardin) | CC0 | https://bigsoundbank.com/UPLOAD/mp3/1880.mp3
 175020.ogg (превью HQ ogg через API) → fs175020.wav | AMBIENCE NIGHT FIELD CRICKET 01.wav | sengjinn | CC0 | https://freesound.org/people/sengjinn/sounds/175020/
 530477.ogg (превью HQ ogg через API) → fs530477.wav | Cricket chirping | GB01 | CC0 | https://freesound.org/people/GB01/sounds/530477/
 704381.ogg (превью HQ ogg через API) → fs704381.wav | Northern California Crickets | ellie.vanderlip | CC0 | https://freesound.org/people/ellie.vanderlip/sounds/704381/

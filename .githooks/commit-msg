@@ -1,0 +1,3 @@
+#!/bin/sh
+# Сообщение коммита: та же проверка публикации
+exec node tools/check_publish.mjs --msg "$1"

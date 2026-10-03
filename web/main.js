@@ -1,25 +1,24 @@
-// Abyssonata — склейка: мир теперь считается прямо в браузере (World оборачивает sim.js),
-// один поток данных кормит картинку (Visual) и звук (OceanAudio), поэтому они всегда синхронны.
-// Звук стартует по клику (гейт «Войти в океан») — без жеста пользователя браузер звук не запустит.
+// Abyssonata — склейка: мир считается прямо в браузере (World оборачивает sim.js), один поток данных кормит
+// картинку (Visual) и звук (OceanAudio), поэтому они всегда синхронны. Звук стартует по нажатию «Войти в океан» —
+// без жеста браузер звук не запустит.
 import { World } from './world.js';
 import { Visual } from './visual.js';
 import { OceanAudio } from './audio.js';
 import { initBestiary } from './bestiary.js';
 import { boot, steps, step, within, device, autoLite, startLite, lastBootFailed, markBoot } from './boot.js';
 
-// v21 QA: &rseed=N — повторяемые случайные числа (одинаковые сцены для снимков «было/стало»); без параметра — как всегда
+// &rseed=N — повторяемые случайные числа (одинаковые сцены для снимков и сравнений); без параметра — как всегда
 { const rs = new URLSearchParams(location.search).get('rseed');
   if (rs !== null) { let r = (+rs * 2654435761) >>> 0; Math.random = () => { r = (r + 0x6D2B79F5) >>> 0; let x = Math.imul(r ^ (r >>> 15), 1 | r); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; } }
 
-// --- место в океане (v17, интернет-версия на колонке, serve_public.py: не больше 30 зрителей одновременно).
-// Сначала просим место; пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки
-// до этого не качаются). Локальный serve.py про места не знает (404) — тогда просто входим.
-// v22: только при запуске с домашнего сервера — статическая сборка (GitHub Pages, APK: метка om-site от build_site.py)
-// мест не считает, и запрос давал там красную ошибку в консоли
+// --- место в океане: сервер с ограничением зрителей (не больше 30 одновременно) выдаёт место через /api/join.
+// Пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки до этого не качаются).
+// Сервер без мест отвечает 404 — тогда просто входим. Статическая сборка (GitHub Pages, APK: метка om-site от
+// build_site.py) мест не спрашивает
 if (document.querySelector('meta[name="om-site"]')?.content !== 'static' && !location.hostname.endsWith('.github.io')) {
   const gateP = document.querySelector('#gate-card p'), btn = document.querySelector('#gate-btn');
   const join = async () => {
-    try {   // v21: не дольше 5 с (AbortController — есть и в старом Safari)
+    try {   // не дольше 5 с (AbortController — есть и в старом Safari)
       const ac = new AbortController(), to = setTimeout(() => ac.abort(), 5000);
       const r = await fetch('/api/join', { method: 'POST', signal: ac.signal }); clearTimeout(to);
       return r.ok ? await r.json() : { ok: true, local: true };
@@ -28,7 +27,7 @@ if (document.querySelector('meta[name="om-site"]')?.content !== 'static' && !loc
   };
   let j = await join();
   if (j.ok === false) {
-    window.__omReady = true;   // v21: код работает, просто очередь — запасное сообщение не нужно
+    window.__omReady = true;   // код работает, просто очередь — запасное сообщение не нужно
     const txt = gateP.textContent; btn.style.display = 'none';
     while (j.ok === false) {
       gateP.textContent = `Сейчас в океане слишком много людей (${j.count} из ${j.limit}). Подождите — страница зайдёт сама, как только освободится место.`;
@@ -43,10 +42,10 @@ if (document.querySelector('meta[name="om-site"]')?.content !== 'static' && !loc
 }
 
 const stage = document.querySelector('#stage');
-// v24: «Лёгкое» качество — с самого начала (мало памяти, прошлый вход не дошёл до мира, выбрано в настройках), см. boot.js
+// «Лёгкое» качество — с самого начала (мало памяти, прошлый вход не дошёл до мира, выбрано в настройках), см. boot.js
 const visual = new Visual(stage, { lite: startLite });
 const world = new World();
-const audio = new OceanAudio('.', { lite: startLite });   // v19: пути от страницы — сайт может лежать в подпапке (GitHub Pages)
+const audio = new OceanAudio('.', { lite: startLite });   // пути от страницы — сайт может лежать в подпапке (GitHub Pages)
 
 world.onState(m => visual.onState(m));
 world.onEvent(m => visual.onEvent(m));
@@ -57,7 +56,7 @@ world.onEvent(m => { if (audio.ready) audio.onEvent({ ...m, ...visual.spatial(m)
 // местные звуки от картинки: плеск (рифовая рыбка, прыжки из воды), стрекот кузнечика, звуки при приближении
 // (бульки, треск креветок, щёлканье краба) — из той точки, где это видно; k — насколько близко (1 — вплотную)
 // громкость и высота: креветки и краб звучат выше записи (запись — шипение/щелчки, на них похоже в ускорении)
-const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shrimp: [.05, 1.05], crab: [.07, 1.5], sand: [.025, 1.1] };   // v14: креветки — настоящая гидрофонная запись, почти без ускорения; v23: sand — шорох песка у черепашат, тихо (они маленькие)
+const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shrimp: [.05, 1.05], crab: [.07, 1.5], sand: [.025, 1.1] };   // креветки — гидрофонная запись, почти без ускорения; sand — шорох песка у черепашат, тихо (они маленькие)
 visual.onLocalSound = (cat, pos, k = 1) => {
   if (!audio.ready) return;
   const sp = visual.spatialAt(pos), [amp, rate] = LOCAL[cat] || [.05, 1];
@@ -65,20 +64,19 @@ visual.onLocalSound = (cat, pos, k = 1) => {
 };
 
 const qs = new URLSearchParams(location.search);
-// старт всегда днём (раньше был случайный час — можно было попасть на тёмный/тусклый первый
-// экран, отсюда была часть жалоб «серый камень»); из URL можно переопределить для QA
-// v23: ?spawn=hatching — вылупление черепашат сразу; без tod в адресе — ночью (событие ночное)
+// старт всегда днём (в случайный час можно попасть на тёмный первый экран); ?tod= переопределяет.
+// ?spawn=hatching — вылупление черепашат сразу; без tod в адресе — ночью (событие ночное)
 const startTod = qs.has('tod') ? parseFloat(qs.get('tod')) : /hatching/.test(qs.get('spawn') || '') ? .02 : .5;
-if (qs.has('qa')) window.__om = { world, visual, audio };   // v22 QA: доступ для автопроверок (только с ?qa в адресе)
+if (qs.has('qa')) window.__om = { world, visual, audio };   // доступ для автопроверок (только с ?qa в адресе)
 const seed = qs.has('seed') ? parseInt(qs.get('seed'), 10) : null;
 world.start({ startTod, seed });
 
-// ?spawn=shark,orca,jellyfish,... — вызвать гостя сразу (программный рендер в QA успевает лишь пару первых кадров);
+// ?spawn=shark,orca,jellyfish,... — вызвать гостя сразу (программный рендер при проверке успевает лишь пару кадров);
 // два нулевых шага: на первом симуляция только снимает начальное состояние, экосистема появляется на втором
 if (qs.has('spawn')) { world.step(0); world.step(0); qs.get('spawn').split(',').forEach(k => world.debugSpawn(k.trim())); visual.synced = false; }   // гости — сразу на месте, не из дымки
-// v23: ?spawn=hatching — камера сама летит к выводку, как по нажатию на запись журнала
+// ?spawn=hatching — камера сама летит к выводку, как по нажатию на запись журнала
 if (/hatching/.test(qs.get('spawn') || '')) { const t = setInterval(() => { if ([...visual.agents.values()].some(o => o.sp === 'hatchling' && o.kids)) { visual.focusSpecies('hatchling'); clearInterval(t); } }, 500); }
-// v21 QA (только с параметрами в адресе, на обычный мир не влияет): &qa=dry — баклан сразу сушит крылья на камне;
+// для проверок (только с параметрами в адресе, на обычный мир не влияет): &qa=dry — баклан сразу сушит крылья на камне;
 // &pre=N — прожить N секунд мира и движения зверей до первого кадра (в безголовом снимке мир живёт ~1 с)
 if (qs.get('qa') === 'dry') {
   world.step(0); world.step(0); world.debugSpawn('cormorant'); visual.synced = false;
@@ -97,9 +95,9 @@ if (qs.get('qa') === 'lionswim') {
 }
 for (let i = 0, n = Math.min(600, +qs.get('pre') * 10 || 0); i < n; i++) { world.step(.1); for (const o of visual.agents.values()) visual._stepAgent(o, .1); visual._separate(.1); }
 
-// --- гейт входа: запускает AudioContext по клику (обязателен жест пользователя) ---
+// --- экран входа: запускает AudioContext по нажатию (нужен жест) ---
 const gate = document.querySelector('#gate');
-// v18: телефон — на весь экран. Браузер разрешает это только по нажатию: при входе в океан и кнопкой #fs, которая
+// телефон — на весь экран. Браузер разрешает это только по нажатию: при входе в океан и кнопкой #fs, которая
 // появляется, когда телефон повёрнут горизонтально, а полноэкранного режима нет (сам поворот нажатием не считается).
 // На iPhone Safari полноэкранного режима для страниц нет — там кнопки не будет (выход — «На экран Домой»)
 const phone = matchMedia('(pointer: coarse)').matches, fsBtn = document.getElementById('fs');
@@ -112,9 +110,9 @@ const fsUpd = () => fsBtn.classList.toggle('show', phone && !!(document.fullscre
 fsBtn.addEventListener('click', goFull);
 for (const ev of ['resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange']) (ev.includes('full') ? document : window).addEventListener(ev, fsUpd);
 fsUpd();
-// v23: высота страницы (--app-h, index.html) — то, что реально видно, а не 100dvh. Edge на Huawei Pura 70 Ultra после
-// «Войти» (полный экран и поворот разом) считал окно выше экрана на высоту своей панели (~52 px): нижний ряд кнопок,
-// журнал и низ «Обитателей» уезжали за край. Берём меньшее из окна, видимой области и — в полном экране на сенсорном —
+// высота страницы (--app-h, index.html) — то, что реально видно, а не 100dvh: мобильный браузер после входа в полный
+// экран с поворотом может считать окно выше экрана на высоту своей панели (~52 px) — нижний ряд кнопок, журнал и
+// низ «Обитателей» уезжают за край. Берём меньшее из окна, видимой области и — в полном экране на сенсорном —
 // самого экрана. Пересчёт на каждое событие размера и ещё раз через 0.3 и 1 с после смены полного экрана и поворота:
 // размер приходит с опозданием, иногда без события
 let appH = 0;
@@ -131,9 +129,9 @@ addEventListener('orientationchange', fitLater);
 for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, fitLater);
 fitH();
 
-// v23: ?debug=1 — поверх экрана: размеры окна и экрана, полный экран, safe-area, сработавшие медиа-условия раскладки, где
-// каждый блок интерфейса (виден ли) и последние события размера. Для снимка с телефона (Huawei + Edge: после «Войти»
-// в полном экране пропадали нижний ряд и журнал). Окно не ловит нажатий — «Войти» под ним нажимается как обычно
+// ?debug=1 — поверх экрана: размеры окна и экрана, полный экран, safe-area, сработавшие медиа-условия раскладки, где
+// каждый блок интерфейса (виден ли) и последние события размера — для снимка экрана с телефона. Окно не ловит
+// нажатий — «Войти» под ним нажимается как обычно
 if (qs.get('debug') === '1') {
   const pre = document.createElement('pre'), probe = document.createElement('div'), t0 = performance.now(), evs = [], n = Math.round;
   pre.style.cssText = 'position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:99;margin:0;padding:3px 6px;max-height:100%;max-width:100%;white-space:pre-wrap;overflow:hidden;' +
@@ -179,9 +177,9 @@ if (qs.get('debug') === '1') {
   screen.orientation?.addEventListener?.('change', () => note('orientation'));
   document.getElementById('gate-btn').addEventListener('click', () => note('ВОЙТИ'));
   fsBtn.addEventListener('click', () => note('НА ВЕСЬ ЭКРАН'));
-  setInterval(draw, 500); setTimeout(draw, 0);   // v24: после разбора модуля — draw читает качество и кадры (объявлены ниже)
+  setInterval(draw, 500); setTimeout(draw, 0);   // после разбора модуля — draw читает качество и кадры (объявлены ниже)
 }
-// v24: ?debug=1 — ещё ход загрузки (шаг, сколько длился, итог), память (оценка) и кадры: частота, время кадра, худшие 1%,
+// ?debug=1 — ещё ход загрузки (шаг, сколько длился, итог), память (оценка) и кадры: частота, время кадра, худшие 1%,
 // качество, разрешение отрисовки, вызовы отрисовки, треугольники
 let memT = 0, memS = '';
 function dbgPerf() {
@@ -198,10 +196,10 @@ function dbgPerf() {
   return L;
 }
 
-// --- уход экрана входа (v22): вуаль тает, размытие снимается — мир становится чётким; карточка «рассыпается»: её стирает
+// --- уход экрана входа: вуаль тает, размытие снимается — мир становится чётким; карточка «рассыпается»: её стирает
 // слева направо, край дробится шумом (SVG-фильтр #dust), из стирающегося края разлетаются частицы. На телефоне, при
 // «Низком» качестве и при «меньше движения» в системе — просто плавно растворяется (simple — сразу так)
-// v22: интерфейс мира (панели, кнопки внизу, подпись) скрыт, пока открыт вход (body.gate-open, index.html), и проявляется,
+// интерфейс мира (панели, кнопки внизу, подпись) скрыт, пока открыт вход (body.gate-open, index.html), и проявляется,
 // когда карточка уже рассыпалась/растворилась
 const showUI = () => document.body.classList.remove('gate-open');
 const leaveGate = simple => {
@@ -215,8 +213,8 @@ const leaveGate = simple => {
   cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; document.body.appendChild(cv);
   const g = cv.getContext('2d'), disp = document.getElementById('dust-disp'), COL = ['#d3dcd3', '#92bfbd', '#eef4ee', '#6a8a80'];
   // ход растворения копится по кадрам, не больше 0.15 с за кадр: при 60 и 30 кадрах/с — те же 1.4 с, долгий кадр сразу
-  // после входа не «съедает» анимацию (карточка исчезала разом, без частиц), а на совсем медленном устройстве она всё
-  // равно заканчивается не позже чем через 4 с — интерфейс не ждёт дольше
+  // после входа не «съедает» анимацию, а на совсем медленном устройстве она всё равно заканчивается не позже чем через
+  // 4 с — интерфейс не ждёт дольше
   const parts = [], DUR = 1.4; let u = 0, last = performance.now(); const tEnd = last + 4000;
   card.style.filter = 'url(#dust)';
   const tick = now => {
@@ -242,12 +240,11 @@ const leaveGate = simple => {
   requestAnimationFrame(tick);
 };
 
-// v24: вход не ждёт дольше 8 с и не останавливается на ошибке. Раньше кнопка ждала весь стартовый звук без предела —
-// на слабых телефонах «Открываю иллюминатор…» висело вечно. Не успел звук — мир открывается без него, звук догоняет сам
-// (audio.ready); не вышло совсем — мир без звука, а любое следующее нажатие пробует включить звук снова
+// вход не ждёт дольше 8 с и не останавливается на ошибке: не успел звук — мир открывается без него, звук догоняет
+// сам (audio.ready); не вышло совсем — мир без звука, а любое следующее нажатие пробует включить звук снова
 let entering = false;
 const enter = async () => {
-  audio.unlock();   // v22: звук — первым делом и до любого await (iPhone включает звук только так)
+  audio.unlock();   // звук — первым делом и до любого await (iPhone включает звук только так)
   if (phone) goFull();   // до первого await — пока браузер считает это нажатием
   if (entering) return; entering = true;
   markBoot(true);   // снимается, когда мир уже 8 с на экране — иначе следующая загрузка начнётся в «Лёгком»
@@ -258,14 +255,14 @@ const enter = async () => {
   leaveGate(); setTimeout(() => markBoot(false), 8000);
 };
 gate.querySelector('#gate-btn').addEventListener('click', enter);
-// v22: iPhone останавливает звук при блокировке экрана, звонке, уходе в другое приложение («interrupted») и снова
-// включить его разрешает только по нажатию — будим звук на любое касание/клавишу после входа
-// v24: звук не включился при входе (ошибка, а не долгая загрузка) — пробуем снова на нажатие
+// iPhone останавливает звук при блокировке экрана, звонке, уходе в другое приложение («interrupted») и снова
+// включить его разрешает только по нажатию — будим звук на любое касание/клавишу после входа; звук не включился
+// при входе (ошибка, а не долгая загрузка) — пробуем снова на нажатие
 for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => {
   if (audio.ready) audio.unlock(); else if (entering && !gate.isConnected && !audio._starting) audio.start().catch(() => {});
 }, { capture: true, passive: true });
 
-// v24: ход загрузки на экране входа — полоска и что сейчас грузится; шаг упал или идёт дольше 20 с — понятная надпись и
+// ход загрузки на экране входа — полоска и что сейчас грузится; шаг упал или идёт дольше 20 с — понятная надпись и
 // кнопка «Войти в облегчённом режиме» (сразу «Лёгкое» качество и вход)
 {
   const box = document.getElementById('gate-load'), bar = box.querySelector('i'), txt = box.querySelector('span'), liteBtn = document.getElementById('gate-lite');
@@ -284,13 +281,13 @@ for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, ()
   boot.onChange = show; const tick = setInterval(() => gate.isConnected ? show() : clearInterval(tick), 1000); show();
   liteBtn.addEventListener('click', () => { setQMode('lite', true); enter(); });
 }
-// v21: код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
+// код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
 window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
-// &noaudio=1 — без Web Audio (для скриншотов/QA в безголовом браузере, там AudioContext.resume() виснет)
+// &noaudio=1 — без Web Audio (для снимков в безголовом браузере, там AudioContext.resume() виснет)
 if (qs.get('noaudio') === '1') leaveGate(true);
 
-// v22: проект переименован — настройки теперь под ключами abyssonata.*; сохранённые раньше под om.* переносим, чтобы
-// громкость, качество картинки и линза не сбросились (сайт остаётся на том же адресе-источнике warycarpert12.github.io)
+// прежнее имя проекта — настройки под ключами om.* переносим в abyssonata.*, чтобы громкость, качество картинки
+// и линза не сбросились
 try {
   for (const k of ['vol.nature', 'vol.music', 'quality', 'lens']) {
     const old = localStorage.getItem('om.' + k); if (old === null) continue;
@@ -298,12 +295,11 @@ try {
     localStorage.removeItem('om.' + k);
   }
 } catch { /* приватное окно — не страшно */ }
-// --- громкость (v11): «Природа» управляет всеми звуками мира, «Музыка» — заготовка на будущее (значение хранится,
-// но ни на что не влияет). Положение полосок запоминается в браузере
+// --- громкость: «Природа» управляет всеми звуками мира, «Музыка» — музыкой и абстрактным слоем
+// (audio._abstract). Положение полосок запоминается в браузере
 {
   const load = k => { try { const v = localStorage.getItem(k); return v === null ? null : +v; } catch { return null; } };
   const save = (k, v) => { try { localStorage.setItem(k, v); } catch { /* приватное окно — не страшно */ } };
-  // v14: «Музыка» заработала — это абстрактный слой, как у образца (audio._abstract)
   for (const [id, key, apply] of [['nature', 'abyssonata.vol.nature', v => audio.setNature(v / 100)], ['music', 'abyssonata.vol.music', v => audio.setMusic(v / 100)]]) {
     const el = document.getElementById('vol-' + id), out = document.getElementById('v-' + id), v0 = load(key);
     if (v0 !== null) el.value = v0;
@@ -312,12 +308,12 @@ try {
   }
 }
 
-// --- панели (v14): сворачиваются нажатием на заголовок; на маленьком экране (телефон горизонтально) «Состояние» и
+// --- панели: сворачиваются нажатием на заголовок; на маленьком экране (телефон горизонтально) «Состояние» и
 // «Журнал» сразу свёрнуты — океан главнее
 for (const p of document.querySelectorAll('.panel')) p.querySelector('h2')?.addEventListener('click', () => p.classList.toggle('min'));
 if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 760px)').matches) for (const id of ['hud', 'log']) document.getElementById(id).classList.add('min');   // только телефон
 
-// --- подсказки «Состояния» (v22): что значит параметр — при наведении мышью на название, на телефоне — по нажатию
+// --- подсказки «Состояния»: что значит параметр — при наведении мышью на название, на телефоне — по нажатию
 // (повторное нажатие или касание в другом месте — убрать; сама уходит через 7 с)
 {
   const hint = document.getElementById('hint'); let at = null, tmo = 0;
@@ -339,26 +335,22 @@ if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and
   addEventListener('pointerdown', e => { if (at && !e.target.closest?.('#hud [data-tip]')) hide(); });
 }
 
-// --- время суток: 4 кнопки (утро/день/вечер/ночь) — по-настоящему двигают часы живого мира
-// (не предпросмотр): погода/волны/существа продолжают жить с нового момента. Раньше здесь было
-// кольцо-перемотка с драгом по кругу (работало, но убрали по просьбе пользователя — заодно оно
-// перехватывало указатель у OrbitControls/наведения, см. CHANGELOG); сам механизм остался в
-// world.setTimeOfDay(frac), эти кнопки — просто другой UI поверх него.
+// --- время суток: 4 кнопки (утро/день/вечер/ночь) по-настоящему двигают часы живого мира (не предпросмотр):
+// погода/волны/существа продолжают жить с нового момента (world.setTimeOfDay).
 const todButtons = document.querySelectorAll('#tod button[data-tod]');
-// v22: выделена кнопка той части суток, что сейчас в мире (границы — посередине между кнопками), а не только нажатая
+// выделена кнопка той части суток, что сейчас в мире (границы — посередине между кнопками), а не только нажатая
 const markTod = tod => { const k = tod < .15 || tod >= .87 ? 0 : tod < .39 ? 1 : tod < .61 ? 2 : 3; todButtons.forEach((b, i) => b.classList.toggle('active', i === k)); };
 todButtons.forEach(btn => btn.addEventListener('click', () => {
   world.setTimeOfDay(parseFloat(btn.dataset.tod));
   markTod(parseFloat(btn.dataset.tod));
-  // v22: на паузе — сразу показать новый момент (мир при этом стоит): часы симуляции сдвинуты, но небо, свет и панель
-  // пересчитываются только шагом мира — без этого кнопка «Ночь» горела, а на экране оставался день. Нулевой шаг даёт
-  // ровно то, что дал бы следующий обычный шаг (рассвет/звёзды/дождь — события на новый момент); картинка — сразу, без
-  // плавного перехода
+  // на паузе — сразу показать новый момент (мир при этом стоит): часы симуляции сдвинуты, но небо, свет и панель
+  // пересчитываются только шагом мира. Нулевой шаг даёт ровно то, что дал бы следующий обычный шаг
+  // (рассвет/звёзды/дождь — события на новый момент); картинка — сразу, без плавного перехода
   if (paused) { visual.snapped = false; try { world.step(0); } catch (e) { console.error('world step failed', e?.stack || e); } visual.hud(); }
 }));
 world.onState(m => { if ((markTod.n = (markTod.n || 0) + 1) % 30 === 0) markTod(m.time_of_day); });   // раз в ~0.5 с
 
-// --- пауза (v22): кнопка «Пауза» и пробел. Мир не считается, звук приостановлен, журнал не пополняется, звери и вода
+// --- пауза: кнопка «Пауза» и пробел. Мир не считается, звук приостановлен, журнал не пополняется, звери и вода
 // замирают; камеру можно крутить и приближать (visual.frame получает шаг мира 0 и настоящий шаг кадра)
 let paused = false;
 const pauseBtn = document.getElementById('pause');
@@ -367,59 +359,53 @@ const setPaused = p => {
   pauseBtn.classList.toggle('on', p); pauseBtn.textContent = p ? 'Дальше' : 'Пауза'; pauseBtn.title = (p ? 'Продолжить' : 'Пауза') + ' (пробел)';
 };
 pauseBtn.addEventListener('click', () => setPaused(!paused));
-// v23: бестиарий (bestiary.js) — открытый ставит мир на паузу; вид найден — когда навёлся, выбрал или следил (visual.onDiscover)
+// бестиарий (bestiary.js) — открытый ставит мир на паузу; вид найден — когда навёлся, выбрал или следил (visual.onDiscover)
 const bestiary = initBestiary({ pause: on => { const was = paused; setPaused(on); return was; } });
 visual.onDiscover = sp => bestiary.discover(sp);
-// v22: слежение за зверем — камера крутится вокруг него и приближается; отпустить — «✕» на плашке или Esc
+// слежение за зверем — камера крутится вокруг него и приближается; отпустить — «✕» на плашке или Esc
 document.querySelector('#follow button').addEventListener('click', () => visual.unfollow());
 addEventListener('keydown', e => { if (e.key === 'Escape') visual.unfollow(); });
 addEventListener('keydown', e => {
   if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-  if (document.querySelector('#gate:not(.clear)') || bestiary.open) return;   // до входа пробел — как раньше (нажимает «Войти»), не пауза; в бестиарии мир стоит
+  if (document.querySelector('#gate:not(.clear)') || bestiary.open) return;   // до входа пробел нажимает «Войти», не пауза; в бестиарии мир стоит
   e.preventDefault(); setPaused(!paused);   // и не «нажимаем» кнопку, на которой фокус
 });
 
 let last = performance.now(), hudT = 0, wt = last / 1000;   // wt — время мира (на паузе стоит)
-// --- качество картинки (v22): «Авто / Высокое / Низкое» в настройках, выбор запоминается в браузере.
-// Высокое — полное разрешение (basePR: до ×1.5 на телефоне, до ×2 на ПК) и сглаживание. Низкое — ×0.75 от одной точки на
-// пиксель экрана, без сглаживания. Авто — начинает с высокого; если картинка долго ниже ~24 кадров/с, сначала снимает
-// сглаживание, потом разрешение не ниже ×0.8 и не ниже одной точки на пиксель экрана (в v21 доходило до ×0.55 — «мыло»
-// на Honor 30); только понижает — туда-обратно не переключается. Звук разгружается (audio.weak) как в v21: после двух
-// «плохих» ступеней подряд — при любом выборе. В QA-снимках (&lowres) — без изменений
-// v23: life — доля растений, светлячков и мотыльков (раскладка случайная — редеют равномерно)
-// v24: «Лёгкое» — для устройств с малой памятью: текстуры моделей до 256 точек, звук облегчённый с выгрузкой давно не
-// звучавших записей. Разрешение «Низкого» и «Лёгкого» — не ниже ×1.15 / ×1.0 точки на пиксель экрана (было ×0.75 / ×0.6:
-// на телефоне 2844×1260 рисовалось 600×279 / 480×223 — «несмотрибельно», автор), растений 60% / 40% (было 40% / 25%)
+// --- качество картинки: «Авто / Высокое / Низкое / Лёгкое» в настройках, выбор запоминается в браузере.
+// Высокое — разрешение basePR (до ×1.5 на телефоне, до ×2 на ПК) и сглаживание. Низкое и Лёгкое — не ниже ×1.15 и ×1.0
+// точки на пиксель экрана, без сглаживания, растений 60% / 40% (life — доля растений, светлячков и мотыльков;
+// раскладка случайная — редеют равномерно). Лёгкое — для устройств с малой памятью: текстуры моделей до 256 точек,
+// звук облегчённый с выгрузкой давно не звучавших записей. На телефоне (сенсорный экран) Высокое — сглаживание 2×
 const kAt = pr => Math.min(1, pr / visual.basePR);
-// v24 (решение автора 03.10): на телефоне (сенсорный экран) «Высокое» — сглаживание 2× вместо 4× (на снимке 1:1 разницы
-// нет) и 65% растений — запас к 60 к/с при нагреве (?bench=2 на HUAWEI Pura 70 Ultra: с 4× и всеми растениями ~60 к/с
-// впритык). На ПК — как было. ?aa=4 / 2 / 0 — сглаживание вручную (сравнить на глаз)
+// (на глаз не отличить от 4×) и 65% растений: запас к 60 к/с на средней видеокарте. ?aa=4 / 2 / 0 — сглаживание
+// вручную. В снимках с &lowres качество не меняется.
 const AA = qs.get('aa'), MSAA = AA !== null ? (+AA || false) : device.touch ? 2 : true, LIFE = device.touch ? .65 : 1;
 const Q = { high: { k: 1, msaa: MSAA, life: LIFE }, low: { k: kAt(1.15), msaa: false, life: .6 },
   lite: { k: kAt(1), msaa: false, life: .4, lite: true } };
-// v24: «Авто» — 6 ступеней: разрешение (k от basePR, но не ниже одной точки на пиксель экрана — «мыло» на Honor 30 в v21),
-// сглаживание только на первой, доля растений и огоньков (life). Уровень — по настоящему времени кадра, решение раз в 1.5 с:
-// цель — 60 к/с; медиана кадра хуже цели на 25% или каждый 10-й кадр вдвое дольше — ступень ниже сразу. Ступень ниже не
-// дала хотя бы 10% — упираемся не в картинку (процессор, предел 30 к/с в режиме экономии): шаг назад и дальше не снижаем.
-// Выше — после 8 с ровной работы и не раньше 20 с после понижения; ступень, где дважды не справились, больше не пробуем. Раньше: 3 ступени и только если ниже
-// ~24 к/с 6 с подряд — сильный телефон с 30–40 к/с и рывками так и оставался на «Высоком». Звук разгружается (audio.weak)
-// с 4-й ступени «Авто» или после двух плохих окон подряд на ручном качестве
+// «Авто» — 6 ступеней: разрешение (k от basePR, но не ниже одной точки на пиксель экрана — ниже картинка «мылится»),
+// сглаживание только на первой, доля растений и огоньков (life). Уровень — по настоящему времени кадра, решение раз
+// в 1.5 с: цель — 60 к/с; медиана кадра хуже цели на 25% или каждый 10-й кадр вдвое дольше — ступень ниже сразу.
+// Ступень ниже не дала хотя бы 10% — упираемся не в картинку (процессор, предел 30 к/с в режиме экономии): шаг
+// назад и дальше не снижаем. Выше — после 8 с ровной работы и не раньше 20 с после понижения; ступень, где дважды
+// не справились, больше не пробуем. Звук разгружается (audio.weak) с 4-й ступени «Авто» или после двух плохих окон
+// подряд на ручном качестве
 const kMin = Math.min(1, 1 / visual.basePR);
 const AUTO = [[1, 1], [1, 1], [.85, 1], [.75, .8], [.67, .6], [.67, .4]].map(([k, life], i) => ({ k: Math.max(kMin, k), msaa: i === 0 && MSAA, life: Math.min(life, LIFE) }));
 let qMode = 'auto'; try { qMode = localStorage.getItem('abyssonata.quality') || 'auto'; } catch { /* приватное окно */ }
 if (!Q[qMode] && qMode !== 'auto') qMode = 'auto';
-if (startLite) qMode = 'lite';   // v24: само — не запоминаем (выбор человека в настройках важнее, см. boot.js)
+if (startLite) qMode = 'lite';   // само — не запоминаем (выбор в настройках важнее, см. boot.js)
 const autoQ = !qs.has('lowres'); let qLevel = 0, aT = -5, aWin = [], aGood = 0, aDownT = -1e9, aClock = 0, aBad = 0, aPrev = 0, aLock = false;
 const aFail = AUTO.map(() => 0);
 const applyQ = () => { if (autoQ) visual.setQuality(qMode === 'auto' ? AUTO[qLevel] : Q[qMode]); };
 const setQMode = (m, user = false) => {
-  // смена выбора — 3 с не считаем кадры; при запуске остаётся −5 (первые 5 с после входа, как в v21)
+  // смена выбора — 3 с не считаем кадры; при запуске остаётся −5 (первые 5 с после входа)
   qMode = m; qLevel = 0; aT = Math.min(aT, -3); aWin = []; aGood = aBad = aPrev = 0; aLock = false; aFail.fill(0); applyQ();
   if (m === 'lite') { audio.lite = audio.tiny = true; }
   if (user) try { localStorage.setItem('abyssonata.quality', m); localStorage.setItem('abyssonata.quality.user', '1'); } catch { /* приватное окно */ }
   document.querySelectorAll('#quality button').forEach(b => b.classList.toggle('active', b.dataset.q === m));
 };
-let benchHold = false;   // v24: ?bench=1 — на время замера «Авто» не трогает качество
+let benchHold = false;   // ?bench — на время замера «Авто» не трогает качество
 const watchFps = raw => {
   if (!autoQ || benchHold || document.hidden || paused || (!audio.ready && document.querySelector('#gate'))) return;   // до входа — не считаем
   aClock += raw; aT += raw; if (aT < 0) return;   // первые 5 с после входа и 2 с после смены ступени — не считаем
@@ -442,13 +428,13 @@ const watchFps = raw => {
 };
 document.querySelectorAll('#quality button').forEach(b => b.addEventListener('click', () => setQMode(b.dataset.q, true)));
 setQMode(qMode);
-// v24: ?bench=1 — замер «что сколько стоит» на самом устройстве (bench.js): сам, через 4 с после входа в мир
+// ?bench=1 — замер «что сколько стоит» на самом устройстве (bench.js): сам, через 4 с после входа в мир
 if (qs.get('bench') === '1' || qs.get('bench') === '2') (async () => {   // 2 — короткий прогон (главные строки)
   while (document.querySelector('#gate:not(.clear)') || !visual.assets) await new Promise(r => setTimeout(r, 500));
   await new Promise(r => setTimeout(r, 4000));
   (await import('./bench.js')).runBench({ visual, world, setPaused, high: Q.high, short: qs.get('bench') === '2', hold: on => { benchHold = on; } });
 })();
-// v24: потеря контекста WebGL (не хватило видеопамяти): надпись поверх мира; браузер вернул контекст — картинка снова
+// потеря контекста WebGL (не хватило видеопамяти): надпись поверх мира; браузер вернул контекст — картинка снова
 // рисуется, качество на ступень ниже («Авто» — следующая ступень, иначе «Лёгкое»); не вернул за 6 с — кнопка перезапуска
 // страницы в «Лёгком»
 {
@@ -465,11 +451,11 @@ if (qs.get('bench') === '1' || qs.get('bench') === '2') (async () => {   // 2 �
   };
   btn.addEventListener('click', () => { try { localStorage.setItem('abyssonata.quality', 'lite'); localStorage.setItem('abyssonata.quality.user', '1'); } catch { /* приватное окно */ } location.reload(); });
 }
-const ft = new Float32Array(300); let ftI = 0;   // v24: последние 300 кадров (мс) — для ?debug=1
+const ft = new Float32Array(300); let ftI = 0;   // последние 300 кадров (мс) — для ?debug=1
 function frame(now) {
-  requestAnimationFrame(frame);   // v21: первым делом — ошибка ниже не должна остановить цикл
-  // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходил
-  // отрицательным (в безголовом браузере −0.74 с), и мир с панелью «отматывались назад»
+  requestAnimationFrame(frame);   // первым делом — ошибка ниже не должна остановить цикл
+  // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходит
+  // отрицательным, и мир с панелью «отматываются назад»
   const raw = (now - last) / 1000, dt = Math.max(0, Math.min(raw, .1)); last = now;
   if (raw > 0 && raw < 1) { watchFps(raw); ft[ftI++ % ft.length] = raw * 1000; }
   // одна ошибка (в мире или в отрисовке) не должна насовсем остановить requestAnimationFrame-цикл
@@ -482,7 +468,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // --- интерфейс «жидкое стекло»: под курсором панель/кнопка подтекает и бликует (SVG-фильтр #lens).
-// ponytail: один фильтр на страницу — линза одновременно на одном элементе; убрать эффект — удалить этот блок.
+// один фильтр на страницу — линза одновременно на одном элементе; убрать эффект — удалить этот блок.
 {
   const R = 75, c = document.createElement('canvas'); c.width = c.height = 96;
   const x = c.getContext('2d'), img = x.createImageData(96, 96);
@@ -495,9 +481,9 @@ requestAnimationFrame(frame);
   x.putImageData(img, 0, 0);
   const map = document.getElementById('lens-map'), light = document.getElementById('lens-light'), noise = document.getElementById('lens-noise');
   map.setAttribute('href', c.toDataURL()); map.setAttribute('width', 2 * R); map.setAttribute('height', 2 * R);
-  // v22: кнопка «Линза» (рядом с «Паузой», выбор запоминается, по умолчанию включена). Выключена — нет ни обработчика
-  // движения мыши, ни фильтра на элементах, ни таймера «течения». И включённая: таймер тикает, только пока линза над
-  // панелью/кнопкой (раньше — всегда, каждые 60 мс). На телефоне линзы нет — и кнопки (index.html, pointer: coarse)
+  // кнопка «Линза» (рядом с «Паузой», выбор запоминается, по умолчанию включена). Выключена — нет ни обработчика
+  // движения мыши, ни фильтра на элементах, ни таймера «течения»; включённая — таймер тикает, только пока линза над
+  // панелью/кнопкой. На телефоне линзы нет — и кнопки (index.html, pointer: coarse)
   let cur = null, t = 0, timer = 0, lensOn = true;
   const flow = () => { t += .05; noise.setAttribute('baseFrequency', (0.012 + 0.004 * Math.sin(t)).toFixed(4)); };   // лёгкое «течение»
   const put = el => {
@@ -507,7 +493,7 @@ requestAnimationFrame(frame);
     if (el && !timer) timer = setInterval(flow, 60); else if (!el && timer) { clearInterval(timer); timer = 0; }
   };
   const move = ev => {
-    if (ev.pointerType !== 'mouse') return;   // v18: на телефоне линзы нет — под пальцем она оставалась и всё «плыло»
+    if (ev.pointerType !== 'mouse') return;   // на телефоне линзы нет — под пальцем она оставалась бы, и всё «плыло»
     const el = ev.target.closest?.('.panel, #tod button, #gate-btn');
     put(el);
     if (el) {

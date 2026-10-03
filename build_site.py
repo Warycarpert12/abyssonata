@@ -1,9 +1,9 @@
-"""Abyssonata — сборка статического сайта (v19: GitHub Pages и APK).
+"""Abyssonata — сборка статического сайта (GitHub Pages и APK).
 
-1. Если рядом есть samples/ (WAV, только на ПК) — сжимает их в samples_mp3/ (MP3, пересжимает только новые и
+1. Если рядом есть samples/ (исходные WAV, в репозиторий не входят) — сжимает их в samples_mp3/ (MP3, пересжимает только новые и
    изменённые, копирует CREDITS.txt, убирает сжатые копии удалённых записей). Нужен Python-пакет soundfile.
 2. Собирает _site/: страница из web/ (без проверочных _qa*), записи из samples_mp3/ и samples.json — список записей
-   по категориям (его читает web/audio.js; локальный serve.py отдаёт свой список WAV, как раньше).
+   по категориям (его читает web/audio.js).
 
 Запуск: python build_site.py   (на GitHub шаг 1 пропускается — WAV там нет, только samples_mp3/)
 """
@@ -17,8 +17,7 @@ WAV, MP3, SITE = (os.path.join(BASE, d) for d in ("samples", "samples_mp3", "_si
 
 
 def categories():
-    """Категории записей, которые знает страница, — из CATEGORIES в web/audio.js (v21: раньше импорт web_bridge,
-    которого нет в репозитории)."""
+    """Категории записей, которые знает страница, — из CATEGORIES в web/audio.js."""
     src = open(os.path.join(BASE, "web", "audio.js"), encoding="utf-8").read()
     return re.findall(r"'([a-z_]+)'", re.search(r"const CATEGORIES = \[(.*?)\];", src, re.S).group(1))
 
@@ -37,7 +36,7 @@ def compress():
             if os.path.exists(m) and os.path.getmtime(m) >= os.path.getmtime(w):
                 continue
             data, sr = sf.read(w)
-            # ponytail: VBR ~64 кбит/с моно — на слух как WAV для природных звуков; поднять compression_level, если мало
+            # VBR ~64 кбит/с моно — на слух как WAV для природных звуков; поднять compression_level, если мало
             sf.write(m, data, sr, format="MP3", bitrate_mode="VARIABLE", compression_level=0.3)
             n += 1
         for f in os.listdir(dst):   # копии удалённых записей
@@ -57,8 +56,8 @@ def build():
     with open(os.path.join(SITE, "samples.json"), "w", encoding="utf-8") as f:
         json.dump(cats, f, ensure_ascii=False)
     open(os.path.join(SITE, ".nojekyll"), "w").close()   # GitHub Pages: не пропускать файлы и папки с «_»
-    # v22: метка статической сборки (GitHub Pages, APK) — страница не просит место у домашнего сервера (/api/join:
-    # на Pages его нет, POST давал красную ошибку в консоли). Локальный serve.py отдаёт web/ без метки — как раньше
+    # метка статической сборки (GitHub Pages, APK) — страница не спрашивает место у сервера (/api/join:
+    # на Pages его нет, запрос дал бы ошибку в консоли)
     page = os.path.join(SITE, "index.html")
     html = open(page, encoding="utf-8").read()
     with open(page, "w", encoding="utf-8") as f:

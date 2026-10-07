@@ -2750,8 +2750,8 @@ export class Visual {
   }
 
   _removeAgent(o) {
-    // выводок черепашат — свой объект сцены for (const f of o.fish || []) this.scene.remove(f.obj); // рыбки косяка — отдельные объекты сцены
-    this.scene.remove(o.obj); if (o.hatchMesh) this.scene.remove(o.hatchMesh);
+    this.scene.remove(o.obj); if (o.hatchMesh) this.scene.remove(o.hatchMesh);   // выводок черепашат — свой объект сцены
+    for (const f of o.fish || []) this.scene.remove(f.obj);   // рыбки косяка — отдельные объекты сцены
     this.agents.delete(o.id);
     // свои кости копий модели и свои крылья пеликана освобождаем сразу (не ждём сборки мусора). Материалы
     // не трогаем: с ними ушли бы собранные шейдеры, и следующий такой же зверь собирал бы их заново — рывок

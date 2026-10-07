@@ -25,7 +25,8 @@ export async function runBench({ visual: v, world, setPaused, high, hold, short 
   };
 
   // спрятать объекты: слой 0 камеры их больше не видит (видимость трогает сам кадр — облака, ореолы)
-  const hide = objs => { const keep = []; for (const o of objs) o?.traverse(n => { keep.push([n, n.layers.mask]); n.layers.mask = 0; }); return () => keep.forEach(([n, m]) => { n.layers.mask = m; }); };
+  const hide = objs => { const keep = []; for (const o of objs) o?.traverse(n => { keep.push([n, n.layers.mask]); n.layers.mask = 0; });
+    return () => keep.forEach(([n, m]) => { n.layers.mask = m; }); };
   const byMat = mats => { const out = [], S = new Set(mats.filter(Boolean)); v.scene.traverse(n => { if (S.has(n.material) || S.has(n.geometry)) out.push(n); }); return out; };
   const uni = (u, x) => { const was = u.value; u.value = x; return () => { u.value = was; }; };
   const post = frag => { const m = v.postMat, was = m.fragmentShader, mip = v.rt.texture.generateMipmaps; m.fragmentShader = frag; m.needsUpdate = true; v.rt.texture.generateMipmaps = false;
@@ -97,7 +98,7 @@ export async function runBench({ visual: v, world, setPaused, high, hold, short 
   v.frame = orig; v._freeCam = false; v.controls.enabled = true; v.setQuality(high); hold(false); label.remove();
   show(res);
   // результат — только локальному серверу; статическая сборка (GitHub Pages, APK) ничего не отправляет
-  if (document.querySelector('meta[name="om-site"]')?.content !== 'static') try { await fetch('bench.json', { method: 'POST', body: JSON.stringify(res) }); } catch { /* сервер без приёма — только таблица */ }
+  if (document.querySelector('meta[name="abyssonata-site"]')?.content !== 'static') try { await fetch('bench.json', { method: 'POST', body: JSON.stringify(res) }); } catch { /* сервер без приёма — только таблица */ }
   return res;
 }
 

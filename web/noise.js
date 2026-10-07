@@ -1,5 +1,6 @@
 // 2D-шум для симуляции: классический value-noise на решётке с косинусной интерполяцией — гладкое поле -1..1, без
 // углов и решётчатых артефактов на глаз, без внешних зависимостей. Алгоритм общеизвестный (Perlin-style value noise).
+import { lerp } from './util.js';
 export class Noise2D {
   constructor(seed) {
     // маленький детерминированный PRNG (mulberry32) — всегда одно и то же поле для seed
@@ -38,4 +39,3 @@ export class Noise2D {
     return total / norm;
   }
 }
-const lerp = (a, b, t) => a + (b - a) * t;

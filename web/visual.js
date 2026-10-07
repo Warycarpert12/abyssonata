@@ -10,6 +10,7 @@ import * as SkeletonUtils from './three-addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from './three-addons/utils/BufferGeometryUtils.js';
 import { Noise2D } from './noise.js';
 import { step, within } from './boot.js';
+import { clamp, lerp, smooth, rnd } from './util.js';
 THREE.ColorManagement.enabled = false;
 
 const $ = s => document.querySelector(s);
@@ -22,12 +23,8 @@ function tapOnly(box, sel, fn) {
   box.addEventListener('pointercancel', () => { d = null; });
   box.addEventListener('pointerup', e => { if (d && e.pointerId === d.id && performance.now() - d.t < 600 && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 8) fn(d.r, e); d = null; });
 }
-const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-const lerp = (a, b, t) => a + (b - a) * t;
-const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
 const mix3 = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
-const rnd = (a, b) => a + Math.random() * (b - a);
 // на время fn Math.random — свой повторяемый генератор: декоративные объекты не сдвигают случайные числа мира
 // (с ?rseed мир и звери повторяются от запуска к запуску — для сравнения кадров и снимков)
 const LAZY = new Set(['shark', 'orca']);   // в «Лёгком» — модель грузится при первом появлении
@@ -173,7 +170,8 @@ function navPath(p, t, need, rad) {
   G[s] = 0;
   const push = it => { heap.push(it); let c = heap.length - 1; while (c) { const q = (c - 1) >> 1; if (heap[q][0] <= heap[c][0]) break; [heap[q], heap[c]] = [heap[c], heap[q]]; c = q; } };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0;
-    for (;;) { const l = 2 * c + 1, r = l + 1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
+    for (;;) { const l = 2 * c + 1, r = l + 1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
+      if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
   let best = s, bh = hh(s);
   while (heap.length) {
     const [, k] = pop(); if (k === e) break;
@@ -192,7 +190,8 @@ function navPath(p, t, need, rad) {
 const TURNS = [0, .35, .7, 1.05, 1.4, 1.75, 2.1, 2.45, 2.8];
 // пловец, который сейчас не плавает: черепаха греется на пляже или спит на рифе, медуза выброшена на песок —
 // их не уводит на глубину (deepSpot/swimStep) и не толкает с мели (_separate)
-const landed = o => ((!o.gone && o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && (o.flat || (!o.gone && o.st === 'stranded')))) && (o.landT = o.t, true);   // landT — для проверки движения
+// landT — для проверки движения
+const landed = o => ((!o.gone && o.sp === 'sea_turtle' && (o.st === 'bask' || o.st === 'sleep')) || (o.sp === 'jellyfish' && (o.flat || (!o.gone && o.st === 'stranded')))) && (o.landT = o.t, true);
 function swimStep(o, tgt, max) {
   const p = o.anchor, dx = tgt.x - p.x, dz = tgt.z - p.z, d = Math.hypot(dx, dz);
   p.y += clamp(tgt.y - p.y, -max, max); if (d < 1e-4) return;
@@ -241,7 +240,8 @@ const SWIM_R = { dolphin: 1.2, orca: 2.2, whale: 10, shark: 3.5, sea_lion: 1.8, 
 // сдвигается к глубине (deepSpot), см. Visual._goal
 const SWIM_DEPTH = { whale: -8, orca: -5, dolphin: -3, shark: -3, fish_school: -2.2, sea_lion: -1.5, sea_turtle: -2.4, jellyfish: -2.5, stingray: -.9, pelican: -1 };
 // у стаи строй шире (POD) — ORB дельфина/косатки = внешний круг строя + полдлины; пеликан садится только на воду
-const ORB = { whale: 20, orca: 18, dolphin: 11.5, shark: 10, fish_school: 10, sea_turtle: 7.5, jellyfish: 3.5, pelican: 4, stingray: 2 };   // скату — с запасом (иначе срезает островок); пеликан кружит по воде 3 м — пятно 4
+// скату — с запасом (иначе срезает островок); пеликан кружит по воде 3 м — пятно 4
+const ORB = { whale: 20, orca: 18, dolphin: 11.5, shark: 10, fish_school: 10, sea_turtle: 7.5, jellyfish: 3.5, pelican: 4, stingray: 2 };
 // строй стаи: все кружат вокруг ОДНОЙ точки стаи, место k — [вбок, назад] в долях шага; позади — по дуге своего
 // круга (концентрические круги не пересекаются, соседи не сталкиваются). POD: радиус круга стаи, шаг вбок, шаг назад (м)
 const SLOTS = [[0, 0], [-1, 1], [1, 1], [0, 2], [-1, 3], [1, 3], [0, 4]];
@@ -468,7 +468,8 @@ export class Visual {
     });
     this.stars = new THREE.Points(g, this.starMat); this.stars.renderOrder = -1; this.stars.frustumCulled = false; this.scene.add(this.stars);
 
-    const spr = (map, color, size) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, depthWrite: false, fog: false })); s.scale.setScalar(size); s.renderOrder = -1; this.scene.add(s); return s; };
+    const spr = (map, color, size) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, depthWrite: false, fog: false }));
+      s.scale.setScalar(size); s.renderOrder = -1; this.scene.add(s); return s; };
     this.sunGlow = spr(this.glowTex, 0xffe7b0, 150); this.sunGlow.material.blending = THREE.AdditiveBlending;
     this.sunDisc = spr(this._discTexture(), 0xfff8e0, 26);
     this.moon = spr(this._moonTexture(), 0xffffff, 34);
@@ -756,7 +757,8 @@ export class Visual {
       const b = pick(sea).clone(), c = pick([[.95, .75, .4], [.7, .85, .5], [.9, .55, .6]]);
       for (let t = 0, nt = 2 + (Math.random() * 3 | 0); t < nt; t++) {
         const cx = b.x + rnd(-.5, .5), cz = b.z + rnd(-.5, .5), h = rnd(.6, 1.6), r = rnd(.12, .22);
-        for (let y = 0; y < h; y += .12) for (let k = 0; k < 8; k++) { const a = k / 8 * 6.2832; dot(new V3(cx + Math.cos(a) * r, b.y + y, cz + Math.sin(a) * r), jit(c.map(v => v * (.6 + .4 * y / h)), .04), .09, y * .15); }
+        for (let y = 0; y < h; y += .12) for (let k = 0; k < 8; k++) { const a = k / 8 * 6.2832;
+          dot(new V3(cx + Math.cos(a) * r, b.y + y, cz + Math.sin(a) * r), jit(c.map(v => v * (.6 + .4 * y / h)), .04), .09, y * .15); }
         glow(new V3(cx, b.y + h, cz), c, .16, h * .15);
       }
     }
@@ -815,10 +817,12 @@ export class Visual {
     })();
     const BRAIN = (() => {   // бугристая полусфера, низ — в песке
       const g = new THREE.SphereGeometry(1, 10, 6), P = g.attributes.position;
-      for (let i = 0; i < P.count; i++) { const v = new V3().fromBufferAttribute(P, i), k = 1 + .12 * fbm(v.x * 2.3, v.z * 2.3 + v.y * 1.7, 2); P.setXYZ(i, v.x * k, Math.max(-.2, v.y * .55 * k), v.z * k); }
+      for (let i = 0; i < P.count; i++) { const v = new V3().fromBufferAttribute(P, i),
+        k = 1 + .12 * fbm(v.x * 2.3, v.z * 2.3 + v.y * 1.7, 2); P.setXYZ(i, v.x * k, Math.max(-.2, v.y * .55 * k), v.z * k); }
       return fin([g], .7);
     })();
-    const SPONGE = fin([0, 1, 2].map(k => new THREE.CylinderGeometry(.2 - k * .03, .15 - k * .02, 1 - k * .25, 7, 2, true).translate(Math.cos(k * 2.3) * .2 * Math.min(k, 1), .5 - k * .125, Math.sin(k * 2.3) * .2 * Math.min(k, 1))), .55);
+    const SPONGE = fin([0, 1, 2].map(k => new THREE.CylinderGeometry(.2 - k * .03, .15 - k * .02, 1 - k * .25, 7, 2, true).translate(Math.cos(k * 2.3) * .2 * Math.min(k, 1),
+      .5 - k * .125, Math.sin(k * 2.3) * .2 * Math.min(k, 1))), .55);
     const ANEMONE = (() => {   // ножка и венчик изогнутых щупалец
       const parts = [new THREE.CylinderGeometry(.12, .15, .22, 7, 1, true).translate(0, .11, 0)];
       for (let k = 0; k < 10; k++) {
@@ -925,7 +929,8 @@ export class Visual {
       const p = fish ? o.anchor : o.obj.position; if (p.y > .5) continue;   // над водой (птица, лев на берегу) — не задевает
       L.push([p.distanceToSquared(cam), p.x, p.y, p.z, r, o.id]);
     }
-    (this.shoals || []).forEach((s, i) => { const x = s.c.x + Math.cos(s.a) * 5, z = s.c.z + Math.sin(s.a) * 5; L.push([(x - cam.x) ** 2 + (s.c.y - cam.y) ** 2 + (z - cam.z) ** 2, x, s.c.y, z, 2.5, 's' + i]); });
+    (this.shoals || []).forEach((s, i) => { const x = s.c.x + Math.cos(s.a) * 5,
+      z = s.c.z + Math.sin(s.a) * 5; L.push([(x - cam.x) ** 2 + (s.c.y - cam.y) ** 2 + (z - cam.z) ** 2, x, s.c.y, z, 2.5, 's' + i]); });
     L.sort((a, b) => a[0] - b[0]);
     const near = new Set(L.slice(0, AV).map(q => q[5])), kS = 1 - Math.exp(-dt / .5), kV = 1 - Math.exp(-dt / .4);
     for (const q of L) {
@@ -1015,7 +1020,8 @@ export class Visual {
       }
     }
     const flocks = [], seg = [];
-    for (let i = 0; i < 4; i++) { const n = 6 + (Math.random() * 5 | 0); flocks.push({ n, a: Math.random() * 6.28, r: rnd(110, 240), y: rnd(26, 42), w: rnd(.02, .045) * (Math.random() < .5 ? -1 : 1), off: seg.length / 12 });
+    for (let i = 0; i < 4; i++) { const n = 6 + (Math.random() * 5 | 0);
+      flocks.push({ n, a: Math.random() * 6.28, r: rnd(110, 240), y: rnd(26, 42), w: rnd(.02, .045) * (Math.random() < .5 ? -1 : 1), off: seg.length / 12 });
       for (let k = 0; k < n; k++) seg.push(...new Array(12).fill(0)); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
     this.flockLines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xd3dcd3, transparent: true, opacity: .75 }));
@@ -1073,7 +1079,8 @@ export class Visual {
       }
     }
     this._pts(P, C, Z, W); this._lines(L, LC, LW);
-    { const h = [[], [], [], []]; for (let i = 0; i < Z.length; i += 4) { h[0].push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]); h[1].push(C[i * 3], C[i * 3 + 1], C[i * 3 + 2]); h[2].push(Z[i]); h[3].push(W[i]); }
+    { const h = [[], [], [], []]; for (let i = 0; i < Z.length; i += 4) { h[0].push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
+      h[1].push(C[i * 3], C[i * 3 + 1], C[i * 3 + 2]); h[2].push(Z[i]); h[3].push(W[i]); }
       this._halo(...h, -.8); }   // неоновые кораллы с ореолом ночью
 
     // яркие рифовые рыбки: ходят кругами над грядой, реагируют на акулу, изредка выпрыгивают
@@ -1646,7 +1653,8 @@ export class Visual {
     const KEEP = ['position', 'normal', 'color', 'skinIndex', 'skinWeight'];
     for (const ms of groups.values()) {
       if (ms.length < 2) continue;
-      const gs = ms.map(m => { const g = m.geometry.clone(), n = g.attributes.position.count, c = m.material.color.clone().convertLinearToSRGB(), old = g.attributes.color, col = new Float32Array(n * 3);
+      const gs = ms.map(m => { const g = m.geometry.clone(), n = g.attributes.position.count, c = m.material.color.clone().convertLinearToSRGB(),
+        old = g.attributes.color, col = new Float32Array(n * 3);
         for (let i = 0; i < n; i++) col.set([c.r * (old ? old.getX(i) : 1), c.g * (old ? old.getY(i) : 1), c.b * (old ? old.getZ(i) : 1)], i * 3);
         g.setAttribute('color', new THREE.BufferAttribute(col, 3)); if (!g.attributes.normal) g.computeVertexNormals();
         for (const k of Object.keys(g.attributes)) if (!KEEP.includes(k)) g.deleteAttribute(k);
@@ -1686,7 +1694,8 @@ export class Visual {
       // изнанка — отдельная копия меша (рисуется раньше лица): прозрачное двустороннее three.js рисует в два прохода
       // и каждый раз заново выбирает шейдер (needsUpdate) — это дорого
       if (n === 'jellyfish') { const ms = []; root.traverse(m => m.isMesh && ms.push(m)); for (const m of ms) { m.renderOrder = -.8;
-        for (const mt of [m.material].flat()) { mt.emissive.set(0xff3fc0).lerp(mt.color, .25).multiplyScalar(.7); mt.transparent = true; mt.opacity = .82; mt.depthWrite = false; mt.side = THREE.FrontSide; }
+        for (const mt of [m.material].flat()) { mt.emissive.set(0xff3fc0).lerp(mt.color, .25).multiplyScalar(.7); mt.transparent = true;
+          mt.opacity = .82; mt.depthWrite = false; mt.side = THREE.FrontSide; }
         const back = new THREE.Mesh(m.geometry, [m.material].flat().map(mt => { const b = mt.clone(); b.onBeforeCompile = mt.onBeforeCompile; b.customProgramCacheKey = mt.customProgramCacheKey; b.side = THREE.BackSide; return b; }));
         if (!Array.isArray(m.material)) back.material = back.material[0];
         back.renderOrder = -.801; m.add(back); } }
@@ -1726,9 +1735,11 @@ export class Visual {
     warm.add(new THREE.Points(pts, new THREE.PointsMaterial({ color: 0xffffff, size: .6, transparent: true, opacity: .95, depthWrite: false, map: this.glowTex })));
     warm.add(new THREE.Points(pts, new THREE.PointsMaterial({ color: 0xffffff, size: 3.2, sizeAttenuation: true, transparent: true, depthWrite: false, fog: false, map: this.glowTex, opacity: 0 })));
     warm.add(new THREE.Points(pts, new THREE.PointsMaterial({ color: 0xc8e86a, size: .14, sizeAttenuation: true, transparent: true })));
-    warm.add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, .5), new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true, opacity: .75, side: THREE.DoubleSide, forceSinglePass: true })));
+    warm.add(new THREE.Mesh(new THREE.PlaneGeometry(1.5, .5),
+      new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true, opacity: .75, side: THREE.DoubleSide, forceSinglePass: true })));
     const fish = this._clone('fish'); if (fish) warm.add(fish.obj);
-    seededRandom(2311, () => { const k = this._hatchKit(), m = new THREE.InstancedMesh(k.geo, k.mat, 1); m.setColorAt(0, new THREE.Color(1, 1, 1)); warm.add(m); });   // черепашата (и three.js берёт Math.random на id объектов)
+    // черепашата (и three.js берёт Math.random на id объектов)
+    seededRandom(2311, () => { const k = this._hatchKit(), m = new THREE.InstancedMesh(k.geo, k.mat, 1); m.setColorAt(0, new THREE.Color(1, 1, 1)); warm.add(m); });
     warm.traverse(n => { n.frustumCulled = false; });
     warm.position.copy(at); warm.updateMatrixWorld(true);
     // частями по 4 образца с паузой: сборка всех ~30 шейдеров разом на слабом телефоне стоит секундами одним куском
@@ -1816,7 +1827,9 @@ export class Visual {
       o.jump = 3.2;
       setTimeout(() => { const p = o.obj.position.clone().setY(.05); this._burst(p, 0xffffff, 90, 9); this._burst(p, 0xdff4ff, 40, 5); this._ripple(p, 9); setTimeout(() => this._ripple(p, 14, 3), 300); }, 2800);
     }
-    if (e.type === 'jump_splash' && (o?.sp === 'dolphin' || o?.sp === 'orca')) { o.jump = o.sp === 'orca' ? 1.6 : 1.3; this._ripple(pos.clone().setY(.05), o.sp === 'orca' ? 5 : 3); setTimeout(() => { const p = o.obj.position.clone().setY(.05); this._splash(p, o.sp === 'orca' ? 1.4 : 1); }, o.sp === 'orca' ? 1450 : 1150); }
+    if (e.type === 'jump_splash' && (o?.sp === 'dolphin' || o?.sp === 'orca')) { o.jump = o.sp === 'orca' ? 1.6 : 1.3;
+      this._ripple(pos.clone().setY(.05), o.sp === 'orca' ? 5 : 3);
+      setTimeout(() => { const p = o.obj.position.clone().setY(.05); this._splash(p, o.sp === 'orca' ? 1.4 : 1); }, o.sp === 'orca' ? 1450 : 1150); }
     if (e.type === 'dive_splash' && o?.sp === 'sea_lion') o.plop = true;   // брызги — когда он на самом деле войдёт в воду
     else if (e.type === 'dive_splash' && o?.sp === 'whale' && e.act === 'pecslap') {   // шлепок грудным плавником — сбоку
       o.pec = 2.2;
@@ -1832,7 +1845,8 @@ export class Visual {
       o.hover = 1.2; o.hoverP = deepSpot(o.obj.position.clone(), -1, 1.5).setY(4.5); o.diveP = o.hoverP.clone();
       setTimeout(() => { const p = o.obj.position.clone().setY(.05); this._burst(p, 0xffffff, 22, 5); this._ripple(p, 2.5); }, 1900);
     }
-    else if (e.type === 'dive_splash' && o) { if (BIRDS.has(o.sp)) { o.dive = 1.2; o.diveP = deepSpot(o.obj.position.clone(), -1, 1.5); } setTimeout(() => { const p = o.obj.position.clone().setY(.05); this._burst(p, 0xffffff, 28, 6); this._burst(p, 0xdff4ff, 14, 3.5); this._ripple(p, 3); }, BIRDS.has(o.sp) ? 700 : 100); }
+    else if (e.type === 'dive_splash' && o) { if (BIRDS.has(o.sp)) { o.dive = 1.2;
+      o.diveP = deepSpot(o.obj.position.clone(), -1, 1.5); } setTimeout(() => { const p = o.obj.position.clone().setY(.05); this._burst(p, 0xffffff, 28, 6); this._burst(p, 0xdff4ff, 14, 3.5); this._ripple(p, 3); }, BIRDS.has(o.sp) ? 700 : 100); }
     if (e.type === 'flying_fish') this._flyingFish(this.W(e.panorama * 2 - 1, e.distance ?? .5, 0));
     if (e.type === 'whale_arrive' || e.type === 'whale_surface') setTimeout(() => this._spout(o), 1500);
     if (e.type === 'whale_blow') setTimeout(() => this._spout(o), 150);   // серия выдохов на поверхности
@@ -1848,7 +1862,8 @@ export class Visual {
     if (o?.sp === 'shrimp_swarm' && e.act === 'flee') o.fleeT = 6;   // рой прыснул врассыпную
     if (e.type === 'octopus_leave' && o && e.text.includes('чернила')) this._burst(o.obj.position.clone(), 0x2a1f33, 40, 2.5);   // облако чернил
     // акула бросилась на косяк: всплеск и круги; мелкая рыба вокруг бросается врассыпную
-    if (e.type === 'shark_hunt' && o) { const p = o.obj.position.clone().setY(.05); this._burst(p, 0xffffff, 18, 6); this._ripple(p, 5); this.panicAt = p; this.panicT = 6; this._sharkAct(o, 'bite', 2.5); }
+    if (e.type === 'shark_hunt' && o) { const p = o.obj.position.clone().setY(.05); this._burst(p, 0xffffff, 18, 6); this._ripple(p, 5); this.panicAt = p;
+      this.panicT = 6; this._sharkAct(o, 'bite', 2.5); }
     if (e.type === 'shark_flee' && o) this._sharkAct(o, 'fast', 6);
   }
   // где событие звучит для слушателя: сторона и дальность — от реального места на экране относительно
@@ -1908,7 +1923,8 @@ export class Visual {
       if (!far) o.fade = 1;   // уже был при загрузке страницы (и при ?spawn=ship) — сразу виден
     }
     o.anchor = this._goal(o);
-    if (far && !STATIC.has(a.sp) && a.sp !== 'ship' && a.st !== 'stranded') {   // новые приходят из дымки: морские — из открытого моря (снаружи от своей цели), птицы — с любой стороны; медузу выносит волной — появляется на месте
+    // новые приходят из дымки: морские — из открытого моря (снаружи от своей цели), птицы — с любой стороны; медузу выносит волной — появляется на месте
+    if (far && !STATIC.has(a.sp) && a.sp !== 'ship' && a.st !== 'stranded') {
       const y = o.anchor.y, out = o.anchor.clone().setY(0).normalize();
       const dir = BIRDS.has(a.sp) && a.sp !== 'pelican' ? new V3(rnd(-1, 1), 0, rnd(-1, 1)).normalize()
         : out.applyAxisAngle(new V3(0, 1, 0), POD[a.sp] ? this.podPh[a.sp] % 1.4 - .7 : rnd(-.7, .7));   // стая — вся с одной стороны
@@ -2201,7 +2217,8 @@ export class Visual {
     }
     // черепаха греется на пляже главного острова / спит под уступом рифа; медуза, выброшенная штормом, — на песке
     if (o.sp === 'sea_turtle' && o.st === 'bask') { const e = shoreAt(0, o.ang0, .25), x = e.x - e.dx * 1.2, z = e.z - e.dz * 1.2; return new V3(x, groundAt(x, z, .6) + .15, z); }
-    if (o.sp === 'sea_turtle' && o.st === 'sleep') { const a = Math.sin(o.seed * 5) * REEF.half, r = REEF.r; return new V3(Math.sin(a) * r, hq(Math.sin(a) * r, Math.cos(a) * r) + .6, Math.cos(a) * r); }
+    if (o.sp === 'sea_turtle' && o.st === 'sleep') { const a = Math.sin(o.seed * 5) * REEF.half, r = REEF.r;
+      return new V3(Math.sin(a) * r, hq(Math.sin(a) * r, Math.cos(a) * r) + .6, Math.cos(a) * r); }
     if (o.sp === 'jellyfish' && o.st === 'stranded') {
       // на сухом песке в ~1.5 м от кромки
       const e = shoreAt(o.site, o.x * Math.PI + o.site * 2.3 + o.seed * .2, .25), x = e.x - e.dx * 1.5, z = e.z - e.dz * 1.5;
@@ -2242,7 +2259,8 @@ export class Visual {
     // к месту сна шёл бы через главный остров)
     if (ORB[o.sp] && !BIRDS.has(o.sp) && !(landed(o) && dl < 12)) {
       const via = this._via(o, tgt, dt);
-      if (o.path?.length) { const d = via.clone().sub(o.anchor).setY(0), l = d.length(); o.anchor.addScaledVector(d, Math.min(1, vmax / (l || 1))); o.anchor.y += clamp(tgt.y - o.anchor.y, -vmax, vmax); }
+      if (o.path?.length) { const d = via.clone().sub(o.anchor).setY(0), l = d.length(); o.anchor.addScaledVector(d, Math.min(1, vmax / (l || 1)));
+        o.anchor.y += clamp(tgt.y - o.anchor.y, -vmax, vmax); }
       else swimStep(o, via, vmax);
     }
     else if (dl > vmax) o.anchor.addScaledVector(dv, vmax / dl); else o.anchor.copy(tgt);
@@ -2254,7 +2272,8 @@ export class Visual {
     if (o.sp === 'cormorant' && o.st === 'dry' && !o.gone) {
       // сушит крылья — стоит на камне у кромки вертикально, крылья раскрыты наполовину и горизонтально, чуть
       // подрагивают (как сушится баклан), смотрит в сторону моря
-      if (!o.perch) { const e = shoreAt(0, o.ang0, .5); o.perch = new V3(e.x - e.dx * 2, 0, e.z - e.dz * 2); o.perch.y = groundAt(o.perch.x, o.perch.z, .4) + (this.assets?.gull_dark?.span ?? 1.4) * .42; o.perchH = Math.atan2(e.dx, e.dz); }
+      if (!o.perch) { const e = shoreAt(0, o.ang0, .5); o.perch = new V3(e.x - e.dx * 2, 0, e.z - e.dz * 2);
+        o.perch.y = groundAt(o.perch.x, o.perch.z, .4) + (this.assets?.gull_dark?.span ?? 1.4) * .42; o.perchH = Math.atan2(e.dx, e.dz); }
       ob.position.lerp(o.perch, 1 - Math.exp(-dt * 1.5));
       if (ob.position.distanceTo(o.perch) < 2) {
         o.upK = Math.min(1, (o.upK ?? 0) + dt);
@@ -2281,7 +2300,8 @@ export class Visual {
       // круг полёта заходит на остров (холмы до 11 м) — над сушей держимся выше рельефа
       if (o.st !== 'sit' || o.gone) p.y = Math.max(p.y, groundAt(p.x, p.z, 2) + (o.dive > 0 || o.hover > 0 ? .3 : 5));
       ob.position.lerp(p, 1 - Math.exp(-dt * 4));
-      if (!(o.dive > 0) && !(o.hover > 0) && o.st !== 'dry' && o.st !== 'sit') { const g = groundAt(ob.position.x, ob.position.z, 1.5); ob.position.y = Math.max(ob.position.y, g + (g > 0 ? 3.5 : 1.5)); }   // над сушей не ниже +3.5 м (у холмов птица иначе выглядит сидящей), над водой — +1.5 м
+      if (!(o.dive > 0) && !(o.hover > 0) && o.st !== 'dry' && o.st !== 'sit') { const g = groundAt(ob.position.x, ob.position.z, 1.5);
+        ob.position.y = Math.max(ob.position.y, g + (g > 0 ? 3.5 : 1.5)); }   // над сушей не ниже +3.5 м (у холмов птица иначе выглядит сидящей), над водой — +1.5 м
       const v = ob.position.clone().sub(prev), sp = Math.hypot(v.x, v.z) / Math.max(dt, 1e-3);
       if (sp > .05) { const h = Math.atan2(v.x, v.z), dh = Math.atan2(Math.sin(h - (o.hPrev ?? h)), Math.cos(h - (o.hPrev ?? h))); o.hPrev = h;
         o.bank = lerp(o.bank ?? 0, clamp(-dh / Math.max(dt, 1e-3) * sp * .06, -.9, .9), 1 - Math.exp(-dt * 3)); }
@@ -2730,7 +2750,8 @@ export class Visual {
   }
 
   _removeAgent(o) {
-    this.scene.remove(o.obj); if (o.hatchMesh) this.scene.remove(o.hatchMesh);   // выводок черепашат — свой объект сцены for (const f of o.fish || []) this.scene.remove(f.obj);   // рыбки косяка — отдельные объекты сцены
+    this.scene.remove(o.obj); if (o.hatchMesh) this.scene.remove(o.hatchMesh);   // выводок черепашат — свой объект сцены
+    for (const f of o.fish || []) this.scene.remove(f.obj);   // рыбки косяка — отдельные объекты сцены
     this.agents.delete(o.id);
     // свои кости копий модели и свои крылья пеликана освобождаем сразу (не ждём сборки мусора). Материалы
     // не трогаем: с ними ушли бы собранные шейдеры, и следующий такой же зверь собирал бы их заново — рывок
@@ -2790,7 +2811,8 @@ export class Visual {
   _flyingFish(from) {
     const m = this._clone('fish'); if (!m) return;
     // «крылья»: у модели рыбы их нет, добавляем пару полупрозрачных плавников — узнаётся как летучая рыба
-    const wing = new THREE.PlaneGeometry(1.5, .5), wm = new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true, opacity: .75, side: THREE.DoubleSide, forceSinglePass: true });
+    const wing = new THREE.PlaneGeometry(1.5, .5), wm = new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a4a5a, transparent: true,
+      opacity: .75, side: THREE.DoubleSide, forceSinglePass: true });
     for (const sgn of [-1, 1]) {
       const w = new THREE.Mesh(wing, wm); w.position.set(sgn * .5, .12, 0); w.rotation.set(-Math.PI / 2, 0, sgn * .35); m.obj.add(w);
     }
@@ -2912,7 +2934,8 @@ export class Visual {
         if (m.uniforms) for (const u of Object.values(m.uniforms)) if (u?.value?.isTexture) tex.add(u.value); } });
     visit(this.scene); if (this.warm) visit(this.warm); for (const a of Object.values(this.assets || {})) visit(a.obj);
     let t = 0, g = 0;
-    for (const x of tex) { const w = x.image?.width || 0, h = x.image?.height || 0; t += w * h * (x.type === THREE.HalfFloatType ? 8 : x.type === THREE.FloatType ? 16 : 4) * (x.generateMipmaps !== false && x.minFilter > THREE.LinearFilter ? 1.33 : 1); }
+    for (const x of tex) { const w = x.image?.width || 0, h = x.image?.height || 0;
+      t += w * h * (x.type === THREE.HalfFloatType ? 8 : x.type === THREE.FloatType ? 16 : 4) * (x.generateMipmaps !== false && x.minFilter > THREE.LinearFilter ? 1.33 : 1); }
     for (const x of geo) { for (const a of Object.values(x.attributes)) g += a.array?.byteLength || 0; if (x.index) g += x.index.array.byteLength; }
     const W = this.rt.width, H = this.rt.height, S = this.rt.samples;
     return { tex: t / 1048576, geo: g / 1048576, rt: W * H * 4 * (1.33 + (S ? 2 * S : 1) + 1) / 1048576 };

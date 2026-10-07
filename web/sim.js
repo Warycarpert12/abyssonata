@@ -2,11 +2,8 @@
 // мгновенно перематывать, сервер не нужен. Перенесено из прототипа на Python — числа и правила те же.
 import { Noise2D } from './noise.js';
 import { Ecosystem } from './agents.js';
+import { clamp01, smooth as smoothstep, rnd, choice } from './util.js';
 
-const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
-const smoothstep = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-const rnd = (a, b) => a + Math.random() * (b - a);
-const choice = arr => arr[(Math.random() * arr.length) | 0];
 
 export const DAY_LENGTH_SECONDS_DEFAULT = 32 * 60;
 
@@ -236,8 +233,11 @@ export class OceanSimulation {
     else if (this.rainActive && s.rain < 0.40) { this.rainActive = false; out.push(this._mk('rain_end', s, ['дождь закончился', 'дождь прекратился', 'дождь стих'], s.rain, 2.0, [0.4, 0.6])); }
     if (!this.fogActive && s.fog > 0.60) { this.fogActive = true; out.push(this._mk('fog_descend', s, ['туман опустился на воду', 'над морем поднялся туман'], s.fog, 30.0, [0.4, 0.6])); }
     else if (this.fogActive && s.fog < 0.45) { this.fogActive = false; out.push(this._mk('fog_clear', s, ['туман рассеялся', 'туман поднялся'], s.fog, 5.0, [0.4, 0.6])); }
-    if (!this.stormActive && s.weather > 0.72) { this.stormActive = true; out.push(this._mk('storm_start', s, ['погода портится — начинается шторм', 'налетел шторм', 'море разыгралось не на шутку'], s.weather, 120.0, [0.5, 0.5])); }
-    else if (this.stormActive && s.weather < 0.62) { this.stormActive = false; out.push(this._mk('storm_end', s, ['шторм утихает', 'шторм прошёл', 'море успокаивается'], s.weather, 30.0, [0.5, 0.5])); }
+    if (!this.stormActive && s.weather > 0.72) { this.stormActive = true;
+      out.push(this._mk('storm_start', s, ['погода портится — начинается шторм',
+      'налетел шторм', 'море разыгралось не на шутку'], s.weather, 120.0, [0.5, 0.5])); }
+    else if (this.stormActive && s.weather < 0.62) { this.stormActive = false;
+      out.push(this._mk('storm_end', s, ['шторм утихает', 'шторм прошёл', 'море успокаивается'], s.weather, 30.0, [0.5, 0.5])); }
     s.rain_active = this.rainActive; s.fog_active = this.fogActive; s.storm_active = this.stormActive;
     return out;
   }
@@ -247,7 +247,8 @@ export class OceanSimulation {
     if (this.prevTod < 0.25 && 0.25 <= tod) out.push(this._mk('sunrise', s, ['занимается рассвет', 'небо розовеет на востоке — рассвет', 'поднялось солнце'], 0.6, 20.0, [0.3, 0.4]));
     if (this.prevTod < 0.75 && 0.75 <= tod) out.push(this._mk('sunset', s, ['солнце садится за горизонт', 'начался закат', 'небо налилось медью — закат'], 0.6, 20.0, [0.6, 0.7]));
     if (!this.starsActive && s.daylight < 0.12) { this.starsActive = true; out.push(this._mk('stars_appear', s, ['на небе проступили звёзды', 'зажглись первые звёзды'], 0.4, 10.0, [0.5, 0.5])); }
-    else if (this.starsActive && s.daylight > 0.15) { this.starsActive = false; out.push(this._mk('stars_gone', s, ['звёзды поблекли', 'звёзды исчезли в предрассветных сумерках'], 0.3, 10.0, [0.5, 0.5])); }
+    else if (this.starsActive && s.daylight > 0.15) { this.starsActive = false;
+      out.push(this._mk('stars_gone', s, ['звёзды поблекли', 'звёзды исчезли в предрассветных сумерках'], 0.3, 10.0, [0.5, 0.5])); }
     s.stars_active = this.starsActive;
     return out;
   }

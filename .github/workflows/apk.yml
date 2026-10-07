@@ -14,6 +14,8 @@ jobs:
         with: { node-version: 22 }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
+      - name: Проверка публикуемого текста
+        run: node tools/check_publish.mjs --all
       - run: python3 build_site.py
       - name: Capacitor → проект Android
         run: |

@@ -61,7 +61,7 @@ def build():
     page = os.path.join(SITE, "index.html")
     html = open(page, encoding="utf-8").read()
     with open(page, "w", encoding="utf-8") as f:
-        f.write(html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<meta name="om-site" content="static">', 1))
+        f.write(html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<meta name="abyssonata-site" content="static">', 1))
     size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(SITE) for f in fs)
     print(f"_site: {sum(len(v) for v in cats.values())} записей, {size / 1e6:.1f} МБ")
 

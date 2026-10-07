@@ -186,7 +186,8 @@ html, body { height: var(--app-h, 100dvh); overscroll-behavior: none; }   /* --a
   #hud .row.txt { grid-template-columns: 70px 1fr; }
   #vol { right: 10px; top: 10px; width: 204px; } #vol .row { grid-template-columns: 56px 1fr 26px; gap: 6px; margin: 3px 0; }
   .seg button { font-size: 8px; letter-spacing: .01em; padding: 4px 3px; }
-  #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: calc(var(--app-h, 100dvh) * .48); overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
+  #census { left: 10px; bottom: 10px; width: 190px; font-size: 10px; line-height: 1.55; max-height: calc(var(--app-h, 100dvh) * .48);
+    overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
   #log { right: 10px; bottom: 10px; width: 250px; } #log li { font-size: 10px; grid-template-columns: 38px 1fr; }
   #log ul { max-height: calc(var(--app-h, 100dvh) * .3); overflow-y: auto; }
   #hint { max-width: 230px; font-size: 10px; padding: 7px 10px; }
@@ -205,7 +206,8 @@ html, body { height: var(--app-h, 100dvh); overscroll-behavior: none; }   /* --a
   #tod { left: calc(185px + env(safe-area-inset-left)); right: calc(210px + env(safe-area-inset-right)); }
   #tod button { padding: 6px 6px; font-size: 8.5px; letter-spacing: .04em; } #tod .sep { display: none; }   /* 4 времени суток — в строку, «Пауза» над ними */
 }
-@media (max-aspect-ratio: 4/3) and (min-height: 561px) and (min-width: 900px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 250px; } #tod { max-width: calc(100% - 720px); } #tod .sep { display: none; } }
+@media (max-aspect-ratio: 4/3) and (min-height: 561px) and (min-width: 900px) { #log { width: 330px; } #hud, #census { width: 270px; } #vol { width: 250px; }
+  #tod { max-width: calc(100% - 720px); } #tod .sep { display: none; } }
 /* телефон вертикально — просим повернуть (океан задуман широким) */
 #rotate { display: none; }
 /* просьба повернуть — только на сенсорных; окну ПК уже 600 px (панели не помещаются) — «растяните окно шире» */
@@ -242,7 +244,8 @@ html, body { height: var(--app-h, 100dvh); overscroll-behavior: none; }   /* --a
 #bst-win header h3 { margin: 0; font-size: 13px; letter-spacing: .16em; color: var(--p3); flex: auto; }
 #bst-count { font-size: 11px; color: var(--p4); }
 #bst-close { font: inherit; color: var(--p4); background: rgba(211,220,211,.1); border: 1px solid var(--line); border-radius: 50%; width: 28px; height: 28px; padding: 0; cursor: pointer; }
-#bst-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 14px 14px; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
+#bst-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 14px 14px; overscroll-behavior: contain; touch-action: pan-y;
+  scrollbar-width: thin; scrollbar-color: rgba(146,191,189,.45) transparent; }
 #bst-body h4 { margin: 12px 0 8px; font-size: 10.5px; letter-spacing: .14em; color: var(--p5); font-weight: 600; }
 .bst-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
 .bst-card { font: inherit; text-transform: uppercase; color: var(--p4); background: rgba(211,220,211,.06); border: 1px solid var(--line); border-radius: 12px;
@@ -363,7 +366,7 @@ body.gate-open #fs { opacity: 0; visibility: hidden; pointer-events: none; trans
 (function () {
   function show(msg, lite) {
     var card = document.getElementById('gate-card'), btn = document.getElementById('gate-btn');
-    if (!card || window.__omReady) return;
+    if (!card || window.__abyssonataReady) return;
     if (btn) btn.style.display = 'none';
     var m = document.getElementById('gate-err') || document.createElement('p');
     m.id = 'gate-err'; m.textContent = msg; if (!m.parentNode) card.appendChild(m);

@@ -2,11 +2,8 @@
 // правилами; Ecosystem решает, кто прилетает/уплывает по погоде и времени суток, агенты влияют друг на друга
 // (перекличка, испуг косяка рыб, заразительные прыжки дельфинов). Поведение сверено с открытыми источниками
 // (Википедия: названия статей — в комментариях у правил).
-const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
-const smooth = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-const rnd = (a, b) => a + Math.random() * (b - a);
+import { clamp01, smooth, rnd, choice } from './util.js';
 const randint = (a, b) => Math.floor(rnd(a, b + 1));
-const choice = arr => arr[(Math.random() * arr.length) | 0];
 const gauss = (mu = 0, sigma = 1) => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return mu + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 const copysign = (a, b) => (b < 0 ? -Math.abs(a) : Math.abs(a));
 
@@ -116,7 +113,8 @@ class Bird extends Agent {
     if (this.species === 'cormorant') this.x = Math.max(-0.9, Math.min(0.9, this.x + gauss(0, 0.06)));
     if (this.c.call && Math.random() < 0.5)
       this.later(rnd(1.5, 3.0), this.species, `${this.label} ${this.w('вынырнул')} с добычей`, 'catch');
-    if (this.c.plunge && Math.random() < 0.6) { const d = rnd(3.0, 5.0); this.later(d, `${this.species}_catch`, `${this.label} сливает воду из клюва и глотает рыбу`, 'catch'); this.eco.onCatch(this, d); }
+    if (this.c.plunge && Math.random() < 0.6) { const d = rnd(3.0, 5.0);
+      this.later(d, `${this.species}_catch`, `${this.label} сливает воду из клюва и глотает рыбу`, 'catch'); this.eco.onCatch(this, d); }
     if (this.species === 'cormorant' && Math.random() < 0.3) this.eco.onCatch(this, rnd(2, 4));
     if (this.c.dry && Math.random() < 0.6) this.tDry = rnd(4, 8);   // вынырнет — и на камень сушиться
     return out;
@@ -154,7 +152,8 @@ class Bird extends Agent {
         if (s.wind_speed < 0.22) { this.state = 'sit'; out.push(this.ev(`${this.species}_sit`, `${this.label}: ветер стих — сел на воду и качается на волне`, 0.2, 3.0, 'sit')); return out; }
         // держится за китом — подбирает объедки; за пароходом улетает к горизонту
         const whale = this.eco.agents.find(a => a.species === 'whale' && a.state === 'surface' && !a.done);
-        if (whale && this.rel !== whale.uid && Math.random() < 0.05 * dt) { this.relate(whale, 'to', 60); out.push(this.ev(`${this.species}_follow`, `${this.label} кружит над китом`, 0.2, 3.0, 'follow')); }
+        if (whale && this.rel !== whale.uid && Math.random() < 0.05 * dt) { this.relate(whale, 'to', 60);
+          out.push(this.ev(`${this.species}_follow`, `${this.label} кружит над китом`, 0.2, 3.0, 'follow')); }
         if (this.eco.count('ship') && Math.random() < 0.004 * dt) return out.concat(this.leave(`${this.label} полетел вслед за пароходом`));
       }
       if (c.drift) this.x = Math.max(-0.9, Math.min(0.9, this.x + gauss(0, c.drift) * Math.sqrt(dt)));
@@ -740,7 +739,8 @@ class Hatching {
     return out;
   }
 }
-const mulberry = seed => { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let x = Math.imul(s ^ (s >>> 15), 1 | s); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; };
+const mulberry = seed => { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let x = Math.imul(s ^ (s >>> 15), 1 | s);
+  x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; };
 
 // ---------------------------------------------------------------- экосистема
 export class Ecosystem {
@@ -889,7 +889,8 @@ export class Ecosystem {
     else if (kind === 'whale') this.agents.push(new Whale(this));
     else if (kind === 'fish_school') { if (!this.school) { this.school = new FishSchool(this); this.agents.push(this.school); } }
     else if (kind === 'dolphin') {
-      if (!this.pods.length) { const pod = new Pod(this); for (let i = 0, n = randint(3, 5); i < n; i++) { const d = new Dolphin(this, pod); pod.members.push(d); this.agents.push(d); } this.pods.push(pod); }
+      if (!this.pods.length) { const pod = new Pod(this); for (let i = 0, n = randint(3, 5); i < n; i++) { const d = new Dolphin(this, pod);
+        pod.members.push(d); this.agents.push(d); } this.pods.push(pod); }
     }
     else if (kind === 'orca') {
       const pod = new OrcaPod(this), n = randint(2, 3);

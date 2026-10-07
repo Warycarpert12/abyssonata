@@ -5,7 +5,7 @@ import { launch, phone, sleep } from './cdp.mjs';
 const [refUrl, newUrl] = process.argv.slice(2);
 const Q = '?noaudio=1&seed=7&rseed=7&lowres=1&qa';
 const SCREENS = [['iPhone 13', 750, 342, 3, 1], ['iPhone SE', 568, 320, 2, 1], ['Pixel 7', 863, 360, 2.625, 1], ['Galaxy S8', 740, 360, 3, 1], ['iPad Mini', 1024, 768, 2, 1],
-  ['Android 807×376', 807, 376, 3.35, 1], ...[[1280, 720], [760, 520], [1920, 1080], [800, 600], [900, 700], [960, 1080], [1000, 650], [1024, 768], [1024, 600], [1100, 650], [1366, 768]].map(([w, h]) => [`ПК ${w}×${h}`, w, h, 1, 0])];
+  ['Телефон 807×376', 807, 376, 3.35, 1], ...[[1280, 720], [760, 520], [1920, 1080], [800, 600], [900, 700], [960, 1080], [1000, 650], [1024, 768], [1024, 600], [1100, 650], [1366, 768]].map(([w, h]) => [`ПК ${w}×${h}`, w, h, 1, 0])];
 const grab = s => s.eval(`(() => { const o = {}; for (const id of ['hud','census','vol','log','tod','gl']) { const b = document.getElementById(id).getBoundingClientRect(); o[id] = (id === 'census' || id === 'log' ? [b.left, b.bottom, b.width] : [b.left, b.top, b.width, b.height]).map(Math.round).join(','); }
   o.aspect = window.__om.visual.camera.aspect.toFixed(4); o.min = [...document.querySelectorAll('.panel.min')].map(p => p.id).join(' '); return o; })()`);
 let fails = 0;

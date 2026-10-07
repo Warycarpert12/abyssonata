@@ -7,7 +7,7 @@
 import { launch, sleep, phone } from './cdp.mjs';
 const [url, name, scr = 'phone', tod = 'day', q = 'high', parts = '0', cpu = '1'] = process.argv.slice(2);
 const s = await launch({ gpu: true });
-// телефон: экран 2844×1260 — 812×360 CSS при плотности 3.5; ПК — 1920×1080
+// телефон: экран 812×360 CSS при плотности 3.5; ПК — 1920×1080
 if (scr === 'phone') await phone(s, { w: 812, h: 360, dpr: 3.5 });
 else await s.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
 await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.setItem('abyssonata.quality', '${q}'); localStorage.setItem('abyssonata.quality.user', '1') } catch {}

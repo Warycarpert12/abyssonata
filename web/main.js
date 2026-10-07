@@ -445,6 +445,36 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
+// ?fire=whale_blow,gull_dive,… — проверка звука и картинки событий: после входа выпускает такие же события, какие даёт
+// мир (от настоящего зверя нужного вида, в журнале — с пометкой «проверка»), по одному раз в 2 с и по кругу. Только с
+// этим параметром; сама симуляция не меняется. Зверей вызвать — ?spawn=, камера за ними — ?follow=
+if (qs.has('fire')) {
+  const FIRE = {
+    whale_blow: ['whale', 'whale_blow', 'blow', 'кит шумно выдохнул фонтаном'],
+    whale_song: ['whale', 'whale', 'song', 'кит издаёт низкий зов'],
+    whale_slap: ['whale', 'dive_splash', 'tailslap', 'кит хлопнул хвостом по воде'],
+    dolphin_jump: ['dolphin', 'jump_splash', 'jump', 'дельфин выпрыгнул из воды'],
+    dolphin_whistle: ['dolphin', 'dolphin', 'whistle', 'дельфин свистит'],
+    gull: ['seagull', 'seagull', 'call', 'чайка кричит над водой'],
+    gull_dive: ['seagull', 'dive_splash', 'dive', 'чайка нырнула за рыбой'],
+    flying_fish: ['fish_school', 'flying_fish', 'jump', 'летучая рыба выпрыгнула из воды'],
+    spray: [null, 'splash', '', 'брызги долетели до берега'],
+    thunder: [null, 'thunder', '', 'гром'],
+  };
+  const codes = qs.get('fire').split(',').map(c => c.trim()).filter(c => FIRE[c]);
+  let i = 0, side = 0;
+  const fire = () => {
+    setTimeout(fire, i % codes.length === codes.length - 1 ? 8000 : 2000);
+    const [sp, type, act, text] = FIRE[codes[i++ % codes.length]];
+    if ((!audio.ready && !qs.has('noaudio')) || paused || !codes.length) return;
+    const o = sp && [...visual.agents.values()].find(q => q.sp === sp && !q.gone);
+    if (sp && !o) return;   // такого зверя сейчас нет — ждём (?spawn=)
+    world._emit({ kind: 'event', timestamp: 0, time: visual.timeLabel || '', type, act, text: 'проверка: ' + text, intensity: .8, duration: 2,
+      panorama: [.25, .5, .75][side++ % 3], distance: sp ? .3 : .12, agent: o ? o.id : 0, voice: o ? o.id * 7919 : 0 });
+  };
+  if (codes.length) setTimeout(fire, 3000);
+}
+
 // --- мир живёт и звучит, когда картинка не рисуется: вкладка скрыта или свёрнута, режим «Только звук». В скрытой вкладке
 // requestAnimationFrame не вызывается, а таймеры страницы замедляются — шаги задаёт таймер в Web Worker (его браузер не
 // тормозит). Мир догоняет настоящее время шагами по 1/60 с — тот же код симуляции, что и в кадре; больше 1 с за раз не

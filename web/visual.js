@@ -275,6 +275,9 @@ export class Visual {
     this.canvas = $('#gl');
     this.logList = $('#log-list'); this.flashEl = $('#flash'); this.tipEl = $('#tip');
     this.cur = { tod: .5, daylight: 1, weather: .3, wind: .3, wave: .3, temp: .5, tension: .1, rain: 0, fog: 0 };
+    // напряжение океана в картинке: ?tension=0 — без реакции (для сравнения), ?tq=0..1 — задать напряжение для снимков
+    { const q = new URLSearchParams(location.search); this.tensionFx = q.get('tension') !== '0'; this.tensionQA = q.has('tq') ? clamp(+q.get('tq')) : null; }
+    this.tenK = this.tensionQA ?? .1;
     this.tgt = { ...this.cur };
     this.weatherLabel = '—'; this.timeLabel = '--:--'; this.census = {}; this.snapped = false;
     this.agents = new Map(); this.fx = []; this.recent = [];
@@ -2880,6 +2883,18 @@ export class Visual {
   }
 
   // ------------------------------------------------------------------ палитра
+  // напряжение — едва заметно: небо и вода чуть глуше и холоднее (цвет к серо-голубому той же яркости, чуть темнее).
+  // Своё медленное сглаживание (нарастает ~6 с, спадает ~20 с) и порог: обычный фон (медиана ~0.27) картинку не трогает
+  _tensionTone(P, dt) {
+    const v = this.tensionQA ?? this.cur.tension;
+    this.tenK += (v - this.tenK) * (1 - Math.exp(-dt / (v > this.tenK ? 6 : 20)));
+    const te = this.tensionFx ? smooth(.3, .65, this.tenK) : 0;
+    if (te > 0) for (const k of ['zen', 'hor', 'sh', 'deep']) {
+      const c = P[k], l = c[0] * .3 + c[1] * .55 + c[2] * .15;
+      P[k] = mix3(c, [l * .86, l * .97, l * 1.1], .35 * te).map(x => x * (1 - .06 * te));
+    }
+    return te;
+  }
   _palette() {
     const dusk = clamp(Math.max(1 - Math.abs(this.cur.tod - .25) * 6, 1 - Math.abs(this.cur.tod - .75) * 6));
     const day = smooth(.04, .5, this.cur.daylight), stormy = clamp(Math.max(this.cur.rain, (this.cur.weather - .55) / .3) * .8);
@@ -2977,7 +2992,7 @@ export class Visual {
     this.cur.tod = this.tgt.tod;   // доля суток — круговая, не сглаживаем
     this.clock += dt;
 
-    const P = this._palette(), { day, dusk, stormy } = P, night = 1 - day;
+    const P = this._palette(), { day, dusk, stormy } = P, night = 1 - day, te = this._tensionTone(P, dt);
     // солнце: восход на востоке (+x) в 06:00, полдень наверху (чуть к югу), закат на западе в 18:00; луна — напротив
     const ang = (this.cur.tod - .25) * Math.PI * 2;
     const sunDir = new V3(Math.cos(ang), Math.sin(ang), -.35).normalize(), moonDir = sunDir.clone().multiplyScalar(-1).setZ(-.3).normalize();
@@ -2991,7 +3006,8 @@ export class Visual {
     const su = this.skyMat.uniforms; su.uZen.value.copy(zen); su.uHor.value.copy(hor); su.uSunDir.value.copy(sunDir);
     su.uSunCol.value.setRGB(1, .75 - dusk * .25, .45 - dusk * .2); su.uSunA.value = sunUp * (1 - stormy * .8);
     this.scene.fog.color.copy(hor);
-    this.scene.fog.near = lerp(120, 25, Math.max(this.cur.fog, stormy * .5)); this.scene.fog.far = lerp(420, 180, Math.max(this.cur.fog, stormy * .5));
+    this.scene.fog.near = lerp(120, 25, Math.max(this.cur.fog, stormy * .5)) * (1 - .22 * te);
+    this.scene.fog.far = lerp(420, 180, Math.max(this.cur.fog, stormy * .5)) * (1 - .22 * te);   // при напряжении дымка чуть ближе
     this.starMat.uniforms.uA.value = smooth(.5, .05, day) * (1 - this.cur.rain) * (1 - this.cur.fog); this.starMat.uniforms.uT.value = t;
     this.stars.rotation.y = this.clock * .004;
     // дальний остров в дымке: своя окраска со светом + дымка горизонта (сильнее у подножия); ночью — светящаяся кромка

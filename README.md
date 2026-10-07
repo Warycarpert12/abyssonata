@@ -61,11 +61,11 @@ python -m http.server 8000 -d _site
 three.js (картинка), Web Audio API (звук), GitHub Pages (сайт), Capacitor (APK). Код написан с помощью Claude Code —
 ИИ-ассистента для программирования; замысел, решения и проверка — автора.
 
-Автор — Артём Гонтарук ([Warycarpert12](https://github.com/Warycarpert12)).
+Автор — waryc ([Warycarpert12](https://github.com/Warycarpert12)).
 
 ## Лицензия
 
-Код — [MIT](LICENSE), © 2026 Гонтарук Артём (Warycarpert12): можно использовать, менять и распространять с указанием
+Код — [MIT](LICENSE), © 2026 waryc: можно использовать, менять и распространять с указанием
 авторства. Сторонние материалы — со своими лицензиями, полный список с авторами и источниками — [THIRD_PARTY.md](THIRD_PARTY.md)
 (на сайте — ссылка «Авторы и лицензии»):
 - звуки — CC0 1.0 / Public domain (Freesound, Wikimedia Commons, BigSoundBank; авторы — `samples_mp3/*/CREDITS.txt`);

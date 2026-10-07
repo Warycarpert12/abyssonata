@@ -14,7 +14,7 @@ CC0 1.0 (Public Domain), автор Quaternius:
                   (с v6 не используются — остров теперь процедурный рельеф; оставлены на диске)
 
 CC-BY 3.0, автор Poly by Google — ТРЕБУЕТСЯ указание автора (сделано: #credits внизу страницы).
-Разрешено пользователем 22.09.2026 (CC0-вариантов этих животных не нашлось).
+CC0-вариантов этих животных не нашлось.
   gull.glb      — "Flying seagull"  https://poly.pizza/m/6Tpj_vcWP3f  (чайка, крачка, альбатрос)
   gull_dark.glb — "Flying gull"     https://poly.pizza/m/eMNhHDZakYp  (баклан)
   pelican.glb   — "Brown pelican"   https://poly.pizza/m/2oAiRa4fave

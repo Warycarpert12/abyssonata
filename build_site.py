@@ -56,8 +56,7 @@ def build():
     with open(os.path.join(SITE, "samples.json"), "w", encoding="utf-8") as f:
         json.dump(cats, f, ensure_ascii=False)
     open(os.path.join(SITE, ".nojekyll"), "w").close()   # GitHub Pages: не пропускать файлы и папки с «_»
-    # метка статической сборки (GitHub Pages, APK) — страница не спрашивает место у сервера (/api/join:
-    # на Pages его нет, запрос дал бы ошибку в консоли)
+    # метка статической сборки (GitHub Pages, APK): замер ?bench не отправляет результат (web/bench.js)
     page = os.path.join(SITE, "index.html")
     html = open(page, encoding="utf-8").read()
     with open(page, "w", encoding="utf-8") as f:

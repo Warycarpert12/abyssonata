@@ -37,6 +37,10 @@ const SPEC = {
 };
 // меньше повторов — из длинной записи (у чаек до 15 с) звучит не вся она, а кусок [от, до] секунд, начинающийся
 // с одного из «вступлений» записи (где звук резко нарастает — начало крика). Одна запись даёт десятки разных криков
+// посыл в хвост разового звука: рядом — меньше, вдали — больше (дальний звук слышен сильнее отражённым)
+const TAIL = [.15, .45], TAIL_DRY = .95;   // прямой звук чуть тише: энергия слоя событий — как без хвоста (замер replay)
+// свой повторяемый шум для импульса хвоста
+const seeded = n => { let r = n >>> 0; return () => { r = (r + 0x6D2B79F5) >>> 0; let x = Math.imul(r ^ (r >>> 15), 1 | r); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; };
 const WINDOW = { gull: [2.5, 5], tern: [2, 4], cormorant: [2, 4], seal: [2, 4.5], dolphin: [1.5, 3.5], orca: [2.5, 5], whale: [6, 10],
   bubbles: [1.5, 3.5], shrimp: [1.5, 3], crab: [1, 2.5], sand: [1, 2] };   // sand — шорох песка у черепашат
 // у песен кита громкость записей различается до 8 дБ — подравниваем по средней громкости (иначе часть «песен» не слышна)
@@ -167,6 +171,11 @@ export class OceanAudio {
     const wet = ctx.createGain(); wet.gain.value = .55;
     bus.connect(dry); dry.connect(limiter);
     bus.connect(sendG); sendG.connect(conv); conv.connect(wet); wet.connect(limiter);
+    // хвост разовых звуков: своя длинная тёмная реверберация — звук события не обрывается, а затихает за несколько
+    // секунд; посыл — от дальности (_oneShot). Свой генератор шума: общий Math.random мира не трогаем
+    const tailIn = this.tailIn = ctx.createGain(), tailConv = ctx.createConvolver(), tailLp = ctx.createBiquadFilter();
+    tailConv.buffer = impulseResponse(ctx, this.lite ? 2 : 3.6, 3, seeded(7)); tailLp.type = 'lowpass'; tailLp.frequency.value = 3200;
+    tailIn.connect(tailConv); tailConv.connect(tailLp); tailLp.connect(bus);
     // абстрактный слой: свой вход — громкость по полоске «Музыка»; мимо «Природы», сильнее в реверберацию
     const absOut = this.absOut = ctx.createGain(); absOut.gain.value = this.music;
     const absWet = ctx.createGain(); absWet.gain.value = .9;
@@ -408,6 +417,7 @@ export class OceanAudio {
     this.musicGen?.onEvent(e, this.ctx.currentTime);   // музыка слышит мир: живее — чаще ноты, голоса зверей откликаются
     const sp = SPEC[e.type]; if (!sp) return;
     if (e.delay) await new Promise(r => setTimeout(r, e.delay * 1000));
+    const at = e.where?.(); if (at) e = { ...e, ...at };   // место — на момент звучания (visual._soundAt)
     const [cat, r0, r1, a0, a1, l0, l1, atk, rel] = sp;
     this.used[cat] = this.ctx.currentTime;
     const bufs = this.buffers[cat] || await this._loadCategory(cat);
@@ -425,7 +435,8 @@ export class OceanAudio {
       let amp = rrand(a0, a1) * lerp(.6, 1.0, e.intensity ?? .5) * Math.max(.3, 1 - dist * .5);
       if (LEVEL.has(cat)) amp *= clamp(this.info.get(bufs) / (this.info.get(buf)?.rms || 1), .6, 2.5);
       const [off, len] = this._window(buf, cat);
-      setTimeout(() => this._oneShot(buf, rate, amp, rrand(l0, l1) * (1 - dist * .4), atk, rel, clamp((e.panorama ?? .5) + rrand(-.05, .05)), cat, off, len),
+      setTimeout(() => this._oneShot(buf, rate, amp, rrand(l0, l1) * (1 - dist * .4), atk, rel, clamp((e.panorama ?? .5) + rrand(-.05, .05)), cat, off, len,
+        lerp(TAIL[0], TAIL[1], dist)),
         i * rrand(80, 300));
     }
   }
@@ -502,7 +513,7 @@ export class OceanAudio {
     return [off, Math.min(rrand(w[0], w[1]), buf.duration - off)];
   }
 
-  _oneShot(buf, rate, amp, lpfHz, atk, rel, pan01, cat = '', off = 0, len = null) {
+  _oneShot(buf, rate, amp, lpfHz, atk, rel, pan01, cat = '', off = 0, len = null, tail = 0) {
     if ((this.weak || this.lite) && this.voices >= 10) return;   // предел одновременных голосов на слабых устройствах
     const ctx = this.ctx, now = ctx.currentTime;
     const dur = (len ?? buf.duration - off) / rate, env = ctx.createGain(), lpf = ctx.createBiquadFilter();
@@ -514,13 +525,14 @@ export class OceanAudio {
     const budget = dur * .92, k = budget < atk + rel ? budget / (atk + rel) : 1;
     const atk2 = atk * k, rel2 = rel * k, sustain = Math.max(.01, dur - atk2 - rel2);
     env.gain.setValueAtTime(0, now);
-    amp *= this.mix.event;
+    amp *= this.mix.event * (tail > 0 && this.tailIn && !this.weak ? TAIL_DRY : 1);
     env.gain.linearRampToValueAtTime(amp, now + atk2);
     env.gain.setValueAtTime(amp, now + atk2 + sustain);
     env.gain.linearRampToValueAtTime(0, now + atk2 + sustain + rel2);
     src.connect(lpf); lpf.connect(env);
     if (panner) { panner.pan.value = pan01 * 2 - 1; env.connect(panner); panner.connect(this.bus); }
     else env.connect(this.bus);
+    if (tail > 0 && this.tailIn && !this.weak) { const ts = ctx.createGain(); ts.gain.value = tail; (panner || env).connect(ts); ts.connect(this.tailIn); }
     this.voices++; src.onended = () => this.voices--;
     src.start(now, off); src.stop(now + dur + .05);
   }
@@ -587,11 +599,11 @@ function noiseSource(ctx, kind) {
   const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.start(0, Math.random() * 7);
   return src;
 }
-function impulseResponse(ctx, seconds, decay) {
+function impulseResponse(ctx, seconds, decay, rnd = Math.random) {
   const n = Math.floor(ctx.sampleRate * seconds), buf = ctx.createBuffer(2, n, ctx.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
     const d = buf.getChannelData(ch);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay);
+    for (let i = 0; i < n; i++) d[i] = (rnd() * 2 - 1) * Math.pow(1 - i / n, decay);
   }
   return buf;
 }

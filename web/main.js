@@ -329,6 +329,8 @@ let paused = false;
 const pauseBtn = document.getElementById('pause');
 const setPaused = p => {
   paused = p; visual.paused = p; audio.setPaused(p);
+  try { if (navigator.mediaSession) navigator.mediaSession.playbackState = p ? 'paused' : 'playing'; } catch { /* нет — не страшно */ }
+  const sp = document.getElementById('sndonly-pause'); if (sp) sp.textContent = p ? 'Дальше' : 'Пауза';
   pauseBtn.classList.toggle('on', p); pauseBtn.textContent = p ? 'Дальше' : 'Пауза'; pauseBtn.title = (p ? 'Продолжить' : 'Пауза') + ' (пробел)';
 };
 pauseBtn.addEventListener('click', () => setPaused(!paused));
@@ -425,8 +427,11 @@ if (qs.get('bench') === '1' || qs.get('bench') === '2') (async () => {   // 2 �
   btn.addEventListener('click', () => { try { localStorage.setItem('abyssonata.quality', 'lite'); localStorage.setItem('abyssonata.quality.user', '1'); } catch { /* приватное окно */ } location.reload(); });
 }
 const ft = new Float32Array(300); let ftI = 0;   // последние 300 кадров (мс) — для ?debug=1
+let rafOn = true;
 function frame(now) {
+  if (soundOnly) { rafOn = false; return; }   // «Только звук»: кадры не рисуются вовсе, мир ведёт фоновый таймер
   requestAnimationFrame(frame);   // первым делом — ошибка ниже не должна остановить цикл
+  visual.bg = false;
   // метка первого кадра бывает РАНЬШЕ performance.now() при загрузке — без нижней границы шаг выходит
   // отрицательным, и мир с панелью «отматываются назад»
   const raw = (now - last) / 1000, dt = Math.max(0, Math.min(raw, .1)); last = now;
@@ -439,6 +444,74 @@ function frame(now) {
   catch (e) { console.error('render frame failed', e?.stack || e); }
 }
 requestAnimationFrame(frame);
+
+// ?fire=whale_blow,gull_dive,… — проверка звука и картинки событий: после входа выпускает такие же события, какие даёт
+// мир (от настоящего зверя нужного вида, в журнале — с пометкой «проверка»), по одному раз в 2 с и по кругу. Только с
+// этим параметром; сама симуляция не меняется. Зверей вызвать — ?spawn=, камера за ними — ?follow=
+if (qs.has('fire')) {
+  const FIRE = {
+    whale_blow: ['whale', 'whale_blow', 'blow', 'кит шумно выдохнул фонтаном'],
+    whale_song: ['whale', 'whale', 'song', 'кит издаёт низкий зов'],
+    whale_slap: ['whale', 'dive_splash', 'tailslap', 'кит хлопнул хвостом по воде'],
+    dolphin_jump: ['dolphin', 'jump_splash', 'jump', 'дельфин выпрыгнул из воды'],
+    dolphin_whistle: ['dolphin', 'dolphin', 'whistle', 'дельфин свистит'],
+    gull: ['seagull', 'seagull', 'call', 'чайка кричит над водой'],
+    gull_dive: ['seagull', 'dive_splash', 'dive', 'чайка нырнула за рыбой'],
+    flying_fish: ['fish_school', 'flying_fish', 'jump', 'летучая рыба выпрыгнула из воды'],
+    spray: [null, 'splash', '', 'брызги долетели до берега'],
+    thunder: [null, 'thunder', '', 'гром'],
+  };
+  const codes = qs.get('fire').split(',').map(c => c.trim()).filter(c => FIRE[c]);
+  let i = 0, side = 0;
+  const fire = () => {
+    setTimeout(fire, i % codes.length === codes.length - 1 ? 8000 : 2000);
+    const [sp, type, act, text] = FIRE[codes[i++ % codes.length]];
+    if ((!audio.ready && !qs.has('noaudio')) || paused || !codes.length) return;
+    const o = sp && [...visual.agents.values()].find(q => q.sp === sp && !q.gone);
+    if (sp && !o) return;   // такого зверя сейчас нет — ждём (?spawn=)
+    world._emit({ kind: 'event', timestamp: 0, time: visual.timeLabel || '', type, act, text: 'проверка: ' + text, intensity: .8, duration: 2,
+      panorama: [.25, .5, .75][side++ % 3], distance: sp ? .3 : .12, agent: o ? o.id : 0, voice: o ? o.id * 7919 : 0 });
+  };
+  if (codes.length) setTimeout(fire, 3000);
+}
+
+// --- мир живёт и звучит, когда картинка не рисуется: вкладка скрыта или свёрнута, режим «Только звук». В скрытой вкладке
+// requestAnimationFrame не вызывается, а таймеры страницы замедляются — шаги задаёт таймер в Web Worker (его браузер не
+// тормозит). Мир догоняет настоящее время шагами по 1/60 с — тот же код симуляции, что и в кадре; больше 1 с за раз не
+// догоняет (страницу морозили — мир продолжается с того же места, без пачки событий и звуков разом). Пауза — стоит
+let soundOnly = false, bgAcc = 0;
+const BG_STEP = 1 / 60, BG_MAX = 1;
+try {
+  const bgTick = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 100)'], { type: 'text/javascript' })));
+  bgTick.onmessage = () => {
+    if (!document.hidden && !soundOnly) return;   // картинка рисуется — мир ведёт кадр
+    const now = performance.now(); bgAcc = Math.min(bgAcc + Math.max(0, now - last) / 1000, BG_MAX); last = now;
+    visual.bg = true;
+    if (paused) { bgAcc = 0; return; }
+    try { for (; bgAcc >= BG_STEP; bgAcc -= BG_STEP) { world.step(BG_STEP); wt += BG_STEP; } } catch (e) { console.error('world step failed', e?.stack || e); }
+  };
+} catch { /* без Web Worker — как раньше: пока вкладка скрыта, мир стоит */ }
+
+// «Только звук»: картинка не рисуется (холст спрятан), поверх — тёмный экран с именем; мир и звук идут дальше
+{
+  const box = document.getElementById('sndonly'), stage = document.getElementById('stage');
+  const set = on => {
+    soundOnly = on; box.hidden = !on; stage.style.visibility = on ? 'hidden' : '';
+    if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); }
+  };
+  document.getElementById('snd-btn').addEventListener('click', () => set(true));
+  document.getElementById('sndonly-back').addEventListener('click', () => set(false));
+  document.getElementById('sndonly-pause').addEventListener('click', () => setPaused(!paused));
+}
+
+// медиа-сессия: на телефоне в шторке — «Abyssonata» и кнопка паузы (пока звук играет), в фоне в том числе
+try {
+  if (navigator.mediaSession && window.MediaMetadata) {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: 'Abyssonata', artist: 'живой океан' });
+    navigator.mediaSession.setActionHandler('play', () => setPaused(false));
+    navigator.mediaSession.setActionHandler('pause', () => setPaused(true));
+  }
+} catch { /* нет — не страшно */ }
 
 // --- интерфейс «жидкое стекло»: под курсором панель/кнопка подтекает и бликует (SVG-фильтр #lens).
 // один фильтр на страницу — линза одновременно на одном элементе; убрать эффект — удалить этот блок.

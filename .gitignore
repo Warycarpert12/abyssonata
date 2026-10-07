@@ -14,3 +14,7 @@
 !/.githooks/
 !/CHANGELOG.md
 /web/_qa*
+
+# ключи подписи — никогда в репозиторий
+*.jks
+*.keystore

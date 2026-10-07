@@ -72,7 +72,8 @@ function checkText(name, text, kind = 'file') {
 const args = process.argv.slice(2), found = [];
 const fromIndex = f => { try { return git('show', `:${f}`); } catch { return null; } };
 const fromRev = (rev, f) => { try { return git('show', `${rev}:${f}`); } catch { return null; } };
-const files = (list, read) => { for (const f of list) { if (!f || SKIP_FILES.has(f) || VENDOR.test(f) || !TEXT.test(f)) continue; const t = read(f); if (t != null) found.push(...checkText(f, t)); } };
+const KEYFILE = /\.(jks|keystore)$/i;   // ключи подписи APK — только вне репозитория
+const files = (list, read) => { for (const f of list) { if (KEYFILE.test(f)) found.push(`${f} — файл ключа подписи публиковать нельзя`); if (!f || SKIP_FILES.has(f) || VENDOR.test(f) || !TEXT.test(f)) continue; const t = read(f); if (t != null) found.push(...checkText(f, t)); } };
 
 if (args[0] === '--all') files(git('ls-files').split('\n'), f => (existsSync(f) ? readFileSync(f, 'utf8') : null));
 else if (args[0] === '--staged') files(git('diff', '--cached', '--name-only', '--diff-filter=ACMR').split('\n'), fromIndex);

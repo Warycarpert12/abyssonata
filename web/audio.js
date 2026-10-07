@@ -118,7 +118,9 @@ export class OceanAudio {
     // (с заказанной 32 кГц Safari пересчитывает весь звук — лишний риск тишины и треска)
     if (!this.ctx) { try { this.ctx = new AC(this.lite && !this.ios ? { latencyHint: 'playback', sampleRate: 32000 } : { latencyHint: 'playback' }); } catch { this.ctx = new AC(); } }
     if (this.ctx.state !== 'running' && !this.paused) this.ctx.resume().catch(() => {});
-    if (this.ios) {
+    // на сенсорных устройствах тихий элемент нужен и Android: играющее медиа + медиа-сессия (main.js) — управление звуком
+    // из шторки, и браузер реже усыпляет страницу в фоне
+    if (this.ios || device.touch) {
       if (!this.keep) {   // 0.5 с тишины (WAV 8 кГц, 8 бит)
         const n = 4000, b = new Uint8Array(44 + n).fill(128), v = new DataView(b.buffer), w = (o, s) => [...s].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
         w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);

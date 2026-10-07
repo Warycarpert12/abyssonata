@@ -161,6 +161,16 @@ main { position: relative; height: 100%; display: grid; place-items: center; }
 #gate-load .bar i { display: block; height: 100%; width: 0; background: var(--p3); transition: width .4s ease; }
 #gate-lite { margin-top: 10px; font: inherit; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--p4);
   background: transparent; border: 1px solid var(--panel-edge); border-radius: 10px; padding: 6px 12px; cursor: pointer; }
+/* «Только звук»: тёмный экран вместо картинки; на узком и сенсорном экране кнопка — коротко «Звук» */
+#snd-btn .short { display: none; }
+@media (max-width: 900px), (pointer: coarse) { #snd-btn .long { display: none; } #snd-btn .short { display: inline; } }
+#sndonly { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: #0b1416; color: var(--p4); text-align: center; }
+#sndonly[hidden] { display: none; }
+#sndonly b { font-size: 18px; font-weight: 500; letter-spacing: .32em; text-transform: uppercase; color: #d3dcd3; }
+#sndonly p { margin: 0; font-size: 11px; letter-spacing: .08em; opacity: .7; }
+#sndonly button { margin: 6px 5px 0; font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #eef4ee;
+  background: rgba(146,191,189,.18); border: 1px solid var(--panel-edge); border-radius: 10px; padding: 8px 14px; cursor: pointer; }
 #gl-lost { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 60; text-align: center; padding: 16px 22px;
   border-radius: 16px; background: var(--panel); border: 1px solid var(--panel-edge); color: var(--p4); font-size: 12px; }
 #gl-lost button { margin-top: 10px; font: inherit; font-size: 11px; color: #eef4ee; background: rgba(146,191,189,.25); border: 1px solid var(--panel-edge);
@@ -294,6 +304,7 @@ body.gate-open #fs { opacity: 0; visibility: hidden; pointer-events: none; trans
       <button data-tod=".72">Вечер</button>
       <span class="sep"></span>
       <button id="pause" title="Пауза (пробел)">Пауза</button>
+      <button id="snd-btn" title="Только звук: картинка не рисуется, океан живёт и звучит дальше — меньше нагрузка и расход батареи"><span class="long">Только звук</span><span class="short">Звук</span></button>
       <button id="lens-btn" title="Эффект линзы под курсором на панелях и кнопках" aria-pressed="true">Линза</button>
       <button id="bst-btn" title="Бестиарий — кого вы уже встретили в океане">Бестиарий</button>
     </div>
@@ -347,6 +358,7 @@ body.gate-open #fs { opacity: 0; visibility: hidden; pointer-events: none; trans
 <button id="fs">⛶ На весь экран</button>
 <div id="rotate"><div><div class="phone"></div><p class="tel">Поверните телефон горизонтально</p><p class="pc">Растяните окно шире</p><small>океан задуман для широкого экрана</small></div></div>
 
+<div id="sndonly" hidden><b>Abyssonata</b><p>только звук — картинка выключена, океан живёт</p><div><button id="sndonly-back">Вернуть картинку</button><button id="sndonly-pause">Пауза</button></div></div>
 <div id="gl-lost" hidden><p></p><button hidden>Перезапустить в облегчённом режиме</button></div>
 <div id="gate">
   <div id="gate-card">

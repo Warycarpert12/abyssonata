@@ -1828,6 +1828,7 @@ export class Visual {
   }
   onEvent(e) {
     this._addLog(e); if (VOICES.has(e.type)) this.recent.push(performance.now());
+    if (this.bg) return;   // картинка не рисуется (вкладка скрыта, «Только звук») — эффекты не копим, журнал и звук идут
     const o = this.agents.get(e.agent);
     const pos = o ? o.obj.position.clone() : this.W(e.panorama * 2 - 1, e.distance ?? .5, 0);
     if (e.type === 'thunder' || e.type === 'storm_start') this.flashV = 1;
@@ -1921,6 +1922,7 @@ export class Visual {
     // ушедшие из симуляции — не исчезают, а уплывают/улетают в дымку и только там удаляются
     for (const o of this.agents.values()) if (!seen.has(o.id) && !o.gone) {
       if (o.sp === 'ship') { this._removeAgent(o); continue; }   // пароход к этому времени уже растаял в дымке
+      if (this.bg) { this._removeAgent(o); continue; }   // картинка не рисуется — уплывать некому смотреть, не копим
       o.gone = true; o.goneT = 0;
       if (STATIC.has(o.sp) || o.flat) o.away = o.anchor.clone().setY(o.anchor.y - 2.5);   // прячется в песок/расщелину на месте (медузу на песке смывает)
       else { const h = o.anchor.clone().setY(0); o.away = h.multiplyScalar(240 / (h.length() || 1)).setY(o.anchor.y); }

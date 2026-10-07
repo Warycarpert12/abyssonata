@@ -208,7 +208,8 @@ export class OceanAudio {
     // звук нужен раньше очереди, грузится сразу; на облегчённом — при первом своём звуке (onEvent/playLocal ждут её)
     if (!this.lite) (async () => {
       for (const c of LOOPS) await this._loadLayer(c);
-      for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder', 'grasshopper', 'bubbles', 'shrimp', 'crab']) await this._loadCategory(c);
+      for (const c of ['splash', 'gull', 'tern', 'cormorant', 'whale', 'whale_blow', 'horn', 'dolphin', 'orca', 'seal', 'fish', 'thunder',
+        'grasshopper', 'bubbles', 'shrimp', 'crab']) await this._loadCategory(c);
     })();
   }
 
@@ -387,7 +388,8 @@ export class OceanAudio {
     const on = !!s.rain_active;
     this.rainOn = on;
     // облегчённый — дождь грузится, когда пошёл, насекомые — когда камера подлетела к острову; «Лёгкое» — выгрузка
-    if (this.lite) { if (on) for (const c of ['rain_light', 'rain_water', 'rain_heavy']) this._loadLayer(c); if (this.prox > .02) for (const c of ['insects_day', 'insects_night']) this._loadLayer(c); }
+    if (this.lite) { if (on) for (const c of ['rain_light', 'rain_water', 'rain_heavy']) this._loadLayer(c);
+      if (this.prox > .02) for (const c of ['insects_day', 'insects_night']) this._loadLayer(c); }
     this._evict(now);
     const heavy = clamp((s.rain - .55) / .25);
     for (const g of this.rain.light) g.g.gain.setTargetAtTime(on ? rl : 0, now, 20);
@@ -551,7 +553,8 @@ async function analyse(buf, step = CHUNK) {
 async function normalize(buf, peak, step = CHUNK) {
   let m = 0;
   for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
-    for (let i0 = 0; i0 < d.length; i0 += step) { for (let i = i0, e = Math.min(d.length, i0 + step); i < e; i++) { const v = Math.abs(d[i]); if (v > m) m = v; } if (step !== Infinity) await pause(); } }
+    for (let i0 = 0; i0 < d.length; i0 += step) { for (let i = i0, e = Math.min(d.length, i0 + step); i < e; i++) { const v = Math.abs(d[i]);
+      if (v > m) m = v; } if (step !== Infinity) await pause(); } }
   if (m > 0) { const g = peak / m; for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c);
     for (let i0 = 0; i0 < d.length; i0 += step) { for (let i = i0, e = Math.min(d.length, i0 + step); i < e; i++) d[i] *= g; if (step !== Infinity) await pause(); } } }
   return buf;

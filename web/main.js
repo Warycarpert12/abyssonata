@@ -9,7 +9,8 @@ import { boot, steps, step, within, device, autoLite, startLite, lastBootFailed,
 
 // &rseed=N — повторяемые случайные числа (одинаковые сцены для снимков и сравнений); без параметра — как всегда
 { const rs = new URLSearchParams(location.search).get('rseed');
-  if (rs !== null) { let r = (+rs * 2654435761) >>> 0; Math.random = () => { r = (r + 0x6D2B79F5) >>> 0; let x = Math.imul(r ^ (r >>> 15), 1 | r); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; } }
+  if (rs !== null) { let r = (+rs * 2654435761) >>> 0; Math.random = () => { r = (r + 0x6D2B79F5) >>> 0; let x = Math.imul(r ^ (r >>> 15), 1 | r);
+    x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; } }
 
 // --- место в океане: сервер с ограничением зрителей (не больше 30 одновременно) выдаёт место через /api/join.
 // Пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки до этого не качаются).
@@ -56,7 +57,8 @@ world.onEvent(m => { if (audio.ready) audio.onEvent({ ...m, ...visual.spatial(m)
 // местные звуки от картинки: плеск (рифовая рыбка, прыжки из воды), стрекот кузнечика, звуки при приближении
 // (бульки, треск креветок, щёлканье краба) — из той точки, где это видно; k — насколько близко (1 — вплотную)
 // громкость и высота: креветки и краб звучат выше записи (запись — шипение/щелчки, на них похоже в ускорении)
-const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shrimp: [.05, 1.05], crab: [.07, 1.5], sand: [.025, 1.1] };   // креветки — гидрофонная запись, почти без ускорения; sand — шорох песка у черепашат, тихо (они маленькие)
+// креветки — гидрофонная запись, почти без ускорения; sand — шорох песка у черепашат, тихо (они маленькие)
+const LOCAL = { grasshopper: [.09, 1], splash: [.05, 1], bubbles: [.08, 1], shrimp: [.05, 1.05], crab: [.07, 1.5], sand: [.025, 1.1] };
 visual.onLocalSound = (cat, pos, k = 1) => {
   if (!audio.ready) return;
   const sp = visual.spatialAt(pos), [amp, rate] = LOCAL[cat] || [.05, 1];
@@ -311,7 +313,8 @@ try {
 // --- панели: сворачиваются нажатием на заголовок; на маленьком экране (телефон горизонтально) «Состояние» и
 // «Журнал» сразу свёрнуты — океан главнее
 for (const p of document.querySelectorAll('.panel')) p.querySelector('h2')?.addEventListener('click', () => p.classList.toggle('min'));
-if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 760px)').matches) for (const id of ['hud', 'log']) document.getElementById(id).classList.add('min');   // только телефон
+// только телефон
+if (matchMedia('(pointer: coarse) and (max-height: 560px), (pointer: coarse) and (max-width: 760px)').matches) for (const id of ['hud', 'log']) document.getElementById(id).classList.add('min');
 
 // --- подсказки «Состояния»: что значит параметр — при наведении мышью на название, на телефоне — по нажатию
 // (повторное нажатие или касание в другом месте — убрать; сама уходит через 7 с)

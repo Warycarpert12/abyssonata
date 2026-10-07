@@ -18,7 +18,6 @@ const AGENT_TYPES = new Set(['fish_school', 'flying_fish', 'seagull', 'cormorant
   'jellyfish', 'stingray', 'starfish', 'octopus', 'shrimp_swarm', 'sea_turtle']);   // мелкие обитатели — тоже агенты
 const TENSION_IMPULSES = { shark: 0.28, shark_hunt: 0.12, orca_arrive: 0.2, whale_arrive: 0.16, storm_start: 0.30, wave_break: 0.02 };
 
-const _storm = s => smoothstep(0.60, 0.80, s.weather);
 const _calm = s => 1.0 - smoothstep(0.50, 0.78, s.weather);
 const _warm = s => smoothstep(0.50, 0.72, s.temperature);
 const _day = s => s.daylight;

@@ -10,6 +10,7 @@ import * as SkeletonUtils from './three-addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from './three-addons/utils/BufferGeometryUtils.js';
 import { Noise2D } from './noise.js';
 import { step, within } from './boot.js';
+import { clamp, lerp, smooth, rnd } from './util.js';
 THREE.ColorManagement.enabled = false;
 
 const $ = s => document.querySelector(s);
@@ -22,12 +23,8 @@ function tapOnly(box, sel, fn) {
   box.addEventListener('pointercancel', () => { d = null; });
   box.addEventListener('pointerup', e => { if (d && e.pointerId === d.id && performance.now() - d.t < 600 && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 8) fn(d.r, e); d = null; });
 }
-const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-const lerp = (a, b, t) => a + (b - a) * t;
-const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
 const mix3 = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
-const rnd = (a, b) => a + Math.random() * (b - a);
 // на время fn Math.random — свой повторяемый генератор: декоративные объекты не сдвигают случайные числа мира
 // (с ?rseed мир и звери повторяются от запуска к запуску — для сравнения кадров и снимков)
 const LAZY = new Set(['shark', 'orca']);   // в «Лёгком» — модель грузится при первом появлении

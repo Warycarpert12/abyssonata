@@ -6,10 +6,7 @@
 
 import { Music } from './music.js';
 import { step, within, device } from './boot.js';
-const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-const lerp = (a, b, t) => a + (b - a) * t;
-const rrand = (a, b) => a + Math.random() * (b - a);
-const choice = arr => arr[(Math.random() * arr.length) | 0];
+import { clamp, lerp, rnd as rrand, choice } from './util.js';
 
 // Разовые события: type -> [категория, rate от,до, amp от,до, lpf от,до, atk, rel].
 const SPEC = {

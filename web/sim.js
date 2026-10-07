@@ -2,11 +2,8 @@
 // мгновенно перематывать, сервер не нужен. Перенесено из прототипа на Python — числа и правила те же.
 import { Noise2D } from './noise.js';
 import { Ecosystem } from './agents.js';
+import { clamp01, smooth as smoothstep, rnd, choice } from './util.js';
 
-const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
-const smoothstep = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-const rnd = (a, b) => a + Math.random() * (b - a);
-const choice = arr => arr[(Math.random() * arr.length) | 0];
 
 export const DAY_LENGTH_SECONDS_DEFAULT = 32 * 60;
 

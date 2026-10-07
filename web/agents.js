@@ -2,11 +2,8 @@
 // правилами; Ecosystem решает, кто прилетает/уплывает по погоде и времени суток, агенты влияют друг на друга
 // (перекличка, испуг косяка рыб, заразительные прыжки дельфинов). Поведение сверено с открытыми источниками
 // (Википедия: названия статей — в комментариях у правил).
-const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
-const smooth = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
-const rnd = (a, b) => a + Math.random() * (b - a);
+import { clamp01, smooth, rnd, choice } from './util.js';
 const randint = (a, b) => Math.floor(rnd(a, b + 1));
-const choice = arr => arr[(Math.random() * arr.length) | 0];
 const gauss = (mu = 0, sigma = 1) => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return mu + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 const copysign = (a, b) => (b < 0 ? -Math.abs(a) : Math.abs(a));
 

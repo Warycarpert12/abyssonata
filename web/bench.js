@@ -97,7 +97,7 @@ export async function runBench({ visual: v, world, setPaused, high, hold, short 
   v.frame = orig; v._freeCam = false; v.controls.enabled = true; v.setQuality(high); hold(false); label.remove();
   show(res);
   // результат — только локальному серверу; статическая сборка (GitHub Pages, APK) ничего не отправляет
-  if (document.querySelector('meta[name="om-site"]')?.content !== 'static') try { await fetch('bench.json', { method: 'POST', body: JSON.stringify(res) }); } catch { /* сервер без приёма — только таблица */ }
+  if (document.querySelector('meta[name="abyssonata-site"]')?.content !== 'static') try { await fetch('bench.json', { method: 'POST', body: JSON.stringify(res) }); } catch { /* сервер без приёма — только таблица */ }
   return res;
 }
 

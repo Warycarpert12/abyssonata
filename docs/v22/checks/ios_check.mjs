@@ -29,12 +29,12 @@ async function run(name, init, block) {
 
 { // обычный iPhone
   const { ctx, page, errs } = await run('iphone');
-  await page.waitForFunction(() => window.__omReady, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__abyssonataReady, null, { timeout: 60000 });
   await page.tap('#gate-btn');
-  await page.waitForFunction(() => window.__om?.audio?.ready, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__abyssonata?.audio?.ready, null, { timeout: 60000 });
   await page.waitForTimeout(3000);
-  const r = await page.evaluate(() => ({ log: window.__log, state: window.__om.audio.ctx.state, rate: window.__om.audio.ctx.sampleRate, lite: window.__om.audio.lite,
-    keep: !!window.__om.audio.keep && !window.__om.audio.keep.paused, surf: (window.__om.audio.buffers.surf || []).length, gate: !!document.querySelector('#gate:not(.hidden)') }));
+  const r = await page.evaluate(() => ({ log: window.__log, state: window.__abyssonata.audio.ctx.state, rate: window.__abyssonata.audio.ctx.sampleRate, lite: window.__abyssonata.audio.lite,
+    keep: !!window.__abyssonata.audio.keep && !window.__abyssonata.audio.keep.paused, surf: (window.__abyssonata.audio.buffers.surf || []).length, gate: !!document.querySelector('#gate:not(.hidden)') }));
   console.log('iPhone:', JSON.stringify(r));
   ok(r.log.ctor[0] === 'click' || r.log.ctor[0] === 'pointerup' || r.log.ctor[0] === 'touchend', 'AudioContext создан прямо в нажатии (' + r.log.ctor[0] + ')');
   ok(r.log.resume[0] === r.log.ctor[0], 'resume() вызван в том же нажатии (' + r.log.resume[0] + ')');
@@ -45,9 +45,9 @@ async function run(name, init, block) {
   ok(!r.gate, 'экран входа ушёл');
   ok(!errs.length, 'ошибок в консоли нет' + (errs.length ? ': ' + errs.join(' | ') : ''));
   // iOS остановил звук (блокировка экрана) — касание будит
-  await page.evaluate(() => window.__om.audio.ctx.suspend());
+  await page.evaluate(() => window.__abyssonata.audio.ctx.suspend());
   await page.tap('#gl'); await page.waitForTimeout(500);
-  ok(await page.evaluate(() => window.__om.audio.ctx.state) === 'running', 'после «interrupted» касание снова включает звук');
+  ok(await page.evaluate(() => window.__abyssonata.audio.ctx.state) === 'running', 'после «interrupted» касание снова включает звук');
   await ctx.close();
 }
 
@@ -61,13 +61,13 @@ async function run(name, init, block) {
     W.prototype.createStereoPanner = undefined;
     window.webkitAudioContext = W; delete window.AudioContext;
   });
-  await page.waitForFunction(() => window.__omReady, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.__abyssonataReady, null, { timeout: 60000 });
   await page.tap('#gate-btn');
-  const ready = await page.waitForFunction(() => window.__om?.audio?.ready, null, { timeout: 60000 }).then(() => true, () => false);
+  const ready = await page.waitForFunction(() => window.__abyssonata?.audio?.ready, null, { timeout: 60000 }).then(() => true, () => false);
   await page.waitForTimeout(2000);
-  const r = await page.evaluate(() => ({ surf: (window.__om.audio.buffers.surf || []).length, state: window.__om.audio.ctx?.state }));
+  const r = await page.evaluate(() => ({ surf: (window.__abyssonata.audio.buffers.surf || []).length, state: window.__abyssonata.audio.ctx?.state }));
   ok(ready && r.surf > 0 && r.state === 'running', `старый Safari: записи распаковались (${r.surf}), звук ${r.state}`);
-  await page.evaluate(() => window.__om.audio._abstract({ daylight: .5 }));   // «эхо» без StereoPanner
+  await page.evaluate(() => window.__abyssonata.audio._abstract({ daylight: .5 }));   // «эхо» без StereoPanner
   ok(!errs.length, 'старый Safari: ошибок нет' + (errs.length ? ': ' + errs.join(' | ') : ''));
   await ctx.close();
 }

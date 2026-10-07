@@ -5,8 +5,8 @@ const [A, B, out] = process.argv.slice(2);
 for (const [tag, url] of [['a', A], ['b', B]]) for (const whale of [0, 1]) {
   const s = await launch({ gpu: true });
   await s.send('Emulation.setDeviceMetricsOverride', { width: 800, height: 600, deviceScaleFactor: 1, mobile: false });
-  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=.5`); await s.until('window.__om?.visual?.assets', 90000); await sleep(2000);
-  await s.eval(`(() => { const v = window.__om.visual, m = v.flora[0], M = new v.camera.matrix.constructor(), p = new v.camera.position.constructor();
+  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=.5`); await s.until('window.__abyssonata?.visual?.assets', 90000); await sleep(2000);
+  await s.eval(`(() => { const v = window.__abyssonata.visual, m = v.flora[0], M = new v.camera.matrix.constructor(), p = new v.camera.position.constructor();
     // самый высокий стебель ламинарии подальше от берега
     let best = 0, bh = 0; for (let i = 0; i < m.count; i++) { m.getMatrixAt(i, M); const sy = Math.hypot(M.elements[4], M.elements[5], M.elements[6]); p.setFromMatrixPosition(M); if (sy > bh && Math.hypot(p.x, p.z) > 60 && Math.hypot(p.x, p.z) < 110) { bh = sy; best = i; } }
     m.getMatrixAt(best, M); p.setFromMatrixPosition(M); window.__kelp = { x: p.x, y: p.y, z: p.z, h: bh };

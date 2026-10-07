@@ -4,7 +4,7 @@ const [url, tag = 'x', w = '812', h = '360', inset = '0'] = process.argv.slice(2
 const s = await launch({ gpu: true });
 await phone(s, { w: +w, h: +h, dpr: 3 });
 if (+inset) await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.textContent = ':root{--sa-l:${inset}px}'; document.head.append(st); });` });
-await s.goto(url + '?qa&noaudio=1&seed=7'); await s.until('window.__omReady && window.__om?.visual?.assets', 60000); await sleep(2500);
+await s.goto(url + '?qa&noaudio=1&seed=7'); await s.until('window.__abyssonataReady && window.__abyssonata?.visual?.assets', 60000); await sleep(2500);
 await s.tapSel('#bst-btn'); await sleep(600);
 const st = () => s.eval(`(() => { const b = document.getElementById('bst-body'), win = document.getElementById('bst-win').getBoundingClientRect(), hs = [...b.querySelectorAll('h4')];
   const last = hs[hs.length - 1].getBoundingClientRect(), br = b.getBoundingClientRect();

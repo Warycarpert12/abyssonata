@@ -7,8 +7,8 @@ const H = ['19', '17', '15'], A = [180, 110, 60, 30, 0, -40];
 if (mode === 'smooth') {
   const s = await launch({ gpu: true });
   await s.send('Emulation.setDeviceMetricsOverride', { width: 800, height: 360, deviceScaleFactor: 1, mobile: false });
-  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=.45&h=17&turn=160`); await s.until('window.__om?.visual?.assets', 90000); await sleep(3000);
-  const r = await s.eval(`(() => { const v = window.__om.visual, P = [], dt = 1 / 30; v._idle = 99; v._spun = false;
+  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=.45&h=17&turn=160`); await s.until('window.__abyssonata?.visual?.assets', 90000); await sleep(3000);
+  const r = await s.eval(`(() => { const v = window.__abyssonata.visual, P = [], dt = 1 / 30; v._idle = 99; v._spun = false;
     v.camera.position.set(-60, 40, -60); v.controls.target.set(0, 3, 0); v.controls.update();
     for (let i = 0; i < 165 * 30; i++) { v.frame(dt, 100 + i * dt, dt); const c = v.camera.position, t = v.controls.target; P.push([c.x, c.y, c.z, t.x, t.y, t.z]); }
     // ускорение камеры и точки взгляда (м/с²) после первых 10 с (вход в облёт)
@@ -24,9 +24,9 @@ if (mode === 'smooth') {
 for (const h of H) {
   const s = await launch({ gpu: true });
   await s.send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 520, deviceScaleFactor: 1, mobile: false });
-  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=.45&spinqa=1&h=${h}`); await s.until('window.__om?.visual?.assets', 90000); await sleep(4000);
+  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=.45&spinqa=1&h=${h}`); await s.until('window.__abyssonata?.visual?.assets', 90000); await sleep(4000);
   await s.eval(`for (const id of ['hud', 'census', 'vol', 'log', 'tod', 'credits', 'bst-btn']) { const e = document.getElementById(id); if (e) e.style.visibility = 'hidden'; }`);
-  for (const a of A) { await s.eval(`(() => { const v = window.__om.visual; v._orbA = ${a} * Math.PI / 180; v._spun = true; })()`); await sleep(700); await s.shot(`orb2_${h}_${a}.png`); }
+  for (const a of A) { await s.eval(`(() => { const v = window.__abyssonata.visual; v._orbA = ${a} * Math.PI / 180; v._spun = true; })()`); await sleep(700); await s.shot(`orb2_${h}_${a}.png`); }
   s.close();
 }
 execFileSync('python', ['-c', `

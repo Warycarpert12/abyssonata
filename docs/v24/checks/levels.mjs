@@ -7,11 +7,11 @@ for (const [tn, tod] of TODS) for (const [i, [cap, url, q]] of COLS.entries()) {
   const s = await launch({ gpu: true });
   await phone(s, { w: 801, h: 373, dpr: 3.375, sw: 843, sh: 374 });
   await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.setItem('abyssonata.quality', '${q}'); localStorage.setItem('abyssonata.quality.user', '1') } catch {}` });
-  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=${tod}`); await s.until('window.__om?.visual?.assets', 90000);
-  await s.eval(`(() => { const v = window.__om.visual; v._freeCam = true; v.camera.position.set(30, 32, 100); v.controls.target.set(0, 3, 15); v.controls.update();
+  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=${tod}`); await s.until('window.__abyssonata?.visual?.assets', 90000);
+  await s.eval(`(() => { const v = window.__abyssonata.visual; v._freeCam = true; v.camera.position.set(30, 32, 100); v.controls.target.set(0, 3, 15); v.controls.update();
     for (const id of ['hud', 'census', 'vol', 'log', 'tod', 'credits', 'bst-btn', 'fs']) { const e = document.getElementById(id); if (e) e.style.visibility = 'hidden'; } })()`);
   await sleep(7000); const f = `q_${tn}_${i}.png`; await s.shot(f); files.push([tn, i, f]);
-  console.log(tn, cap, await s.eval(`(() => { const c = window.__om.visual.renderer.domElement; return c.width + '×' + c.height; })()`));
+  console.log(tn, cap, await s.eval(`(() => { const c = window.__abyssonata.visual.renderer.domElement; return c.width + '×' + c.height; })()`));
   s.close();
 }
 execFileSync('python', ['-c', `

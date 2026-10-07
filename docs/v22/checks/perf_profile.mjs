@@ -36,7 +36,7 @@ page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 const cdp = await ctx.newCDPSession(page);
 if (+thr > 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: +thr });
 await page.goto(url, { waitUntil: 'load' });
-await page.waitForFunction(() => window.__omReady, null, { timeout: 60000 });
+await page.waitForFunction(() => window.__abyssonataReady, null, { timeout: 60000 });
 const events = [];
 cdp.on('Tracing.dataCollected', d => { for (const e of d.value) if (e.ph === 'X' || e.ph === 'B' || e.ph === 'E' || e.ph === 'I') events.push(e); });
 const done = new Promise(r => cdp.once('Tracing.tracingComplete', r));

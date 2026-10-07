@@ -9,10 +9,10 @@ const tot = {};
 for (let L = 0; L < +loads; L++) {
   const page = await browser.newPage({ viewport: { width: 480, height: 270 } });
   await page.goto(url + (url.includes('?') ? '&' : '?') + 'noaudio=1&lowres=1&spawn=fish_school&seed=' + (L + 1), { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__om?.visual?.assets && window.__om.visual.reefShoals, null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__abyssonata?.visual?.assets && window.__abyssonata.visual.reefShoals, null, { timeout: 90000 });
   const r = await page.evaluate(async secs => {
     const { islandH } = await import('./visual.js');
-    const { world, visual: v } = window.__om, M = new (v.camera.matrix.constructor)(), out = {};
+    const { world, visual: v } = window.__abyssonata, M = new (v.camera.matrix.constructor)(), out = {};
     const add = (k, x, y, z, hid = false) => { if (hid) { (out[k] ||= [0, 0, 0])[2] = (out[k][2] || 0) + 1; (out[k])[0]++; return; } const g = islandH(x, z), bad = y < g + .05 || (g > -.05 && y > -.05); (out[k] ||= [0, 0, 0])[0]++; if (bad) out[k][1]++; };
     const inst = (k, list) => { for (const s of list || []) for (let i = 0; i < s.m.count; i++) { s.m.getMatrixAt(i, M); add(k, M.elements[12], M.elements[13], M.elements[14], Math.hypot(M.elements[0], M.elements[1], M.elements[2]) < 1e-6); } };
     let t = 0;

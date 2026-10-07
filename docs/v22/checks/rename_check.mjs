@@ -10,7 +10,7 @@ let fails = 0; const ok = (c, m) => { console.log(`${c ? 'OK  ' : 'FAIL'} ${m}`)
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } }), page = await ctx.newPage(), errs = [];
 page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 page.on('pageerror', e => errs.push('pageerror: ' + e.message));
-const ready = () => page.waitForFunction(() => window.__omReady && window.__om?.visual?.assets, null, { timeout: 90000 });
+const ready = () => page.waitForFunction(() => window.__abyssonataReady && window.__abyssonata?.visual?.assets, null, { timeout: 90000 });
 await page.goto(url + '&noaudio=1&lowres=1', { waitUntil: 'load' }); await ready();
 // так настройки лежали у человека до переименования
 await page.evaluate(() => { localStorage.clear(); localStorage.setItem('om.vol.nature', '37'); localStorage.setItem('om.vol.music', '12');

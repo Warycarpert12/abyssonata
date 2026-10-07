@@ -7,7 +7,7 @@ const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=sw
 const open = async (opt, extra = '') => {
   const ctx = await browser.newContext(opt), page = await ctx.newPage();
   await page.goto(url + '&lowres=1&rseed=7&seed=7' + extra, { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__omReady && window.__om?.visual?.assets, null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__abyssonataReady && window.__abyssonata?.visual?.assets, null, { timeout: 90000 });
   await page.waitForTimeout(4000);
   return { ctx, page };
 };

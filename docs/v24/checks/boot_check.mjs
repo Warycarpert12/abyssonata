@@ -31,7 +31,7 @@ for (const [name, sc] of Object.entries(S)) {
   if (sc.cpu) await s.send('Emulation.setCPUThrottlingRate', { rate: sc.cpu });
   const t0 = Date.now();
   await s.goto(`${url}?qa&seed=7${sc.q || ''}`);
-  await s.until('window.__omReady', 120000);
+  await s.until('window.__abyssonataReady', 120000);
   const tReady = Date.now() - t0;
   await s.tapSel('#gate-btn').catch(() => s.eval(`document.getElementById('gate-btn').click()`));
   const tClick = Date.now();
@@ -39,25 +39,25 @@ for (const [name, sc] of Object.entries(S)) {
   const tEnter = Date.now() - tClick;
   ok(entered, `вход завершился: ${entered ? (tEnter / 1000).toFixed(1) + ' с после нажатия' : 'НЕТ за 30 с'} (страница готова через ${(tReady / 1000).toFixed(1)} с)`);
   // мир рисуется: кадры идут и сцена не пустая
-  const f0 = await s.eval('window.__om.visual.renderer.info.render.frame'); await sleep(1500);
-  const f1 = await s.eval('window.__om.visual.renderer.info.render.frame');
+  const f0 = await s.eval('window.__abyssonata.visual.renderer.info.render.frame'); await sleep(1500);
+  const f1 = await s.eval('window.__abyssonata.visual.renderer.info.render.frame');
   ok(f1 > f0, `мир рисуется: ${f1 - f0} кадров за 1.5 с`);
   if (sc.lose) {
-    await s.eval(`window.__lc = window.__om.visual.renderer.getContext().getExtension('WEBGL_lose_context'); window.__lc.loseContext()`);
+    await s.eval(`window.__lc = window.__abyssonata.visual.renderer.getContext().getExtension('WEBGL_lose_context'); window.__lc.loseContext()`);
     await sleep(500);
-    ok(await s.eval(`!document.getElementById('gl-lost').hidden && window.__om.visual.lost`), 'потеря контекста: надпись на экране');
+    ok(await s.eval(`!document.getElementById('gl-lost').hidden && window.__abyssonata.visual.lost`), 'потеря контекста: надпись на экране');
     if (sc.lose === 'restore') {
       await s.eval('window.__lc.restoreContext()'); await sleep(2500);
-      const r = await s.eval(`({ lost: window.__om.visual.lost, hidden: document.getElementById('gl-lost').hidden, f: window.__om.visual.renderer.info.render.frame, pr: window.__om.visual.renderer.getPixelRatio(), msaa: window.__om.visual.rt.samples })`);
-      await sleep(1000); const f2 = await s.eval('window.__om.visual.renderer.info.render.frame');
+      const r = await s.eval(`({ lost: window.__abyssonata.visual.lost, hidden: document.getElementById('gl-lost').hidden, f: window.__abyssonata.visual.renderer.info.render.frame, pr: window.__abyssonata.visual.renderer.getPixelRatio(), msaa: window.__abyssonata.visual.rt.samples })`);
+      await sleep(1000); const f2 = await s.eval('window.__abyssonata.visual.renderer.info.render.frame');
       ok(!r.lost && r.hidden && f2 > r.f, `восстановлено: надпись убрана, кадры идут (${f2 - r.f} за 1 с), качество ниже: ×${r.pr.toFixed(2)}, MSAA ${r.msaa}`);
     } else {
       await sleep(7000);
       ok(await s.eval(`!document.querySelector('#gl-lost button').hidden`), 'не восстановилось за 6 с: кнопка «Перезапустить в облегчённом режиме»');
     }
   }
-  const st = await s.eval(`(async () => ({ lite: document.querySelector('#quality button[data-q="lite"]').classList.contains('active'), audioLite: window.__om.audio.lite, ready: window.__om.audio.ready,
-    snd: +window.__om.audio.memMB().toFixed(0), steps: (await import('./boot.js')).steps.map(x => x.name + ':' + x.st + (x.t1 ? ' ' + ((x.t1 - x.t0) / 1000).toFixed(1) + 'с' : '') + (x.note ? ' (' + x.note + ')' : '')).join(' | ') }))()`).catch(e => ({ err: e.message }));
+  const st = await s.eval(`(async () => ({ lite: document.querySelector('#quality button[data-q="lite"]').classList.contains('active'), audioLite: window.__abyssonata.audio.lite, ready: window.__abyssonata.audio.ready,
+    snd: +window.__abyssonata.audio.memMB().toFixed(0), steps: (await import('./boot.js')).steps.map(x => x.name + ':' + x.st + (x.t1 ? ' ' + ((x.t1 - x.t0) / 1000).toFixed(1) + 'с' : '') + (x.note ? ' (' + x.note + ')' : '')).join(' | ') }))()`).catch(e => ({ err: e.message }));
   if (sc.want?.lite) ok(st.lite, `«Лёгкое» включилось само (звук облегчённый: ${st.audioLite})`);
   console.log(`  звук готов: ${st.ready}, звука в памяти ${st.snd} МБ; шаги: ${st.steps}`);
   ok(!errs.length, 'ошибок страницы нет' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));

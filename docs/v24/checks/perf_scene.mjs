@@ -16,10 +16,10 @@ await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStor
   const raf = window.requestAnimationFrame.bind(window);
   window.requestAnimationFrame = cb => raf(ts => { const P = window.__pf, t0 = performance.now(); if (P.last) P.iv.push(t0 - P.last); P.last = t0; try { cb(ts); } finally { P.js.push(performance.now() - t0); } });` });
 await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=${tod === 'night' ? .02 : .5}`);
-await s.until('window.__om?.visual?.assets', 90000);
+await s.until('window.__abyssonata?.visual?.assets', 90000);
 await sleep(5000);
 // таймеры вокруг двух вызовов render (сцена → буфер, буфер → экран), камера — неподвижный вид облёта
-await s.eval(`(() => { const v = window.__om.visual, R = v.renderer, gl = R.getContext(), X = gl.getExtension('EXT_disjoint_timer_query_webgl2'), P = window.__pf;
+await s.eval(`(() => { const v = window.__abyssonata.visual, R = v.renderer, gl = R.getContext(), X = gl.getExtension('EXT_disjoint_timer_query_webgl2'), P = window.__pf;
   v._freeCam = true; v.camera.position.set(0, 73, 75); v.controls.target.set(0, 2, 0); v.controls.update();
   const pend = []; P.hide = new Set();
   const render = R.render.bind(R);
@@ -36,7 +36,7 @@ await s.eval(`(() => { const v = window.__om.visual, R = v.renderer, gl = R.getC
 if (+cpu > 1) await s.send('Emulation.setCPUThrottlingRate', { rate: +cpu });
 const measure = async (ms = 5000) => {
   await s.eval(`(() => { const P = window.__pf; P.iv = []; P.js = []; P.gs = []; P.gp = []; })()`); await sleep(ms);
-  return s.eval(`(() => { const P = window.__pf, v = window.__om.visual, R = v.renderer, cv = R.domElement;
+  return s.eval(`(() => { const P = window.__pf, v = window.__abyssonata.visual, R = v.renderer, cv = R.domElement;
     const st = a => { const b = a.slice().sort((x, y) => x - y), n = b.length; return n ? { avg: b.reduce((x, y) => x + y, 0) / n, p99: b[Math.min(n - 1, Math.floor(n * .99))] } : { avg: NaN, p99: NaN }; };
     const iv = st(P.iv), js = st(P.js), gs = st(P.gs), gp = st(P.gp);
     return { fps: 1000 / iv.avg, ft: iv.avg, p99: iv.p99, js: js.avg, gScene: gs.avg, gPost: gp.avg, calls: P.calls, tris: P.tris, progs: R.info.programs.length,
@@ -60,15 +60,15 @@ if (parts === '1') {
     'дальний остров': `[v.farIsland].filter(Boolean)`,
   };
   for (const [label, expr] of Object.entries(GROUPS)) {
-    await s.eval(`(() => { const v = window.__om.visual; window.__pf.hide = new Set(${expr}); })()`);
+    await s.eval(`(() => { const v = window.__abyssonata.visual; window.__pf.hide = new Set(${expr}); })()`);
     const r = await measure(4000);
     console.log(`  без: ${label.padEnd(28)} видеокарта ${f(base.gScene + base.gPost - r.gScene - r.gPost).padStart(5)} мс (${(100 * (1 - (r.gScene + r.gPost) / (base.gScene + base.gPost))).toFixed(0).padStart(3)}%)  вызовов −${base.calls - r.calls}  треуг. −${Math.round((base.tris - r.tris) / 1000)}k  JS ${f(base.js - r.js)} мс`);
   }
   await s.eval(`window.__pf.hide = new Set()`);
   // сглаживание и мип-уровни для свечения
-  await s.eval(`(() => { const v = window.__om.visual; v.rt.samples = 0; v.rt.dispose(); })()`); let r = await measure(4000);
+  await s.eval(`(() => { const v = window.__abyssonata.visual; v.rt.samples = 0; v.rt.dispose(); })()`); let r = await measure(4000);
   console.log(`  без: ${'сглаживания MSAA'.padEnd(28)} видеокарта ${f(base.gScene + base.gPost - r.gScene - r.gPost).padStart(5)} мс`);
-  await s.eval(`(() => { const v = window.__om.visual; v.rt.texture.generateMipmaps = false; v.rt.texture.minFilter = 1006; v.rt.dispose(); })()`); const r2 = await measure(4000);
+  await s.eval(`(() => { const v = window.__abyssonata.visual; v.rt.texture.generateMipmaps = false; v.rt.texture.minFilter = 1006; v.rt.dispose(); })()`); const r2 = await measure(4000);
   console.log(`  без: ${'мип-уровней для свечения'.padEnd(28)} видеокарта ${f(r.gScene + r.gPost - r2.gScene - r2.gPost).padStart(5)} мс (поверх без MSAA)`);
 }
 s.close(); process.exit(0);

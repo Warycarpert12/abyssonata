@@ -5,10 +5,10 @@ const s = await launch({ gpu: true });
 await phone(s, { w: 801, h: 373, dpr: 3.375, sw: 843, sh: 374 });
 await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.setItem('abyssonata.quality', 'high'); localStorage.setItem('abyssonata.quality.user', '1') } catch {}` });
 await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=.5&spawn=${spawn}`);
-await s.until('window.__om?.visual?.assets', 90000); await sleep(5000);
-await s.eval(`(() => { const v = window.__om.visual; v._freeCam = true; v.camera.position.set(30, 32, 100); v.controls.target.set(0, 3, 15); v.controls.update(); })()`);
+await s.until('window.__abyssonata?.visual?.assets', 90000); await sleep(5000);
+await s.eval(`(() => { const v = window.__abyssonata.visual; v._freeCam = true; v.camera.position.set(30, 32, 100); v.controls.target.set(0, 3, 15); v.controls.update(); })()`);
 await s.send('Emulation.setCPUThrottlingRate', { rate: +cpu });
-const r = await s.eval(`(async () => { const v = window.__om.visual, R = v.renderer, names = new Map(), cat = new Map(), T = new Map(), N = new Map();
+const r = await s.eval(`(async () => { const v = window.__abyssonata.visual, R = v.renderer, names = new Map(), cat = new Map(), T = new Map(), N = new Map();
   for (const [k, x] of Object.entries(v)) { if (x?.isObject3D) names.set(x, k); if (Array.isArray(x)) x.forEach(y => { if (y?.isObject3D) names.set(y, k); else if (y?.m?.isObject3D) names.set(y.m, k); }); }
   const label = o => { if (cat.has(o)) return cat.get(o); let p = o, L = null;
     while (p && !L) { for (const a of v.agents.values()) if (a.obj === p || a.fish?.some(f => f.obj === p)) L = 'зверь:' + a.sp; if (!L && names.has(p)) L = names.get(p); p = p.parent; }

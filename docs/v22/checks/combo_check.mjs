@@ -10,12 +10,12 @@ page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 page.on('pageerror', e => errs.push('pageerror: ' + e.message));
 let fails = 0; const ok = (c, m) => { console.log(`${c ? 'OK  ' : 'FAIL'} ${m}`); if (!c) fails++; };
 await page.goto(url + '&spawn=dolphin,seagull,whale&tod=.5', { waitUntil: 'load' });
-await page.waitForFunction(() => window.__omReady && window.__om?.visual?.assets, null, { timeout: 90000 });
+await page.waitForFunction(() => window.__abyssonataReady && window.__abyssonata?.visual?.assets, null, { timeout: 90000 });
 await page.click('#gate-btn');
-await page.waitForFunction(() => window.__om.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
+await page.waitForFunction(() => window.__abyssonata.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
 await page.waitForTimeout(2500);
 const cdp = await ctx.newCDPSession(page);
-const S = () => page.evaluate(() => { const o = window.__om, v = o.visual; return { t: +o.world.sim.state.t.toFixed(3), tod: +o.world.sim.state.time_of_day.toFixed(3),
+const S = () => page.evaluate(() => { const o = window.__abyssonata, v = o.visual; return { t: +o.world.sim.state.t.toFixed(3), tod: +o.world.sim.state.time_of_day.toFixed(3),
   day: +v.cur.daylight.toFixed(3), time: document.getElementById('v-time').textContent, paused: document.getElementById('pause').classList.contains('on'),
   snd: o.audio.ctx.state, follow: v._follow?.id ?? null, fly: !!v._fly, tg: v.controls.target.toArray().map(x => +x.toFixed(2)), pr: +v.renderer.getPixelRatio().toFixed(3) }; });
 const pause = async want => { if ((await S()).paused !== want) { await page.click('#pause'); await page.waitForTimeout(300); } };
@@ -32,16 +32,16 @@ ok(b.t === c.t, `мир при этом стоит (время мира ${b.t} �
 ok((await page.$$eval('#tod button.active', bs => bs.map(x => x.textContent))).join() === 'Ночь', 'выделена «Ночь»');
 
 // 2. пауза + слежение + клик по журналу (запись об ушедшем звере — перелёт к месту)
-await page.evaluate(() => window.__om.visual.focusSpecies('dolphin'));
+await page.evaluate(() => window.__abyssonata.visual.focusSpecies('dolphin'));
 await page.waitForTimeout(2500);
 b = await S(); ok(b.follow !== null && b.paused, `на паузе «показать обитателя» — камера следит (№${b.follow})`);
-await page.evaluate(() => { const v = window.__om.visual; v._logQ.length = 0; v._addLog({ type: 'qa_combo', agent: 999999, time: '00:31', text: 'проверка сочетаний', panorama: .85, distance: .3 }); });
+await page.evaluate(() => { const v = window.__abyssonata.visual; v._logQ.length = 0; v._addLog({ type: 'qa_combo', agent: 999999, time: '00:31', text: 'проверка сочетаний', panorama: .85, distance: .3 }); });
 // на паузе очередь журнала стоит — запись появится после «Дальше»; кладём её сразу, как сделала бы очередь
-await page.evaluate(() => { const v = window.__om.visual, rec = v._logQ.shift(), li = document.createElement('li'); v._fillLog(li, rec); v.logList.prepend(li); });
+await page.evaluate(() => { const v = window.__abyssonata.visual, rec = v._logQ.shift(), li = document.createElement('li'); v._fillLog(li, rec); v.logList.prepend(li); });
 await page.locator('#log li', { hasText: 'проверка сочетаний' }).click(); await page.mouse.move(640, 200);
 await page.waitForTimeout(300);
 b = await S(); ok(b.follow === null && b.fly, 'клик по записи на паузе: слежение снято, камера летит к месту');
-await page.waitForFunction(() => !window.__om.visual._fly, null, { timeout: 60000 });
+await page.waitForFunction(() => !window.__abyssonata.visual._fly, null, { timeout: 60000 });
 c = await S(); ok(c.paused && c.t === b.t, 'перелёт закончился, пауза держится, мир стоит');
 
 // 3. пауза + смена качества

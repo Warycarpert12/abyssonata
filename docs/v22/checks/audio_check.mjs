@@ -14,11 +14,11 @@ await page.addInitScript(() => {   // что подключено к выход�
   AudioNode.prototype.connect = function (d, ...a) { if (d instanceof AudioDestinationNode) (window.__toDest ||= []).push(this); return c.call(this, d, ...a); };
 });
 await page.goto(url + '&lowres=1' + extra, { waitUntil: 'load' });
-await page.waitForFunction(() => window.__omReady && window.__om?.visual?.assets, null, { timeout: 90000 });
+await page.waitForFunction(() => window.__abyssonataReady && window.__abyssonata?.visual?.assets, null, { timeout: 90000 });
 await page.click('#gate-btn');
-await page.waitForFunction(() => window.__om.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
+await page.waitForFunction(() => window.__abyssonata.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
 const rate = await page.evaluate(async () => {
-  const ctx = window.__om.audio.ctx;
+  const ctx = window.__abyssonata.audio.ctx;
   const src = `class R extends AudioWorkletProcessor { process(i) { const ch = i[0] && i[0][0]; if (ch) this.port.postMessage({ w: Date.now(), d: ch.slice(0) }); return true; } } registerProcessor('qa-rec', R);`;
   await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
   const rec = new AudioWorkletNode(ctx, 'qa-rec', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1, channelCountMode: 'explicit' }), z = ctx.createGain(); z.gain.value = 0;

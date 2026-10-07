@@ -363,7 +363,7 @@ body.gate-open #fs { opacity: 0; visibility: hidden; pointer-events: none; trans
 (function () {
   function show(msg, lite) {
     var card = document.getElementById('gate-card'), btn = document.getElementById('gate-btn');
-    if (!card || window.__omReady) return;
+    if (!card || window.__abyssonataReady) return;
     if (btn) btn.style.display = 'none';
     var m = document.getElementById('gate-err') || document.createElement('p');
     m.id = 'gate-err'; m.textContent = msg; if (!m.parentNode) card.appendChild(m);

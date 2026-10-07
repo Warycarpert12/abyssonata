@@ -18,9 +18,9 @@ await page.addInitScript(() => {
   S.start = function (...a) { window.__src.live++; window.__src.started++; this.addEventListener('ended', () => window.__src.live--, { once: true }); return st.apply(this, a); };
 });
 await page.goto(url + '&lowres=1', { waitUntil: 'load' });
-await page.waitForFunction(() => window.__omReady && window.__om?.visual?.assets, null, { timeout: 90000 });
+await page.waitForFunction(() => window.__abyssonataReady && window.__abyssonata?.visual?.assets, null, { timeout: 90000 });
 await page.click('#gate-btn');
-await page.waitForFunction(() => window.__om.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
+await page.waitForFunction(() => window.__abyssonata.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
 const cdp = await ctx.newCDPSession(page);
 await cdp.send('HeapProfiler.enable'); await cdp.send('DOMDebugger.enable').catch(() => {});
 const listeners = async expr => { const { result } = await cdp.send('Runtime.evaluate', { expression: expr }); const r = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId }); return r.listeners.length; };
@@ -29,11 +29,11 @@ for (let i = 0; i <= +mins * 2; i++) {
   if (i) await page.waitForTimeout(30000);
   await cdp.send('HeapProfiler.collectGarbage');
   const { usedSize } = await cdp.send('Runtime.getHeapUsage');
-  const r = await page.evaluate(() => { const v = window.__om.visual, w = window.__om.world, inf = v.renderer.info; let objs = 0; v.scene.traverse(() => objs++);
+  const r = await page.evaluate(() => { const v = window.__abyssonata.visual, w = window.__abyssonata.world, inf = v.renderer.info; let objs = 0; v.scene.traverse(() => objs++);
     const sk = new Set(); v.scene.traverse(n => { if (n.skeleton?.boneTexture) sk.add(n.skeleton); });
     return { worldMin: +(w.sim.state.t / 60).toFixed(1), geo: inf.memory.geometries, tex: inf.memory.textures, bones: sk.size, prog: inf.programs?.length ?? 0, objs, fx: v.fx.length,
       agents: v.agents.size, dom: document.getElementsByTagName('*').length, log: v.logList.children.length, src: window.__src.live, started: window.__src.started,
-      bufs: Object.values(window.__om.audio.buffers).reduce((s, b) => s + b.length, 0) }; });
+      bufs: Object.values(window.__abyssonata.audio.buffers).reduce((s, b) => s + b.length, 0) }; });
   r.heapMB = +(usedSize / 1048576).toFixed(1); r.lisWin = await listeners('window'); r.lisDoc = await listeners('document'); r.min = +((Date.now() - t0) / 60000).toFixed(1);
   rows.push(r);
   console.log(`${String(r.min).padStart(4)} мин (мир ${r.worldMin} мин): куча ${r.heapMB} МБ, геометрий ${r.geo}, текстур ${r.tex} (костей ${r.bones}, без костей ${r.tex - r.bones}), шейдеров ${r.prog}, объектов сцены ${r.objs}, эффектов ${r.fx}, зверей ${r.agents}, DOM ${r.dom}, журнал ${r.log}, обработчиков window/document ${r.lisWin}/${r.lisDoc}, звуков играет ${r.src} (всего запущено ${r.started}), записей ${r.bufs}`);

@@ -28,7 +28,7 @@ async function run(name, opt, tap, stall = 0, slow = 0) {
     }).observe(document.body, { attributes: true, attributeFilter: ['class'] }));
   });
   await page.goto(url + '&lowres=1', { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__omReady && window.__om?.visual?.assets, null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__abyssonataReady && window.__abyssonata?.visual?.assets, null, { timeout: 90000 });
   await page.waitForTimeout(1500);
   const vis = () => page.evaluate(UI => UI.map(s => { const e = document.querySelector(s), c = getComputedStyle(e), r = e.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + Math.min(20, r.width / 2), r.top + Math.min(20, r.height / 2));

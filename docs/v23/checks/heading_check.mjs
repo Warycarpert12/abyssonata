@@ -15,7 +15,7 @@ const WORLDS = [
   { seed: 66, tod: .72, extra: '&qa' }, { seed: 7, tod: .40, extra: '&qa=lionswim' },
 ];
 const MEASURE = `(() => {
-  const { world, visual } = window.__om;
+  const { world, visual } = window.__abyssonata;
   window.requestAnimationFrame = () => 0;   // игровой цикл страницы останавливается — шагаем сами
   visual.renderer.render = () => {}; visual.renderer.setRenderTarget = () => {};
   const st = window.__hc = { t: 0, sp: {}, ex: {} }, hist = new WeakMap(), fwd = new (visual.camera.position.constructor)();
@@ -60,7 +60,7 @@ const runWorld = async w => {
     const load = async () => {
       await s.send('Emulation.setDeviceMetricsOverride', { width: 640, height: 360, deviceScaleFactor: 1, mobile: false });
       await s.goto(`${base}?noaudio=1&lowres=1&seed=${w.seed}&rseed=${w.seed}&tod=${w.tod}${w.extra}`);
-      await s.until('window.__om?.visual?.assets && !document.body.classList.contains("gate-open")', 180000);
+      await s.until('window.__abyssonata?.visual?.assets && !document.body.classList.contains("gate-open")', 180000);
       await s.eval(MEASURE);
     };
     await (loading = loading.then(load, load));

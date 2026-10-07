@@ -11,8 +11,8 @@ for (const [name, [tod, cam, tg]] of Object.entries(VIEWS)) for (const [tag, url
   const s = await launch({ gpu: true });
   await s.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
   await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.setItem('abyssonata.quality', 'high'); localStorage.setItem('abyssonata.quality.user', '1') } catch {}` });
-  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=${tod}`); await s.until('window.__om?.visual?.assets', 90000);
-  await s.eval(`(() => { const v = window.__om.visual; v._freeCam = true; v.camera.position.set(${cam}); v.controls.target.set(${tg}); v.controls.update();
+  await s.goto(`${url}?qa&noaudio=1&seed=7&rseed=7&tod=${tod}`); await s.until('window.__abyssonata?.visual?.assets', 90000);
+  await s.eval(`(() => { const v = window.__abyssonata.visual; v._freeCam = true; v.camera.position.set(${cam}); v.controls.target.set(${tg}); v.controls.update();
     for (const id of ['hud', 'census', 'vol', 'log', 'tod', 'credits']) { const e = document.getElementById(id); if (e) e.style.visibility = 'hidden'; } })()`);
   await sleep(6000); await s.shot(`${dir}/${name}_${tag}.png`); s.close();
 }

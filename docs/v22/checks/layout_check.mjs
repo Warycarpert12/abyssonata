@@ -12,7 +12,7 @@ const SCREENS = [['iPhone 13 landscape'], ['iPhone SE landscape'], ['Pixel 7 lan
 for (const [name, opt] of SCREENS) {
   const ctx = await browser.newContext(opt || devices[name]), page = await ctx.newPage();
   await page.goto(url + '&noaudio=1&lowres=1', { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__om?.visual?.assets && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__abyssonata?.visual?.assets && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
   await page.waitForTimeout(1500);
   for (const st of ['свёрнуты по умолчанию', 'все раскрыты']) {
     if (st === 'все раскрыты') await page.evaluate(() => document.querySelectorAll('.panel').forEach(p => p.classList.remove('min')));

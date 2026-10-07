@@ -11,8 +11,8 @@ for (const name of ['Pixel 7', 'iPhone 13']) {
   page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   page.on('pageerror', e => errs.push('pageerror: ' + e.message));
   await page.goto(url + '&lowres=1', { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__omReady && window.__om?.visual?.assets, null, { timeout: 90000 });
-  const st = () => page.evaluate(() => { const v = window.__om.visual, c = v.renderer.domElement;
+  await page.waitForFunction(() => window.__abyssonataReady && window.__abyssonata?.visual?.assets, null, { timeout: 90000 });
+  const st = () => page.evaluate(() => { const v = window.__abyssonata.visual, c = v.renderer.domElement;
     return { rot: getComputedStyle(document.getElementById('rotate')).display !== 'none', fs: document.getElementById('fs').classList.contains('show'),
       full: !!(document.fullscreenElement || document.webkitFullscreenElement), vw: innerWidth, vh: innerHeight, cw: c.clientWidth, ch: c.clientHeight, aspect: +v.camera.aspect.toFixed(3) }; });
   // браузер шлёт resize и fullscreenchange только между кадрами, а кадр в программном рендере долгий — ждём условия до 6 с
@@ -23,7 +23,7 @@ for (const name of ['Pixel 7', 'iPhone 13']) {
   await page.setViewportSize({ width: H, height: W });   // повернули горизонтально
   s = await until(land); ok(land(s), `${name}: горизонтально — океан, картинка ${s.cw}×${s.ch}, пропорции камеры ${s.aspect} (через ${s.wait} мс)`);
   await page.tap('#gate-btn');
-  await page.waitForFunction(() => window.__om.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__abyssonata.audio.ready && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
   await page.waitForTimeout(1500);
   s = await st();
   if (name === 'Pixel 7') {
@@ -37,13 +37,13 @@ for (const name of ['Pixel 7', 'iPhone 13']) {
   // повернули обратно вертикально и снова горизонтально — мир живёт, размер верный
   await page.setViewportSize({ width: W, height: H });
   s = await until(v => v.rot && !v.fs); ok(s.rot && !s.fs, `${name}: снова вертикально — просьба повернуть, кнопки «На весь экран» нет (через ${s.wait} мс)`);
-  const t0 = await page.evaluate(() => window.__om.world.sim.state.t);
+  const t0 = await page.evaluate(() => window.__abyssonata.world.sim.state.t);
   await page.setViewportSize({ width: H, height: W }); await page.waitForTimeout(1000);
-  s = await until(land); const t1 = await page.evaluate(() => window.__om.world.sim.state.t);
+  s = await until(land); const t1 = await page.evaluate(() => window.__abyssonata.world.sim.state.t);
   ok(land(s) && t1 > t0, `${name}: снова горизонтально — картинка ${s.cw}×${s.ch}, пропорции камеры ${s.aspect}, мир идёт (+${(t1 - t0).toFixed(1)} с, через ${s.wait} мс)`);
   // пауза и подсказка после поворотов
   await page.tap('#pause'); await page.waitForTimeout(400);
-  ok(await page.evaluate(() => window.__om.audio.paused && document.getElementById('pause').classList.contains('on')), `${name}: пауза касанием`);
+  ok(await page.evaluate(() => window.__abyssonata.audio.paused && document.getElementById('pause').classList.contains('on')), `${name}: пауза касанием`);
   await page.tap('#pause'); await page.waitForTimeout(300);
   await page.evaluate(() => document.getElementById('hud').classList.remove('min'));
   const k = await page.evaluate(() => { const e = [...document.querySelectorAll('#hud .k')].find(x => /Ветер/.test(x.textContent)).getBoundingClientRect(); return { x: e.left + 8, y: e.top + e.height / 2 }; });
@@ -57,7 +57,7 @@ for (const name of ['Pixel 7', 'iPhone 13']) {
 for (const [w, h] of [[860, 1000], [600, 900], [420, 800]]) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h } }), page = await ctx.newPage();
   await page.goto(url + '&lowres=1&noaudio=1', { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__om?.visual?.assets && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
+  await page.waitForFunction(() => window.__abyssonata?.visual?.assets && !document.body.classList.contains('gate-open'), null, { timeout: 90000 });
   await page.waitForTimeout(1500);
   const r = await page.evaluate(() => { const shown = sel => getComputedStyle(document.querySelector(sel)).display !== 'none';
     return { rot: shown('#rotate'), tel: shown('#rotate .tel'), pc: shown('#rotate .pc'),

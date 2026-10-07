@@ -12,7 +12,7 @@ for (const [edge, delay] of [[1, 0], [1, 700], [1, 1500], [0, 0], [0, 700], [0, 
   try {
     await phone(s, { w: W, h: H0, dpr: 3.35, sw: 849, sh: HS });
     await s.goto(`${base}?seed=7&rseed=7&lowres=1&qa`);
-    await s.until('window.__omReady && window.__om?.visual?.assets', 180000);
+    await s.until('window.__abyssonataReady && window.__abyssonata?.visual?.assets', 180000);
     await sleep(500);
     await s.tapSel('#gate-btn');
     await sleep(delay);   // полный экран включился, а размер окна пришёл позже

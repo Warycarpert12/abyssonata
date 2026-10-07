@@ -13,9 +13,9 @@ import { boot, steps, step, within, device, autoLite, startLite, lastBootFailed,
 
 // --- место в океане: сервер с ограничением зрителей (не больше 30 одновременно) выдаёт место через /api/join.
 // Пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки до этого не качаются).
-// Сервер без мест отвечает 404 — тогда просто входим. Статическая сборка (GitHub Pages, APK: метка om-site от
+// Сервер без мест отвечает 404 — тогда просто входим. Статическая сборка (GitHub Pages, APK: метка abyssonata-site от
 // build_site.py) мест не спрашивает
-if (document.querySelector('meta[name="om-site"]')?.content !== 'static' && !location.hostname.endsWith('.github.io')) {
+if (document.querySelector('meta[name="abyssonata-site"]')?.content !== 'static' && !location.hostname.endsWith('.github.io')) {
   const gateP = document.querySelector('#gate-card p'), btn = document.querySelector('#gate-btn');
   const join = async () => {
     try {   // не дольше 5 с (AbortController — есть и в старом Safari)
@@ -27,7 +27,7 @@ if (document.querySelector('meta[name="om-site"]')?.content !== 'static' && !loc
   };
   let j = await join();
   if (j.ok === false) {
-    window.__omReady = true;   // код работает, просто очередь — запасное сообщение не нужно
+    window.__abyssonataReady = true;   // код работает, просто очередь — запасное сообщение не нужно
     const txt = gateP.textContent; btn.style.display = 'none';
     while (j.ok === false) {
       gateP.textContent = `Сейчас в океане слишком много людей (${j.count} из ${j.limit}). Подождите — страница зайдёт сама, как только освободится место.`;
@@ -67,7 +67,7 @@ const qs = new URLSearchParams(location.search);
 // старт всегда днём (в случайный час можно попасть на тёмный первый экран); ?tod= переопределяет.
 // ?spawn=hatching — вылупление черепашат сразу; без tod в адресе — ночью (событие ночное)
 const startTod = qs.has('tod') ? parseFloat(qs.get('tod')) : /hatching/.test(qs.get('spawn') || '') ? .02 : .5;
-if (qs.has('qa')) window.__om = { world, visual, audio };   // доступ для автопроверок (только с ?qa в адресе)
+if (qs.has('qa')) window.__abyssonata = { world, visual, audio };   // доступ для автопроверок (только с ?qa в адресе)
 const seed = qs.has('seed') ? parseInt(qs.get('seed'), 10) : null;
 world.start({ startTod, seed });
 
@@ -282,7 +282,7 @@ for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, ()
   liteBtn.addEventListener('click', () => { setQMode('lite', true); enter(); });
 }
 // код океана запустился — запасное сообщение из index.html не нужно (если медленный телефон успел его показать — убираем)
-window.__omReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
+window.__abyssonataReady = true; document.getElementById('gate-err')?.remove(); gate.querySelector('#gate-btn').style.display = '';
 // &noaudio=1 — без Web Audio (для снимков в безголовом браузере, там AudioContext.resume() виснет)
 if (qs.get('noaudio') === '1') leaveGate(true);
 

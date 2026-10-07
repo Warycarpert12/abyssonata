@@ -13,6 +13,7 @@ import { step, within } from './boot.js';
 import { clamp, lerp, smooth, rnd } from './util.js';
 THREE.ColorManagement.enabled = false;
 
+const $ = s => document.querySelector(s);
 // «нажатие» в листаемом списке — короткое (до 0.6 с) и почти без движения (до 8 px); начал листать — не нажатие
 // (браузер, начиная прокрутку, присылает pointercancel). fn получает элемент строки, найденный при касании
 function tapOnly(box, sel, fn) {

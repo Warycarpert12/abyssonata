@@ -1,6 +1,6 @@
 # Сторонние материалы и лицензии
 
-Код Abyssonata — лицензия MIT (см. [LICENSE](LICENSE)), © 2026 Гонтарук Артём (Warycarpert12).
+Код Abyssonata — лицензия MIT (см. [LICENSE](LICENSE)), © 2026 waryc.
 Ниже — всё стороннее, что входит в сайт и APK: библиотека, 3D-модели, звуки. Файл собирается скриптом из
 `samples_mp3/*/CREDITS.txt` и `web/models/CREDITS.txt`.
 

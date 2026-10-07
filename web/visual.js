@@ -3004,7 +3004,7 @@ export class Visual {
     this.sun.position.copy(sunDir).multiplyScalar(100); this.sun.intensity = 1.6 * sunUp * (1 - stormy * .6);
     this.sun.color.setRGB(1, lerp(.62, .95, day - dusk * .4), lerp(.4, .86, day - dusk * .4));
     this.moonLight.position.copy(moonDir).multiplyScalar(100); this.moonLight.intensity = .9 * moonUp * night;
-    this.hemi.color.copy(zen).lerp(hor, .55).lerp(new THREE.Color(1, 1, 1), .3);   // на закате — тёплый свет горизонта, не тёмный зенит this.hemi.groundColor.setRGB(.42, .36, .26);
+    this.hemi.color.copy(zen).lerp(hor, .55).lerp(new THREE.Color(1, 1, 1), .3);   // на закате — тёплый свет горизонта, не тёмный зенит
     this.hemi.intensity = lerp(1.3, 2.6, day);
     this.uBright.value = lerp(.6, .9, day);
     

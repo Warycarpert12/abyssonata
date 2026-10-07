@@ -12,36 +12,6 @@ import { boot, steps, step, within, device, autoLite, startLite, lastBootFailed,
   if (rs !== null) { let r = (+rs * 2654435761) >>> 0; Math.random = () => { r = (r + 0x6D2B79F5) >>> 0; let x = Math.imul(r ^ (r >>> 15), 1 | r);
     x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; } }
 
-// --- место в океане: сервер с ограничением зрителей (не больше 30 одновременно) выдаёт место через /api/join.
-// Пока мест нет — «слишком много людей, подождите», пробуем снова раз в 15 с (модели и звуки до этого не качаются).
-// Сервер без мест отвечает 404 — тогда просто входим. Статическая сборка (GitHub Pages, APK: метка abyssonata-site от
-// build_site.py) мест не спрашивает
-if (document.querySelector('meta[name="abyssonata-site"]')?.content !== 'static' && !location.hostname.endsWith('.github.io')) {
-  const gateP = document.querySelector('#gate-card p'), btn = document.querySelector('#gate-btn');
-  const join = async () => {
-    try {   // не дольше 5 с (AbortController — есть и в старом Safari)
-      const ac = new AbortController(), to = setTimeout(() => ac.abort(), 5000);
-      const r = await fetch('/api/join', { method: 'POST', signal: ac.signal }); clearTimeout(to);
-      return r.ok ? await r.json() : { ok: true, local: true };
-    }
-    catch { return { ok: true, local: true }; }
-  };
-  let j = await join();
-  if (j.ok === false) {
-    window.__abyssonataReady = true;   // код работает, просто очередь — запасное сообщение не нужно
-    const txt = gateP.textContent; btn.style.display = 'none';
-    while (j.ok === false) {
-      gateP.textContent = `Сейчас в океане слишком много людей (${j.count} из ${j.limit}). Подождите — страница зайдёт сама, как только освободится место.`;
-      await new Promise(r => setTimeout(r, 15000)); j = await join();
-    }
-    gateP.textContent = txt; btn.style.display = '';
-  }
-  if (!j.local) {   // держим место, пока страница открыта; уходим — освобождаем
-    setInterval(() => fetch('/api/ping', { method: 'POST' }).catch(() => {}), 25000);
-    addEventListener('pagehide', () => navigator.sendBeacon('/api/leave'));
-  }
-}
-
 const stage = document.querySelector('#stage');
 // «Лёгкое» качество — с самого начала (мало памяти, прошлый вход не дошёл до мира, выбрано в настройках), см. boot.js
 const visual = new Visual(stage, { lite: startLite });
